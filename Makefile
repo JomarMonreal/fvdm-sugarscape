@@ -69,11 +69,14 @@ endif
 test:
 	cd tests && $(PYTHON) $(TEST) --conf ../$(CONFIG)
 
+SEEDS_DEMO ?= 10
+SEEDS_MAIN ?= 500
+
 demo-horizon:
-	$(PYTHON) horizon_calibration.py --demo
+	$(PYTHON) horizon_calibration.py --demo --seeds $(SEEDS_DEMO)
 
 main-horizon:
-	$(PYTHON) horizon_calibration.py --baseline
+	$(PYTHON) horizon_calibration.py --baseline --seeds $(SEEDS_MAIN)
 
 .PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon
 # vim: set noexpandtab tabstop=4:

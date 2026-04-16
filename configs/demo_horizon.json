@@ -1,32 +1,41 @@
 {
-    "timesteps": 5000,
+    "timesteps": 250,
     "startingAgents": 250,
     "headlessMode": false,
     "interfaceHeight": 1000,
     "interfaceWidth": 900,
+    "agentSugarMetabolism": [
+        1,
+        4
+    ],
+    "agentSpiceMetabolism": [
+        1,
+        4
+    ],
     "agentVision": [
         1,
         15
     ],
     "agentMovement": [
         1,
-        6
+        10
     ],
-    "agentStartingSugar": [
-        50,
-        100
-    ],
-    "agentStartingSpice": [
-        50,
-        100
-    ],
-    "agentSugarMetabolism": [
-        1,
+    "agentAggressionFactor": [
+        0,
         2
     ],
-    "agentSpiceMetabolism": [
-        1,
-        2
+    "agentTradeFactor": [
+        0.5,
+        2.0
+    ],
+    "agentLendingFactor": [
+        0.5,
+        2.0
+    ],
+    "agentDecisionModels": [
+        "bentham",
+        "egoist",
+        "altruist"
     ],
     "environmentHeight": 50,
     "environmentWidth": 50,
@@ -35,5 +44,5 @@
     "environmentSugarRegrowRate": 1,
     "environmentSpiceRegrowRate": 1,
     "environmentWraparound": true,
-    "seed": 42
+    "seed": 67
 }
