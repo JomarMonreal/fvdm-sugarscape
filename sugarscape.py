@@ -68,7 +68,11 @@ class Sugarscape:
         self.configureDepression()
         self.configureAgents(configuration["startingAgents"])
         self.configureDiseases(configuration["startingDiseases"], configuration["diseaseList"])
-        self.gui = gui.GUI(self, self.configuration["interfaceHeight"], self.configuration["interfaceWidth"]) if configuration["headlessMode"] == False else None
+        if configuration["headlessMode"] == False:
+            import gui
+            self.gui = gui.GUI(self, self.configuration["interfaceHeight"], self.configuration["interfaceWidth"])
+        else:
+            self.gui = None
         self.run = False # Simulation start flag
         self.end = False # Simulation end flag
         # TODO: Remove redundant metrics

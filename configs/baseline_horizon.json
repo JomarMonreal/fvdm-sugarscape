@@ -1,0 +1,55 @@
+{
+    "timesteps": 5000,
+    "startingAgents": 250,
+    "startingDiseases": 50,
+    "environmentMaxTribes": 3,
+    "agentTagging": true,
+    "agentTradeFactor": [
+        1,
+        1
+    ],
+    "agentLendingFactor": [
+        1,
+        1
+    ],
+    "agentInheritancePolicy": "children",
+    "agentAggressionFactor": [
+        1,
+        1
+    ],
+    "headlessMode": true,
+    "environmentSeasonInterval": 0,
+    "environmentPollutionDiffusionDelay": 0,
+    "agentVision": [
+        1,
+        6
+    ],
+    "agentMovement": [
+        1,
+        6
+    ],
+    "agentStartingSugar": [
+        10,
+        40
+    ],
+    "agentStartingSpice": [
+        10,
+        40
+    ],
+    "agentSugarMetabolism": [
+        1,
+        4
+    ],
+    "agentSpiceMetabolism": [
+        1,
+        4
+    ],
+    "environmentHeight": 50,
+    "environmentWidth": 50,
+    "environmentMaxSugar": 4,
+    "environmentMaxSpice": 4,
+    "environmentSugarRegrowRate": 1,
+    "environmentSpiceRegrowRate": 1,
+    "environmentWraparound": true,
+    "seed": 42
+}

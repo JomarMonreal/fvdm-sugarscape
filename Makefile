@@ -26,7 +26,7 @@ CLEAN = $(DATASET) \
 		$(TESTS)
 
 # Change to python3 (or other alias) if needed
-PYTHON = python
+PYTHON = python3
 SUGARSCAPE = sugarscape.py
 
 # Check for local Python aliases
@@ -69,11 +69,11 @@ endif
 test:
 	cd tests && $(PYTHON) $(TEST) --conf ../$(CONFIG)
 
-clean:
-	rm -rf $(CLEAN) || true
+demo-horizon:
+	$(PYTHON) horizon_calibration.py --demo
 
-lean:
-	rm -rf $(PLOTS) || true
+main-horizon:
+	$(PYTHON) horizon_calibration.py --baseline
 
-.PHONY: all clean data lean plots run seeds setup test
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon
 # vim: set noexpandtab tabstop=4:

@@ -34,18 +34,31 @@ class LocalState:
             self.nearStrongDist, self.nearWeakDist
         ]
 
-class FelicificVector:
-    def __init__(self, values):
+class FelicificEffectVector:
+    def __init__(self, intensity, duration, certainty, propinquity, extent):
         """
-        Values should be a list or dictionary of metrics.
-        e.g., [delta_wealth, delta_ttl, delta_social]
+        Represents a position in the five-dimensional felicific effect space.
+        Bounds: I in [-1,1], D,C,P in [0,1], X in [-1,1]
         """
-        self.values = values
+        self.intensity = max(-1.0, min(1.0, float(intensity)))
+        self.duration = max(0.0, min(1.0, float(duration)))
+        self.certainty = max(0.0, min(1.0, float(certainty)))
+        self.propinquity = max(0.0, min(1.0, float(propinquity)))
+        self.extent = max(-1.0, min(1.0, float(extent)))
+        
+        self.values = [self.intensity, self.duration, self.certainty, self.propinquity, self.extent]
 
     def distance_to(self, other, metric="euclidean"):
         if metric == "euclidean":
             return math.sqrt(sum((a - b) ** 2 for a, b in zip(self.values, other.values)))
         return 0
+
+    def to_list(self):
+        return self.values
+
+    def __repr__(self):
+        return (f"FelicificEffectVector(I={self.intensity:.2f}, D={self.duration:.2f}, "
+                f"C={self.certainty:.2f}, P={self.propinquity:.2f}, X={self.extent:.2f})")
 
 class FVDMDecisionModel:
     def __init__(self, prioritization_vector):
@@ -104,10 +117,11 @@ class FVDMDecisionModel:
 
     def predict_effects(self, agent, state, action):
         """
-        Predicts the FelicificVector for a given action.
+        Predicts the FelicificEffectVector for a given action.
+        Currently returns a placeholder zero-vector.
         """
         # Placeholder logic for effect prediction
-        return FelicificVector([0, 0, 0])
+        return FelicificEffectVector(0, 0, 0, 0, 0)
 
     def select_best_action(self, agent):
         state = agent.get_fvdm_local_state()
