@@ -1,0 +1,9 @@
+{
+    "timesteps": 500,
+    "startingAgents": 250,
+    "headlessMode": true,
+    "agentAggressionFactor": [2.0, 2.0],
+    "environmentMaxCombatLoot": 5,
+    "agentDecisionModels": ["bentham"],
+    "seed": 42
+}

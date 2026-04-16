@@ -419,10 +419,13 @@ class Agent:
                 self.spice -= spiceInheritance
 
     def doLending(self):
+        # Update existing loans first
         self.updateLoans()
         # If not a lender, skip lending
         if self.isLender() == False:
             return
+            
+        self._emit_fvdm_event("CREDIT")
         # Maximum interest rate of 100%
         interestRate = min(1, self.lendingFactor * self.baseInterestRate)
         neighbors = self.cell.findNeighborAgents()
@@ -491,6 +494,8 @@ class Agent:
         # Agent marked for removal or not interested in reproduction should not reproduce
         if self.isAlive() == False or self.isFertile() == False:
             return
+            
+        self._emit_fvdm_event("MATE")
         neighborCells = list(self.cell.neighbors.values())
         random.shuffle(neighborCells)
         emptyCells = self.findEmptyNeighborCells()
@@ -544,7 +549,12 @@ class Agent:
         self.lastMates = len(mates)
 
     def doTagging(self):
-        if self.tags == None or self.isAlive() == False or self.tagging == False:
+        # If not a tagger, skip tagging
+        if self.tagging == False:
+            return
+            
+        self._emit_fvdm_event("TAGGING")
+        if self.tags == None or self.isAlive() == False:
             return
         neighborCells = list(self.cell.neighbors.values())
         random.shuffle(neighborCells)
@@ -589,8 +599,10 @@ class Agent:
 
     def doTrading(self):
         # If not a trader, skip trading
-        if self.tradeFactor == 0:
+        if self.tradeFactor <= 0:
             return
+        
+        self._emit_fvdm_event("TRADE")
         self.tradeVolume = 0
         self.sugarPrice = 0
         self.spicePrice = 0
@@ -1219,9 +1231,14 @@ class Agent:
         bestCell = self.findBestCell()
         if "all" in self.debug or "agent" in self.debug:
             print(f"Agent {self.ID} moving to ({bestCell.x},{bestCell.y})")
-        if self.findAggression() > 0:
+        
+        if bestCell == self.cell:
+            self._emit_fvdm_event("STAY")
+        elif self.findAggression() > 0:
+            self._emit_fvdm_event("COMBAT")
             self.doCombat(bestCell)
         else:
+            self._emit_fvdm_event("MOVE")
             self.gotoCell(bestCell)
 
     def payDebt(self, loan):
@@ -1616,3 +1633,22 @@ class Agent:
             emptyCellsCount, nearAgentCount,
             nearStrongDist, nearWeakDist
         )
+    def _emit_fvdm_event(self, action_type):
+        sugarscape = self.cell.environment.sugarscape
+        if not sugarscape.fvdm_observation_active:
+            return
+            
+        event = {
+            "agent_id": self.ID,
+            "t_emit": sugarscape.timestep,
+            "action": action_type,
+            "s_i": self.get_fvdm_local_state().to_vector(),
+            "w_ind_0": self.sugar + self.spice,
+            "w_pop_0": sugarscape.runtimeStats.get("meanWealth", 0),
+            "H": sugarscape.fvdm_H,
+            "w_ind_1": None,
+            "w_pop_1": None,
+            "w_ind_H": None,
+            "w_pop_H": None
+        }
+        sugarscape.fvdm_event_log.append(event)

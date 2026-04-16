@@ -1,0 +1,10 @@
+{
+    "timesteps": 500,
+    "startingAgents": 250,
+    "headlessMode": true,
+    "agentTagging": true,
+    "agentTagStringLength": 5,
+    "environmentMaxTribes": 5,
+    "agentDecisionModels": ["bentham"],
+    "seed": 42
+}
