@@ -1,0 +1,22 @@
+{
+    "timesteps": 500,
+    "startingAgents": 250,
+    "headlessMode": true,
+    "agentDecisionModels": ["egoist"],
+    "agentDecisionModelFactor": 1.0,
+    "agentVision": [1, 15],
+    "agentMovement": [1, 10],
+    "agentSugarMetabolism": [1, 4],
+    "agentSpiceMetabolism": [1, 4],
+    "agentAggressionFactor": [0, 2],
+    "agentTradeFactor": [0.5, 2.0],
+    "agentLendingFactor": [0.5, 2.0],
+    "environmentHeight": 50,
+    "environmentWidth": 50,
+    "environmentMaxSugar": 4,
+    "environmentMaxSpice": 4,
+    "environmentSugarRegrowRate": 1,
+    "environmentSpiceRegrowRate": 1,
+    "environmentWraparound": true,
+    "seed": 42
+}
