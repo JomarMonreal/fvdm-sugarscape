@@ -4,148 +4,173 @@ import statistics
 import math
 import random
 import os
+import multiprocessing
+from functools import partial
 
-def run_calibration(config_path, output_path="horizon.json", demo=False):
+def worker(seed, conf, pilot_steps, burn_in_steps, sample_interval):
+    # Setup local config for this seed
+    local_conf = conf.copy()
+    local_conf["seed"] = seed
+    # Headless is handled in run_calibration for the batch/single case
+    
+    s = sugarscape.Sugarscape(local_conf)
+    
+    r_i_samples = []
+    wealth_history = {} # agent_id -> {t: wealth}
+    alive_agents = set()
+    
+    for t in range(pilot_steps):
+        s.doTimestep()
+        
+        # Burn-in logic
+        if t < burn_in_steps:
+            continue
+            
+        current_agents = {a.ID: a for a in s.agents}
+        
+        for agent_id, agent in current_agents.items():
+            # TTL/Ri sampling
+            if t % sample_interval == 0:
+                # Using TTL as requested by user
+                ttl = agent.findTimeToLive(ageLimited=True)
+                r_i_samples.append(ttl)
+                
+            # Wealth history
+            wealth = agent.sugar + agent.spice
+            if agent_id not in wealth_history:
+                wealth_history[agent_id] = {}
+            wealth_history[agent_id][t] = wealth
+            alive_agents.add(agent_id)
+
+    # Calculate local delta sums for a range of H to avoid returning massive history objects
+    # range 1 to 150 is usually sufficient for Sugarscape
+    max_h = 150
+    h_stats = {h: [0.0, 0] for h in range(1, max_h + 1)} # {h: [sum_abs_delta, count]}
+    
+    for agent_id, history in wealth_history.items():
+        ts = sorted(history.keys())
+        for start_t in ts:
+            for h in range(1, max_h + 1):
+                end_t = start_t + h
+                if end_t in history:
+                    h_stats[h][0] += abs(history[end_t] - history[start_t])
+                    h_stats[h][1] += 1
+                    
+    return r_i_samples, h_stats
+
+def run_calibration(config_path, output_path="horizon.json", demo=False, num_seeds=1):
     print(f"Loading configuration from {config_path}...")
-    # 0. Load defaults from global config.json if available
     conf = {}
     if os.path.exists("config.json"):
         with open("config.json", 'r') as f:
             try:
                 data = json.load(f)
                 conf = data.get("sugarscapeOptions", {})
-            except:
-                pass
+            except: pass
 
-    # Load user's overrides for the specific derivation run
     with open(config_path, 'r') as f:
         overrides = json.load(f)
         conf.update(overrides)
     
-    # Show active overrides for transparency
     print("------- Active Configuration Overrides -------")
     for key, value in sorted(overrides.items()):
         print(f"  {key}: {value}")
+    print(f"  Batch Run: {num_seeds} seeds")
     print("----------------------------------------------")
 
-    # 1. Pilot Run: Collect TTL distribution
-    print("Running pilot simulation to collect Time-To-Live (TTL) ratios...")
-    # Respect headlessMode from overrides, default to True for calibration stability
-    if "headlessMode" not in overrides:
-        conf["headlessMode"] = True
-    # Optimization: Use targeted step counts for calibration
     pilot_steps = 300 if demo else 500
     burn_in_steps = 20 if demo else 50
     sample_interval = 2 if demo else 5
     
-    # Ensure seed is set for matched random runs
-    if "seed" not in conf or conf["seed"] == -1:
-        conf["seed"] = 42
+    base_seed = conf.get("seed", 42)
+    if base_seed == -1: base_seed = random.randint(0, 1000000)
+    seeds = [base_seed + i for i in range(num_seeds)]
 
-    s = sugarscape.Sugarscape(conf)
-    r_i_samples = []
+    print(f"Running {num_seeds} parallel simulations...")
     
-    # We will also track wealth history for all agents to calculate mu(H) in one pass
-    # wealth_history[agent_id] = {timestep: wealth}
-    wealth_history = {}
+    # Use ProcessPool to run simulations
+    # num_workers = num_seeds if num_seeds < multiprocessing.cpu_count() else multiprocessing.cpu_count()
+    # Safely conservative number of workers
+    cpu_count = multiprocessing.cpu_count()
+    num_workers = min(num_seeds, max(1, cpu_count - 1))
     
-    # Track which agents are alive at each step
-    alive_agents = set()
-
-    for t in range(pilot_steps):
-        s.doTimestep()
-        
-        # Periodic sampling and burn-in check
-        if t < burn_in_steps:
-            continue
-            
-        if t % 50 == 0:
-            print(f"Step {t}: {len(s.agents)} agents alive.")
-
-        # Current living agents
-        current_agents = {a.ID: a for a in s.agents}
-        
-        for agent_id, agent in current_agents.items():
-            # TTL calculation: Sample periodically for candidate selection
-            if t % sample_interval == 0:
-                ttl = agent.findTimeToLive(ageLimited=True)
-                r_i_samples.append(ttl)
+    pool = multiprocessing.Pool(processes=num_workers)
+    func = partial(worker, conf=conf, pilot_steps=pilot_steps, burn_in_steps=burn_in_steps, sample_interval=sample_interval)
+    
+    all_r_i = []
+    global_h_stats = {h: [0.0, 0] for h in range(1, 151)}
+    
+    try:
+        if num_seeds > 1:
+            # Parallel batch run: must be headless
+            results_iter = pool.imap_unordered(func, seeds)
+            for i, (r_i, h_stats) in enumerate(results_iter):
+                all_r_i.extend(r_i)
+                for h in h_stats:
+                    global_h_stats[h][0] += h_stats[h][0]
+                    global_h_stats[h][1] += h_stats[h][1]
                 
-            # Wealth history tracking: Record EVERY step to ensure delta calculation works
-            wealth = agent.sugar + agent.spice
-            if agent_id not in wealth_history:
-                wealth_history[agent_id] = {}
-            wealth_history[agent_id][t] = wealth
-            alive_agents.add(agent_id)
-        
-        # For agents who died this step, mark their wealth as 0 for future steps in the window
-        # (Though we'll only check deltas for agents that were alive at start of H)
-        for agent_id in list(alive_agents):
-            if agent_id not in current_agents and t not in wealth_history[agent_id]:
-                # Agent just died
-                wealth_history[agent_id][t] = 0
+                if (i + 1) % 10 == 0:
+                    print(f"Progress: {i + 1}/{num_seeds} seeds completed...")
+        else:
+            # Single seed run: allow GUI if config says so
+            # We run in the main process to ensure Tkinter stability
+            r_i, h_stats = worker(seeds[0], conf, pilot_steps, burn_in_steps, sample_interval)
+            all_r_i.extend(r_i)
+            for h in h_stats:
+                global_h_stats[h][0] += h_stats[h][0]
+                global_h_stats[h][1] += h_stats[h][1]
+    finally:
+        pool.close()
+        pool.join()
 
-    if not r_i_samples:
-        print("Error: No Ri samples collected. Simulation might have ended early or agents have no metabolism.")
+    if not all_r_i:
+        print("Error: No samples collected.")
         return
 
-    # 2. Candidate Selection (Q1, Median, Q3)
-    r_i_samples.sort()
-    n = len(r_i_samples)
-    h_q1 = int(r_i_samples[int(n * 0.25)])
-    h_med = int(r_i_samples[int(n * 0.50)])
-    h_q3 = int(r_i_samples[int(n * 0.75)])
+    # 2. Global Candidate Selection
+    all_r_i.sort()
+    n = len(all_r_i)
+    h_q1 = int(all_r_i[int(n * 0.25)])
+    h_med = int(all_r_i[int(n * 0.50)])
+    h_q3 = int(all_r_i[int(n * 0.75)])
     
-    # Ensure candidates are unique, at least 1, and ordered
     candidates = sorted(list(set([max(1, h_q1), max(2, h_med), max(3, h_q3)])))
-    print(f"Candidate horizons (Ri quantiles): {candidates}")
+    print(f"Global candidates (TTL quantiles): {candidates}")
     
-    # 3. Calculate mu(H) for each candidate
-    # mu(H) = E[|W(t+H) - W(t)|]
+    # 3. Global mu(H) calculation
     mu_values = {}
     h_max = max(candidates)
     
     for h in candidates:
-        abs_deltas = []
-        for agent_id, history in wealth_history.items():
-            timesteps = sorted(history.keys())
-            for start_t in timesteps:
-                end_t = start_t + h
-                if end_t in history:
-                    # Agent was alive at start_t, and we have data for end_t (even if 0 due to death)
-                    delta = abs(history[end_t] - history[start_t])
-                    abs_deltas.append(delta)
-        
-        if abs_deltas:
-            mu_values[h] = statistics.mean(abs_deltas)
-        else:
-            mu_values[h] = 0
+        s, c = global_h_stats[h]
+        mu_values[h] = s / c if c > 0 else 0
             
-    print(f"Mean Wealth Effects (mu(H)): {mu_values}")
+    print(f"Global Mean Wealth Effects (mu(H)): {mu_values}")
     
-    # 4. Selection of H* (Smallest H where mu(H) / mu(H_max) >= 0.90)
+    # 4. Selection of H*
     h_star = h_max
     mu_max = mu_values[h_max]
-    
     if mu_max > 0:
         for h in candidates:
             if mu_values[h] / mu_max >= 0.90:
                 h_star = h
                 break
     
-    print(f"Selected Evaluation Horizon (H*): {h_star}")
+    print(f"Selected Global Evaluation Horizon (H*): {h_star}")
     
-    # 5. Save result to JSON
+    # 5. Save
     result = {
         "H_star": h_star,
+        "num_seeds": num_seeds,
         "candidates": candidates,
         "mu_values": {str(k): v for k, v in mu_values.items()},
         "ttl_summary": {
-            "min": round(min(r_i_samples), 2),
+            "min": round(min(all_r_i), 2),
             "q1": h_q1,
             "median": h_med,
             "q3": h_q3,
-            "max": round(max(r_i_samples), 2)
+            "max": round(max(all_r_i), 2)
         }
     }
     
@@ -155,7 +180,13 @@ def run_calibration(config_path, output_path="horizon.json", demo=False):
 
 if __name__ == "__main__":
     import sys
-    # Default to demo if no args or if --demo passed
-    is_demo = "--demo" in sys.argv or len(sys.argv) == 1
+    is_demo = "--demo" in sys.argv
+    # Find --seeds value
+    num_seeds = 1
+    for i, arg in enumerate(sys.argv):
+        if arg == "--seeds" and i + 1 < len(sys.argv):
+            num_seeds = int(sys.argv[i+1])
+            break
+            
     config = "configs/demo_horizon.json" if is_demo else "configs/baseline_horizon.json"
-    run_calibration(config, demo=is_demo)
+    run_calibration(config, demo=is_demo, num_seeds=num_seeds)

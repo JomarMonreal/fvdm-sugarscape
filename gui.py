@@ -47,7 +47,7 @@ class GUI:
         self.yTicks = 2
         self.lastSelectedAgentColor = None
         self.lastSelectedEnvironmentColor = None
-        self.activeColorOptions = {"agent": None, "environment": None}
+        self.activeColorOptions = {"agent": "Decision Models", "environment": None}
         self.highlightedAgent = None
         self.highlightedCell = None
         self.highlightRectangle = None
@@ -115,8 +115,8 @@ class GUI:
         agentColorNames.insert(0, "Default")
         self.lastSelectedAgentColor = tkinter.StringVar(window)
 
-        # Use first item as default name
-        self.lastSelectedAgentColor.set(agentColorNames[0])
+        # Use Decision Models as default
+        self.lastSelectedAgentColor.set("Decision Models")
         for name in agentColorNames:
             agentColorMenu.add_checkbutton(label=name, onvalue=name, offvalue=name, variable=self.lastSelectedAgentColor, command=self.doAgentColorMenu, indicatoron=True)
         agentColorButton.grid(row=0, column=4, sticky="nsew")
