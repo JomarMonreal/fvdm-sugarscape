@@ -62,6 +62,12 @@ class Sugarscape:
         self.diseases = []
         self.remainingDiseases = []
         self.replacedAgents = []
+        
+        # FVDM Derivation support
+        self.fvdm_observation_active = False
+        self.fvdm_event_log = [] # List of pending events
+        self.fvdm_dataset = []   # List of resolved observations
+        self.fvdm_H = 1          # Placeholder, set by derivation script
 
         self.activeQuadrants = self.findActiveQuadrants()
         self.agentRuntimeStats = []
@@ -384,6 +390,10 @@ class Sugarscape:
             if self.gui != None:
                 self.updateGraphStats()
                 self.gui.doTimestep()
+            
+            # FVDM Deferred Resolution
+            if self.fvdm_observation_active or len(self.fvdm_event_log) > 0:
+                self.resolve_fvdm_events()
             # If final timestep, do not write to log to cleanly close JSON array log structure
             if self.timestep != self.maxTimestep and len(self.agents) > 0:
                 self.writeToLog(self.log)
@@ -1327,6 +1337,47 @@ class Sugarscape:
 
         for key in runtimeStats.keys():
             self.runtimeStats[key] = runtimeStats[key]
+
+    def resolve_fvdm_events(self):
+        current_t = self.timestep
+        resolved_indices = []
+        
+        # We need a quick way to find an agent (living or dead)
+        # Actually, agents in fvdm_event_log might be dead.
+        agent_lookup = {a.ID: a for a in self.agents}
+        dead_lookup = {a.ID: a for a in self.deadAgents}
+        
+        for i, event in enumerate(self.fvdm_event_log):
+            agent_id = event["agent_id"]
+            t_emit = event["t_emit"]
+            H = event["H"]
+            
+            # 1. Resolve Immediate (t+1)
+            if current_t == t_emit + 1:
+                target = agent_lookup.get(agent_id, dead_lookup.get(agent_id))
+                if target:
+                    # If dead, wealth is effectively 0 for the purpose of the delta
+                    event["w_ind_1"] = (target.sugar + target.spice) if target.alive else 0
+                else:
+                    event["w_ind_1"] = 0
+                event["w_pop_1"] = self.runtimeStats["meanWealth"]
+                
+            # 2. Resolve Future (t+H)
+            if current_t == t_emit + H:
+                target = agent_lookup.get(agent_id, dead_lookup.get(agent_id))
+                if target:
+                    event["w_ind_H"] = (target.sugar + target.spice) if target.alive else 0
+                else:
+                    event["w_ind_H"] = 0
+                event["w_pop_H"] = self.runtimeStats["meanWealth"]
+                
+                # Full resolution complete
+                self.fvdm_dataset.append(event)
+                resolved_indices.append(i)
+                
+        # Remove resolved events from the pending log (backwards to maintain indices)
+        for i in sorted(resolved_indices, reverse=True):
+            self.fvdm_event_log.pop(i)
 
     def writeToLog(self, log):
         if log == None:

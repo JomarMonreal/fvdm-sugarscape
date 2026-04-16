@@ -1,0 +1,11 @@
+{
+    "timesteps": 500,
+    "startingAgents": 250,
+    "headlessMode": true,
+    "agentFemaleFertilityAge": [10, 15],
+    "agentMaleFertilityAge": [10, 15],
+    "agentFertilityFactor": [2.0, 2.0],
+    "agentMaxAge": [-1, -1],
+    "agentDecisionModels": ["bentham"],
+    "seed": 42
+}

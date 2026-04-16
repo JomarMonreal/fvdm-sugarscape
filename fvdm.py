@@ -1,4 +1,6 @@
 import math
+import os
+import json
 from enum import Enum, auto
 
 class ActionType(Enum):
@@ -61,8 +63,55 @@ class FelicificEffectVector:
                 f"C={self.certainty:.2f}, P={self.propinquity:.2f}, X={self.extent:.2f})")
 
 class FVDMDecisionModel:
-    def __init__(self, prioritization_vector):
+    def __init__(self, prioritization_vector, coordinate_store=None):
         self.prioritization_vector = prioritization_vector
+        self.coordinate_store = coordinate_store or FelicificCoordinateStore()
+
+class FelicificCoordinateStore:
+    def __init__(self):
+        self.dataset = []
+
+    def load(self, path="results/felicific_dataset.jsonl"):
+        """Loads the empirical derivation dataset."""
+        if not os.path.exists(path):
+            return
+        with open(path, 'r') as f:
+            for line in f:
+                try:
+                    self.dataset.append(json.loads(line))
+                except: continue
+
+    def predict(self, action, state, k=5):
+        """Predicts the FelicificEffectVector using k-nearest-neighbors on the derivation data."""
+        # Filter by action type string (Enum.name)
+        candidates = [d for d in self.dataset if d["action"] == action.name]
+        if not candidates:
+            return FelicificEffectVector(0, 0, 0, 0, 0)
+
+        # Calculate Euclidean distance to each observation's state vector
+        target_vec = state.to_vector()
+        scored = []
+        for d in candidates:
+            dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(target_vec, d["s_i"])))
+            scored.append((dist, d))
+
+        # Sort by distance and average top k results
+        scored.sort(key=lambda x: x[0])
+        neighbors = scored[:k]
+        
+        if not neighbors:
+             return FelicificEffectVector(0, 0, 0, 0, 0)
+             
+        n = len(neighbors)
+        avg_i = sum(node[1]["I"] for node in neighbors) / n
+        avg_d = sum(node[1]["D"] for node in neighbors) / n
+        avg_c = sum(node[1].get("C", 0.8) for node in neighbors) / n
+        avg_p = sum(node[1]["P"] for node in neighbors) / n
+        avg_x = sum(node[1]["X"] for node in neighbors) / n
+        
+        return FelicificEffectVector(avg_i, avg_d, avg_c, avg_p, avg_x)
+
+class FVDMDecisionModel:
 
     def determine_feasible_actions(self, agent, state):
         """
@@ -117,11 +166,10 @@ class FVDMDecisionModel:
 
     def predict_effects(self, agent, state, action):
         """
-        Predicts the FelicificEffectVector for a given action.
-        Currently returns a placeholder zero-vector.
+        Predicts the FelicificEffectVector for a given action using the 
+        Coordinate Function Store.
         """
-        # Placeholder logic for effect prediction
-        return FelicificEffectVector(0, 0, 0, 0, 0)
+        return self.coordinate_store.predict(action, state)
 
     def select_best_action(self, agent):
         state = agent.get_fvdm_local_state()

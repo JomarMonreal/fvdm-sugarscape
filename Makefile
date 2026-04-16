@@ -78,5 +78,11 @@ demo-horizon:
 main-horizon:
 	$(PYTHON) horizon_calibration.py --baseline --seeds $(SEEDS_MAIN)
 
-.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon
+demo-derive:
+	$(PYTHON) felicific_derivation.py --demo --seeds 5
+
+derive-felicific:
+	$(PYTHON) felicific_derivation.py --seeds 20
+
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive derive-felicific
 # vim: set noexpandtab tabstop=4:

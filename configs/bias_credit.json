@@ -1,0 +1,11 @@
+{
+    "timesteps": 500,
+    "startingAgents": 250,
+    "headlessMode": true,
+    "agentLendingFactor": [2.0, 2.0],
+    "agentBaseInterestRate": [0.10, 0.20],
+    "agentStartingSugar": [50, 100],
+    "agentStartingSpice": [50, 100],
+    "agentDecisionModels": ["bentham"],
+    "seed": 42
+}

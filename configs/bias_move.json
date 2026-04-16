@@ -1,0 +1,11 @@
+{
+    "timesteps": 500,
+    "startingAgents": 250,
+    "headlessMode": true,
+    "agentVision": [10, 15],
+    "agentMovement": [6, 10],
+    "agentSugarMetabolism": [1, 1],
+    "agentSpiceMetabolism": [1, 1],
+    "agentDecisionModels": ["bentham"],
+    "seed": 42
+}
