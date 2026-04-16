@@ -98,8 +98,9 @@ class FelicificCoordinateStore:
             mean = np.array(model["scaler"]["mean"])
             std = np.array(model["scaler"]["std"])
             
-            # Scale input for this specific model
-            x_scaled = (x - mean) / std
+            # Scale input for this specific model, replacing 0s with 1s to prevent division by zero
+            safe_std = np.where(std == 0, 1.0, std)
+            x_scaled = (x - mean) / safe_std
             # Add intercept term
             x_design = np.insert(x_scaled, 0, 1.0)
             
@@ -114,7 +115,8 @@ class FelicificCoordinateStore:
         mean_i = np.array(model_i["scaler"]["mean"])
         std_i = np.array(model_i["scaler"]["std"])
         
-        x_scaled_i = (x - mean_i) / std_i
+        safe_std_i = np.where(std_i == 0, 1.0, std_i)
+        x_scaled_i = (x - mean_i) / safe_std_i
         x_design_i = np.insert(x_scaled_i, 0, 1.0)
         
         # Pred Var = sigma^2 * (1 + x^T * (X^T X)^-1 * x)
@@ -207,3 +209,35 @@ class FVDMDecisionModel:
                 best_action = action
                 
         return best_action
+
+class PrioritizationVectorStore:
+    def __init__(self, filename="results/prioritization_vectors.json"):
+        self.filename = filename
+        self.vectors = {}
+        
+    def load(self):
+        if not os.path.exists(self.filename):
+            print(f"Warning: {self.filename} not found. Using default vectors.")
+            self.vectors = {
+                "selfish": [1.0, 0.2, 0.8, 1.0, 0.0],
+                "altruist": [0.5, 0.5, 0.8, 0.2, 1.0],
+                "utilitarian": [0.8, 0.8, 0.8, 0.8, 0.5]
+            }
+            return
+            
+        with open(self.filename, 'r') as f:
+            data = json.load(f)
+            # Convert lists to FelicificEffectVector objects
+            for condition, values in data.items():
+                self.vectors[condition] = FelicificEffectVector(*values)
+        print(f"Loaded {len(self.vectors)} prioritization vectors from {self.filename}")
+
+    def get_vector(self, condition):
+        # Map condition names to the keys in the JSON
+        mapping = {
+            "Egoist": "selfish",
+            "Altruist": "altruist",
+            "Benthamite": "utilitarian"
+        }
+        key = mapping.get(condition, "utilitarian")
+        return self.vectors.get(key, FelicificEffectVector(0.8, 0.8, 0.8, 0.8, 0.5))

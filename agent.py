@@ -62,13 +62,8 @@ class Agent:
         self.fvdm_model = None
         if self.decisionModelFactor > 0:
             # Configure prioritization vector based on ethical stance
-            prioritization = fvdm.FelicificEffectVector(0,0,0,0,0) # Default
-            if self.decisionModel == "Altruist":
-                prioritization = fvdm.FelicificEffectVector(0.5, 0.5, 0.8, 0.2, 1.0) # High Extent (X)
-            elif self.decisionModel == "Egoist":
-                prioritization = fvdm.FelicificEffectVector(1.0, 0.2, 0.8, 1.0, 0.0) # High Intensity (I) & Propinquity (P)
-            elif self.decisionModel == "Benthamite":
-                prioritization = fvdm.FelicificEffectVector(0.8, 0.8, 0.8, 0.8, 0.5) # Balanced
+            # Configure prioritization vector based on empirically derived ethical stance
+            prioritization = self.cell.environment.sugarscape.fvdm_prioritization_store.get_vector(self.decisionModel)
             
             self.fvdm_model = fvdm.FVDMDecisionModel(
                 prioritization, 
@@ -443,6 +438,7 @@ class Agent:
         if self.isLender() == False:
             return
             
+        self._emit_prioritization_event("CREDIT")
         self._emit_fvdm_event("CREDIT")
         # Maximum interest rate of 100%
         interestRate = min(1, self.lendingFactor * self.baseInterestRate)
@@ -513,6 +509,7 @@ class Agent:
         if self.isAlive() == False or self.isFertile() == False:
             return
             
+        self._emit_prioritization_event("MATE")
         self._emit_fvdm_event("MATE")
         neighborCells = list(self.cell.neighbors.values())
         random.shuffle(neighborCells)
@@ -571,6 +568,7 @@ class Agent:
         if self.tagging == False:
             return
             
+        self._emit_prioritization_event("TAGGING")
         self._emit_fvdm_event("TAGGING")
         if self.tags == None or self.isAlive() == False:
             return
@@ -620,6 +618,7 @@ class Agent:
         if self.tradeFactor <= 0:
             return
         
+        self._emit_prioritization_event("TRADE")
         self._emit_fvdm_event("TRADE")
         self.tradeVolume = 0
         self.sugarPrice = 0
@@ -1020,12 +1019,12 @@ class Agent:
 
     def findNearestHammingDistanceInDisease(self, disease):
         if self.immuneSystem == None or disease.tags == None:
-            return 0
+            return {"distance": 0, "start": 0, "end": 0}
         diseaseTags = disease.tags
         diseaseLength = len(diseaseTags)
         bestHammingDistance = diseaseLength
         bestRange = [0, diseaseLength - 1]
-        for i in range(len(self.immuneSystem) - diseaseLength):
+        for i in range(len(self.immuneSystem) - diseaseLength + 1):
             hammingDistance = 0
             for j in range(diseaseLength):
                 if self.immuneSystem[i + j] != diseaseTags[j]:
@@ -1278,11 +1277,14 @@ class Agent:
             print(f"Agent {self.ID} moving to ({bestCell.x},{bestCell.y})")
         
         if bestCell == self.cell:
+            self._emit_prioritization_event("STAY")
             self._emit_fvdm_event("STAY")
         elif self.findAggression() > 0:
+            self._emit_prioritization_event("COMBAT")
             self._emit_fvdm_event("COMBAT")
             self.doCombat(bestCell)
         else:
+            self._emit_prioritization_event("MOVE")
             self._emit_fvdm_event("MOVE")
             self.gotoCell(bestCell)
 
@@ -1697,3 +1699,19 @@ class Agent:
             "w_pop_H": None
         }
         sugarscape.fvdm_event_log.append(event)
+
+    def _emit_prioritization_event(self, action_type):
+        """Passive observation hook for the prioritization vector derivation phase.
+        Records the agent's condition, chosen action, and local state. Does NOT
+        modify or interfere with the agent's decision in any way.
+        """
+        sugarscape = self.cell.environment.sugarscape
+        if not getattr(sugarscape, 'prioritization_observation_active', False):
+            return
+
+        event = {
+            "condition": self.decisionModel,  # e.g. "Egoist", "Altruist", "Benthamite"
+            "action": action_type,
+            "s_i": self.get_fvdm_local_state().to_vector()
+        }
+        sugarscape.prioritization_event_log.append(event)

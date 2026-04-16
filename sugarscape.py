@@ -71,6 +71,11 @@ class Sugarscape:
         self.fvdm_H = 1          # Placeholder, set by derivation script
         self.fvdm_coordinate_store = fvdm.FelicificCoordinateStore()
         self.fvdm_coordinate_store.load()
+        self.fvdm_prioritization_store = fvdm.PrioritizationVectorStore()
+        self.fvdm_prioritization_store.load()
+
+        self.prioritization_observation_active = False
+        self.prioritization_event_log = [] 
 
         self.activeQuadrants = self.findActiveQuadrants()
         self.agentRuntimeStats = []
