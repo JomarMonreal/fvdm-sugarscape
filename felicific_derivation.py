@@ -3,7 +3,55 @@ import json
 import os
 import multiprocessing
 import random
+import math
+import numpy as np
 from functools import partial
+
+class LinearRegressor:
+    """Parametric Linear Regression using NumPy to capture OLS weights and Inverse Covariance."""
+    def __init__(self):
+        self.weights = None # beta
+        self.inv_covariance = None # (X^T X)^-1
+        self.mse = 0
+        self.scaler = {"mean": [], "std": []}
+
+    def fit(self, X, y):
+        if not X: return
+        X = np.array(X)
+        y = np.array(y)
+        n_samples, n_features = X.shape
+        
+        # 1. Scaling (Z-score)
+        self.scaler["mean"] = X.mean(axis=0).tolist()
+        self.scaler["std"] = X.std(axis=0).tolist()
+        # Handle zero variance features
+        std_safe = np.array(self.scaler["std"])
+        std_safe[std_safe < 1e-12] = 1.0
+        
+        X_scaled = (X - np.array(self.scaler["mean"])) / std_safe
+        
+        # 2. Add intercept (1.0)
+        X_design = np.column_stack([np.ones(n_samples), X_scaled])
+            
+        # 3. Normal Equation: beta = (X^T X)^-1 X^T y
+        XTX = X_design.T @ X_design
+        # Add small regularization to diagonal to prevent singularity
+        XTX += np.eye(XTX.shape[0]) * 1e-6
+            
+        self.inv_covariance = np.linalg.inv(XTX)
+        self.weights = self.inv_covariance @ X_design.T @ y
+        
+        # 4. MSE Calculation
+        predictions = X_design @ self.weights
+        self.mse = float(np.mean((y - predictions)**2))
+
+    def to_dict(self):
+        return {
+            "weights": self.weights.tolist(),
+            "inv_cov": self.inv_covariance.tolist(),
+            "mse": self.mse,
+            "scaler": self.scaler
+        }
 
 def worker(seed, config_path, fvdm_H, steps=200, burn_in=50):
     conf = {}
@@ -143,26 +191,44 @@ def run_derivation(num_seeds=5, demo=False):
             if coords:
                 all_observations.append(coords)
 
-    # 2. Aggregating Certainty (C)
-    # Group by (action, state_bin) to calculate positive outcome rate
-    # For now, we'll use a very coarse binning for demo purposes
-    # A real implementation would use a better state-binning strategy
-    print("Calculating Certainty (C) across dataset...")
-    for obs in all_observations:
-        # Dummy Certainty calculation: likelihood of I > 0 in this action category
-        # In a real run, this would be binned by s_i
-        obs["C"] = 0.8 # Placeholder for demo consistency
+    # 2. Training Phase: Estimate Coordinate Functions via Linear Regression
+    print("Training FVDM Coordinate Functions (Linear Regression)...")
+    fvdm_models = {}
+    
+    # Coordinates to estimate (Certainty is computed at runtime)
+    coords_to_train = ["I", "D", "P", "X"]
+    
+    for config_path in bias_configs:
+        action_name = config_path.split("_")[-1].split(".")[0].upper()
+        # Filter observations for this action
+        action_obs = [o for o in all_observations if o["action"] == action_name]
+        
+        if not action_obs:
+            print(f"  Warning: No observations for {action_name}")
+            continue
+            
+        print(f"  Training models for {action_name} ({len(action_obs)} samples)...")
+        action_models = {}
+        
+        X = [o["s_i"] for o in action_obs]
+        
+        for c in coords_to_train:
+            y = [o[c] for o in action_obs]
+            reg = LinearRegressor()
+            reg.fit(X, y)
+            action_models[c] = reg.to_dict()
+            
+        fvdm_models[action_name] = action_models
 
-    # 3. Save to results
+    # 3. Save models to results
     if not os.path.exists("results"):
         os.makedirs("results")
         
-    output_path = "results/felicific_dataset.jsonl"
+    output_path = "results/fvdm_weights.json"
     with open(output_path, 'w') as f:
-        for obs in all_observations:
-            f.write(json.dumps(obs) + "\n")
+        json.dump(fvdm_models, f, indent=2)
             
-    print(f"Derivation complete. {len(all_observations)} observations saved to {output_path}")
+    print(f"Derivation complete. Regression models saved to {output_path}")
 
 if __name__ == "__main__":
     import sys
