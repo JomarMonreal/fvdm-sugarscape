@@ -1359,6 +1359,10 @@ class Sugarscape:
         string = f"{str(self.environment)}Seed: {self.seed}\nTimestep: {self.timestep}\nLiving Agents: {len(self.agents)}"
         return string
 
+def set_seed(seed: int) -> None:
+    if seed != -1:
+        random.seed(seed)
+
 def parseConfiguration(configFile, configuration):
     file = open(configFile)
     options = json.loads(file.read())
@@ -1764,7 +1768,7 @@ if __name__ == "__main__":
     configuration = verifyConfiguration(configuration)
     if configuration["headlessMode"] == False:
         import gui
-    random.seed(configuration["seed"])
+    set_seed(configuration["seed"])
     S = Sugarscape(configuration)
     if configuration["profileMode"] == True:
         import cProfile
