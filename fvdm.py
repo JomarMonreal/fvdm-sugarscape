@@ -1,6 +1,7 @@
 import math
 import os
 import json
+import numpy as np
 from enum import Enum, auto
 
 class ActionType(Enum):
@@ -69,49 +70,68 @@ class FVDMDecisionModel:
 
 class FelicificCoordinateStore:
     def __init__(self):
-        self.dataset = []
+        self.models = {} # action_name -> {coord -> {weights, inv_cov, mse, scaler}}
 
-    def load(self, path="results/felicific_dataset.jsonl"):
-        """Loads the empirical derivation dataset."""
+    def load(self, path="results/fvdm_weights.json"):
+        """Loads the parametric regression models."""
         if not os.path.exists(path):
             return
         with open(path, 'r') as f:
-            for line in f:
-                try:
-                    self.dataset.append(json.loads(line))
-                except: continue
+            try:
+                self.models = json.load(f)
+            except: pass
 
-    def predict(self, action, state, k=5):
-        """Predicts the FelicificEffectVector using k-nearest-neighbors on the derivation data."""
-        # Filter by action type string (Enum.name)
-        candidates = [d for d in self.dataset if d["action"] == action.name]
-        if not candidates:
+    def predict(self, action, state):
+        """Predicts the FelicificEffectVector using Linear Regression weights."""
+        action_name = action.name
+        if action_name not in self.models:
             return FelicificEffectVector(0, 0, 0, 0, 0)
 
-        # Calculate Euclidean distance to each observation's state vector
-        target_vec = state.to_vector()
-        scored = []
-        for d in candidates:
-            dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(target_vec, d["s_i"])))
-            scored.append((dist, d))
-
-        # Sort by distance and average top k results
-        scored.sort(key=lambda x: x[0])
-        neighbors = scored[:k]
+        m = self.models[action_name]
+        x = np.array(state.to_vector())
         
-        if not neighbors:
-             return FelicificEffectVector(0, 0, 0, 0, 0)
-             
-        n = len(neighbors)
-        avg_i = sum(node[1]["I"] for node in neighbors) / n
-        avg_d = sum(node[1]["D"] for node in neighbors) / n
-        avg_c = sum(node[1].get("C", 0.8) for node in neighbors) / n
-        avg_p = sum(node[1]["P"] for node in neighbors) / n
-        avg_x = sum(node[1]["X"] for node in neighbors) / n
+        preds = {}
+        # 1. Predict I, D, P, X using their respective linear models
+        for c in ["I", "D", "P", "X"]:
+            model = m[c]
+            w = np.array(model["weights"])
+            mean = np.array(model["scaler"]["mean"])
+            std = np.array(model["scaler"]["std"])
+            
+            # Scale input for this specific model
+            x_scaled = (x - mean) / std
+            # Add intercept term
+            x_design = np.insert(x_scaled, 0, 1.0)
+            
+            preds[c] = float(np.dot(x_design, w))
+            
+        # 2. Dynamic Certainty (C) Calculation
+        # Computed at runtime based on the Prediction Variance of the Intensity (I) model.
+        # This captures both global noise (MSE) and state-space distance (via Inverse Covariance).
+        model_i = m["I"]
+        inv_cov_i = np.array(model_i["inv_cov"])
+        mse_i = model_i["mse"]
+        mean_i = np.array(model_i["scaler"]["mean"])
+        std_i = np.array(model_i["scaler"]["std"])
         
-        return FelicificEffectVector(avg_i, avg_d, avg_c, avg_p, avg_x)
+        x_scaled_i = (x - mean_i) / std_i
+        x_design_i = np.insert(x_scaled_i, 0, 1.0)
+        
+        # Pred Var = sigma^2 * (1 + x^T * (X^T X)^-1 * x)
+        pred_var = mse_i * (1.0 + x_design_i.T @ inv_cov_i @ x_design_i)
+        
+        # Map variance to Certainty [0, 1]
+        preds["C"] = 1.0 / (1.0 + pred_var)
+        
+        return FelicificEffectVector(preds["I"], preds["D"], preds["C"], preds["P"], preds["X"])
 
 class FVDMDecisionModel:
+    def __init__(self, prioritization_vector, coordinate_store=None):
+        self.prioritization_vector = prioritization_vector
+        self.coordinate_store = coordinate_store or FelicificCoordinateStore()
+
+    def predict_effects(self, agent, state, action):
+        return self.coordinate_store.predict(action, state)
 
     def determine_feasible_actions(self, agent, state):
         """

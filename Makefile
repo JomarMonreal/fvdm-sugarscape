@@ -26,7 +26,7 @@ CLEAN = $(DATASET) \
 		$(TESTS)
 
 # Change to python3 (or other alias) if needed
-PYTHON = python3
+PYTHON = ./.venv/bin/python3
 SUGARSCAPE = sugarscape.py
 
 # Check for local Python aliases

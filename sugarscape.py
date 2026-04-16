@@ -5,6 +5,7 @@ import cell
 import condition
 import environment
 import ethics
+import fvdm
 
 import getopt
 import hashlib
@@ -68,6 +69,8 @@ class Sugarscape:
         self.fvdm_event_log = [] # List of pending events
         self.fvdm_dataset = []   # List of resolved observations
         self.fvdm_H = 1          # Placeholder, set by derivation script
+        self.fvdm_coordinate_store = fvdm.FelicificCoordinateStore()
+        self.fvdm_coordinate_store.load()
 
         self.activeQuadrants = self.findActiveQuadrants()
         self.agentRuntimeStats = []

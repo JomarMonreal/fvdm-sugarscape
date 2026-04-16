@@ -3,6 +3,7 @@ import math
 import random
 import re
 import sys
+import fvdm
 
 class Agent:
     def __init__(self, agentID, birthday, cell, configuration):
@@ -56,6 +57,23 @@ class Agent:
         self.universalSugar = configuration["universalSugar"]
         self.vision = configuration["vision"]
         self.visionMode = configuration["visionMode"]
+
+        # FVDM Integration
+        self.fvdm_model = None
+        if self.decisionModelFactor > 0:
+            # Configure prioritization vector based on ethical stance
+            prioritization = fvdm.FelicificEffectVector(0,0,0,0,0) # Default
+            if self.decisionModel == "Altruist":
+                prioritization = fvdm.FelicificEffectVector(0.5, 0.5, 0.8, 0.2, 1.0) # High Extent (X)
+            elif self.decisionModel == "Egoist":
+                prioritization = fvdm.FelicificEffectVector(1.0, 0.2, 0.8, 1.0, 0.0) # High Intensity (I) & Propinquity (P)
+            elif self.decisionModel == "Benthamite":
+                prioritization = fvdm.FelicificEffectVector(0.8, 0.8, 0.8, 0.8, 0.5) # Balanced
+            
+            self.fvdm_model = fvdm.FVDMDecisionModel(
+                prioritization, 
+                self.cell.environment.sugarscape.fvdm_coordinate_store
+            )
 
         self.age = 0
         self.aggressionFactorModifier = 0
@@ -746,10 +764,37 @@ class Agent:
         return bestCell
 
     def findBestEthicalCell(self, cells, greedyBestCell=None):
-        if len(cells) == 0:
+        if len(cells) == 0 or self.fvdm_model is None:
             return None
-        # If not an ethical agent, return top selfish choice
-        return greedyBestCell
+        
+        bestMatchCell = None
+        bestDistance = float('inf')
+        
+        # In FVDM, we want to pick the cell that results in an action 
+        # whose predicted outcome is CLOSEST to our prioritization vector.
+        for item in cells:
+            targetCell = item["cell"]
+            # Assume any movement is a MOVE action for coordinate prediction
+            # (In a more complex model, we'd check if targetCell is occupied -> COMBAT)
+            action_type = fvdm.ActionType.MOVE
+            if targetCell.agent is not None and targetCell.agent != self:
+                action_type = fvdm.ActionType.COMBAT
+            
+            # 1. Get the local state at THE TARGET cell (where the agent would be post-action)
+            # Actually, the coordinates are functions of (a, s_i) where s_i is current state.
+            state = self.get_fvdm_local_state()
+            
+            # 2. Predict the felicific outcome of taking this action
+            predicted_outcome = self.fvdm_model.predict_effects(self, state, action_type)
+            
+            # 3. Calculate distance to our ideal prioritization vector
+            dist = self.fvdm_model.prioritization_vector.distance_to(predicted_outcome)
+            
+            if dist < bestDistance:
+                bestDistance = dist
+                bestMatchCell = targetCell
+                
+        return bestMatchCell
 
     def findBestFriend(self):
         if self.tags == None:
