@@ -1557,3 +1557,62 @@ class Agent:
 
     def __str__(self):
         return f"{self.ID}"
+
+    def get_fvdm_local_state(self):
+        from fvdm import LocalState
+        
+        # 1. Internal state variables
+        wealth = self.sugar + self.spice
+        metabolism = self.findSugarMetabolism() + self.findSpiceMetabolism()
+        
+        # 2. Resource-opportunity variables
+        nearSugarAmt = 0
+        nearSugarDist = float('inf')
+        nearSpiceAmt = 0
+        nearSpiceDist = float('inf')
+        emptyCellsCount = 0
+        
+        # Pre-calculated in findCellsInRange() during timestep
+        for cell, dist in self.cellsInRange.items():
+            if cell.agent is None:
+                emptyCellsCount += 1
+                if cell.sugar > 0 and dist < nearSugarDist:
+                    nearSugarDist = dist
+                    nearSugarAmt = cell.sugar
+                if cell.spice > 0 and dist < nearSpiceDist:
+                    nearSpiceDist = dist
+                    nearSpiceAmt = cell.spice
+        
+        # 3. Social-risk and interaction variables
+        nearAgentCount = len(self.neighbors)
+        nearStrongDist = float('inf')
+        nearWeakDist = float('inf')
+        
+        for neighbor in self.neighbors:
+            n_wealth = neighbor.sugar + neighbor.spice
+            # Neighbors are always adjacent, but we use the general distance for consistency
+            dist = self.cellsInRange.get(neighbor.cell, 1) # Neighbors are at least 1 unit away
+            
+            if n_wealth > wealth:
+                if dist < nearStrongDist:
+                    nearStrongDist = dist
+            elif n_wealth < wealth:
+                if dist < nearWeakDist:
+                    nearWeakDist = dist
+                    
+        # Normalizing infinite values to a boundary value (Vision + 1)
+        # This prevents math errors in distance calculations during FVDM selection
+        vision = self.findVision()
+        boundary = vision + 1
+        if nearSugarDist == float('inf'): nearSugarDist = boundary
+        if nearSpiceDist == float('inf'): nearSpiceDist = boundary
+        if nearStrongDist == float('inf'): nearStrongDist = boundary
+        if nearWeakDist == float('inf'): nearWeakDist = boundary
+        
+        return LocalState(
+            wealth, metabolism, 
+            nearSugarAmt, nearSugarDist,
+            nearSpiceAmt, nearSpiceDist,
+            emptyCellsCount, nearAgentCount,
+            nearStrongDist, nearWeakDist
+        )
