@@ -1,6 +1,14 @@
 {
     "timesteps": 250,
     "startingAgents": 250,
+    "agentStartingSugar": [
+        10,
+        40
+    ],
+    "agentStartingSpice": [
+        10,
+        40
+    ],
     "headlessMode": false,
     "interfaceHeight": 1000,
     "interfaceWidth": 900,
