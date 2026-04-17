@@ -235,9 +235,14 @@ class PrioritizationVectorStore:
     def get_vector(self, condition):
         # Map condition names to the keys in the JSON
         mapping = {
+            # Legacy benchmark model names
             "Egoist": "selfish",
             "Altruist": "altruist",
-            "Benthamite": "utilitarian"
+            "Benthamite": "utilitarian",
+            # FVDM agent model names
+            "fvdmSelfish": "selfish",
+            "fvdmAltruist": "altruist",
+            "fvdmBentham": "utilitarian",
         }
         key = mapping.get(condition, "utilitarian")
         return self.vectors.get(key, FelicificEffectVector(0.8, 0.8, 0.8, 0.8, 0.5))
