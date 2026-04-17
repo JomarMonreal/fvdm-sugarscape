@@ -2,6 +2,8 @@
     "timesteps": 500,
     "startingAgents": 250,
     "headlessMode": true,
+    "agentStartingSugar": [10, 40],
+    "agentStartingSpice": [10, 40],
     "agentTagging": true,
     "agentTagStringLength": 5,
     "environmentMaxTribes": 5,

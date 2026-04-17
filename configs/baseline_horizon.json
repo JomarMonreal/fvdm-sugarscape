@@ -2,6 +2,8 @@
     "timesteps": 5000,
     "startingAgents": 250,
     "startingDiseases": 50,
+    "agentStartingSugar": [10, 40],
+    "agentStartingSpice": [10, 40],
     "environmentMaxTribes": 3,
     "agentTagging": true,
     "agentSugarMetabolism": [
