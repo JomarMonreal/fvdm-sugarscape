@@ -85,10 +85,26 @@ derive-felicific:
 	$(PYTHON) felicific_derivation.py --seeds 20
 
 demo-prioritize:
-	$(PYTHON) prioritization_derivation.py --demo --seeds 5
+	$(PYTHON) prioritization_derivation.py --demo --seeds 10
 
 derive-prioritization:
 	$(PYTHON) prioritization_derivation.py --seeds 20
 
-.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive derive-felicific
+FVDM_CONF ?= configs/demo_fvdm.json
+
+## Run individual FVDM ethical agents
+demo-fvdm-selfish:
+	$(PYTHON) $(SUGARSCAPE) --gui --conf configs/demo_fvdm_selfish.json
+
+demo-fvdm-altruist:
+	$(PYTHON) $(SUGARSCAPE) --gui --conf configs/demo_fvdm_altruist.json
+
+demo-fvdm-bentham:
+	$(PYTHON) $(SUGARSCAPE) --gui --conf configs/demo_fvdm_bentham.json
+
+## Run all three FVDM models together in one mixed simulation
+demo-fvdm:
+	$(PYTHON) $(SUGARSCAPE) --gui --conf $(FVDM_CONF)
+
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive derive-felicific demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham
 # vim: set noexpandtab tabstop=4:

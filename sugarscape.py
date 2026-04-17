@@ -215,7 +215,15 @@ class Sugarscape:
                 self.agentLeader = a
 
             # If using a different decision model, replace new agent with instance of child class
-            if "altruist" in agentConfiguration["decisionModel"]:
+            if "fvdmSelfish" in agentConfiguration["decisionModel"] or \
+               "fvdmAltruist" in agentConfiguration["decisionModel"] or \
+               "fvdmBentham" in agentConfiguration["decisionModel"]:
+                # Pure FVDM agents: use a plain Agent with decisionModelFactor = 1
+                # so the FVDM loop (argmin distance to prioritization vector) is active
+                # and the Bentham heuristic is NOT applied.
+                a = agent.Agent(agentID, self.timestep, placementCell, agentConfiguration)
+                a.decisionModelFactor = 1
+            elif "altruist" in agentConfiguration["decisionModel"]:
                 a = ethics.Bentham(agentID, self.timestep, placementCell, agentConfiguration)
                 a.selfishnessFactor = 0
             elif "bentham" in agentConfiguration["decisionModel"]:
@@ -1443,27 +1451,34 @@ def parseConfiguration(configFile, configuration):
 
 def parseOptions(configuration):
     commandLineArgs = sys.argv[1:]
-    shortOptions = "c:h:"
-    longOptions = ["conf=", "help"]
+    shortOptions = "c:gh"
+    longOptions = ["conf=", "gui", "headless", "help"]
     try:
         args, vals = getopt.getopt(commandLineArgs, shortOptions, longOptions)
     except getopt.GetoptError as err:
         print(err)
         printHelp()
-    nextArg = 0
+    guiOverride = None
     for currArg, currVal in args:
-        nextArg += 1
         if currArg in("-c", "--conf"):
             if currVal == "":
                 print("No config file provided.")
                 printHelp()
             parseConfiguration(currVal, configuration)
+        elif currArg in ("-g", "--gui"):
+            guiOverride = False
+        elif currArg == "--headless":
+            guiOverride = True
         elif currArg in ("-h", "--help"):
             printHelp()
+
+    if guiOverride is not None:
+        configuration["headlessMode"] = guiOverride
+
     return configuration
 
 def printHelp():
-    print("Usage:\n\tpython sugarscape.py --conf config.json\n\nOptions:\n\t-c,--conf\tUse specified config file for simulation settings.\n\t-h,--help\tDisplay this message.")
+    print("Usage:\n\tpython sugarscape.py --conf config.json\n\nOptions:\n\t-c,--conf\tUse specified config file for simulation settings.\n\t-g,--gui\tRun simulation with GUI enabled.\n\t--headless\tRun simulation with GUI disabled.\n\t-h,--help\tDisplay this message.")
     exit(0)
 
 def sortConfigurationTimeframes(configuration, timeframe):

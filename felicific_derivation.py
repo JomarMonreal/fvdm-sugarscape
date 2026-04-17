@@ -126,10 +126,25 @@ def calculate_coordinates(raw_obs):
     total_abs_effect = abs(ind_imm) + abs(ind_fut) + eps
     propinquity = max(0.0, min(1.0, abs(ind_imm) / total_abs_effect))
     
-    # 5. Extent (X) - Social spread
-    # (pop_delta - ind_delta) / total_delta
-    total_spread = abs(pop_imm) + abs(ind_imm) + eps
-    extent = max(-1.0, min(1.0, (pop_imm - ind_imm) / total_spread))
+    # 5. Extent (X) - Social spread (Directional)
+    ind_delta = w1_i - w0_i
+    pop_delta = w1_p - w0_p
+    others_delta = pop_delta - ind_delta
+    
+    eps_val = 1e-4
+    
+    if ind_delta > eps_val and others_delta <= eps_val:
+        # Benefits self, neutral/harms others (MOVE, COMBAT)
+        extent = -1.0
+    elif others_delta > eps_val and ind_delta <= eps_val:
+        # Benefits others, neutral/harms self (MATE)
+        extent = 1.0
+    elif ind_delta > eps_val and others_delta > eps_val:
+        # Mutual benefit (TRADE, CREDIT)
+        extent = 0.0
+    else:
+        # Neutral or mutually destructive
+        extent = 0.0
     
     return {
         "I": round(intensity, 4),
