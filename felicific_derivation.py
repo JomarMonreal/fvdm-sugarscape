@@ -7,6 +7,34 @@ import math
 import numpy as np
 from functools import partial
 
+def iter_batches(file_list, batch_size):
+    for start_idx in range(0, len(file_list), batch_size):
+        batch_files = file_list[start_idx:start_idx + batch_size]
+        batch_data = []
+
+        for filename in batch_files:
+            filepath = os.path.join("observations", filename)
+
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    action_obs = json.load(f)
+
+                if not isinstance(action_obs, list):
+                    print(f"  Warning: Skipping {filename} (not a valid observation list)")
+                    continue
+
+                batch_data.append((filename, action_obs))
+
+            except (json.JSONDecodeError, ValueError, UnicodeDecodeError, OSError) as e:
+                print(f"  Warning: Skipping {filename} (load error: {e})")
+                continue
+
+            except Exception as e:
+                print(f"  Warning: Skipping {filename} (unexpected error: {e})")
+                continue
+
+        yield batch_data
+
 class LinearRegressor:
     """Parametric Linear Regression using NumPy to capture OLS weights and Inverse Covariance."""
     def __init__(self):
@@ -231,15 +259,9 @@ def train_models(num_batches=1):
     # Gather all observation files
     obs_files = sorted([f for f in os.listdir("observations") if f.endswith(".json")])
     total_files = len(obs_files)
-    
-    if total_files == 0:
-        print("No observation files found in observations/.")
-        return
-    
-    # Split files into batches
+
     batch_size = math.ceil(total_files / num_batches)
-    batches = [obs_files[i:i + batch_size] for i in range(0, total_files, batch_size)]
-    print(f"Processing {total_files} files in {len(batches)} batch(es) (batch size ~{batch_size})...")
+    print(f"Processing {total_files} files in {num_batches} batch(es) (batch size ~{batch_size})...")
 
     # Accumulators per action: store running sums for Normal Equation components
     # For OLS: beta = (X^T X)^-1 (X^T y)
@@ -270,18 +292,10 @@ def train_models(num_batches=1):
     
     # Pass 1: Collect raw X values across all batches to compute global scaler
     print("Pass 1: Computing global scalers...")
-    for batch_idx, batch_files in enumerate(batches):
-        print(f"  Scaler batch {batch_idx + 1}/{len(batches)} ({len(batch_files)} files)...")
-        for filename in batch_files:
-            filepath = os.path.join("observations", filename)
-            try:
-                with open(filepath, 'r') as f:
-                    action_obs = json.load(f)
-            except (json.JSONDecodeError, ValueError) as e:
-                print(f"  Warning: Skipping {filename} (JSON error: {e})")
-                skipped_files += 1
-                continue
-            
+    for batch_idx, batch_data in enumerate(iter_batches(obs_files, batch_size)):
+        print(f"  Scaler batch {batch_idx + 1}/{num_batches} ({len(batch_data)} loaded files)...")
+
+        for filename, action_obs in batch_data:
             for raw in action_obs:
                 coords = calculate_coordinates(raw)
                 if coords:
@@ -312,39 +326,32 @@ def train_models(num_batches=1):
     
     # Pass 2: Accumulate X^T X and X^T y using the computed scalers
     print("Pass 2: Accumulating regression components...")
-    skipped_files = 0
-    
-    for batch_idx, batch_files in enumerate(batches):
-        print(f"  Training batch {batch_idx + 1}/{len(batches)} ({len(batch_files)} files)...")
-        
-        for filename in batch_files:
-            filepath = os.path.join("observations", filename)
-            try:
-                with open(filepath, 'r') as f:
-                    action_obs = json.load(f)
-            except (json.JSONDecodeError, ValueError) as e:
-                skipped_files += 1
-                continue
 
+    for batch_idx, batch_data in enumerate(iter_batches(obs_files, batch_size)):
+        print(f"  Training batch {batch_idx + 1}/{num_batches} ({len(batch_data)} loaded files)...")
+
+        for filename, action_obs in batch_data:
             for raw in action_obs:
                 coords = calculate_coordinates(raw)
                 if not coords:
                     continue
-                    
+
                 action = coords["action"]
                 if action not in accum:
                     continue
-                
+
                 x = np.array(coords["s_i"])
                 mean = np.array(scalers[action]["mean"])
                 std = np.array(scalers[action]["std"])
                 safe_std = np.where(np.array(std) < 1e-12, 1.0, std)
+
                 x_scaled = (x - mean) / safe_std
                 x_design = np.insert(x_scaled, 0, 1.0)
-                
+
                 for c in coords_to_train:
                     y_val = coords[c]
                     a = accum[action][c]
+
                     a["XTX"] += np.outer(x_design, x_design)
                     a["XTy"] += x_design * y_val
                     a["sum_y2"] += y_val ** 2
