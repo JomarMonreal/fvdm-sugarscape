@@ -84,6 +84,9 @@ main-horizon:
 demo-derive:
 	$(PYTHON) felicific_derivation.py --demo --seeds 5 --processes $(CORES)
 
+demo-collect:
+	$(PYTHON) felicific_derivation.py --collect --demo --seeds 5 --processes $(CORES)
+
 derive-felicific:
 	$(PYTHON) felicific_derivation.py --seeds $(SEEDS_MAIN) --processes $(CORES)
 
