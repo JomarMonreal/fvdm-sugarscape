@@ -87,7 +87,7 @@ def worker(seed, config_path, fvdm_H, steps=200, burn_in=50):
             
         s.doTimestep()
 
-    return s.fvdm_dataset
+    return seed, s.fvdm_dataset
 
 def calculate_coordinates(raw_obs):
     """
@@ -118,10 +118,7 @@ def calculate_coordinates(raw_obs):
     # 2. Duration (D) - Persistence of effect
     # Defined as the average absolute delta at horizon H
     duration = max(0.0, min(1.0, (abs(ind_fut) + abs(pop_fut)) / 2))
-    
-    # 3. Certainty (C) - Placeholder here, computed by aggregator
-    certainty = 0.0 
-    
+
     # 4. Propinquity (P) - Fraction of effect that is immediate
     total_abs_effect = abs(ind_imm) + abs(ind_fut) + eps
     propinquity = max(0.0, min(1.0, abs(ind_imm) / total_abs_effect))
@@ -155,7 +152,7 @@ def calculate_coordinates(raw_obs):
         "s_i": raw_obs["s_i"]
     }
 
-def run_derivation(num_seeds=5, demo=False):
+def collect_observations(num_seeds=5, demo=False):
     # 1. Load H*
     fvdm_H = 23 # Default
     if os.path.exists("horizon.json"):
@@ -176,10 +173,11 @@ def run_derivation(num_seeds=5, demo=False):
     observation_steps = 50 if demo else 200
     burn_in = 20 if demo else 50
     
-    all_observations = []
-    
     cpu_count = multiprocessing.cpu_count()
     num_workers = min(num_seeds, max(1, cpu_count - 1))
+    
+    if not os.path.exists("observations"):
+        os.makedirs("observations")
     
     for config_path in bias_configs:
         action_name = config_path.split("_")[-1].split(".")[0].upper()
@@ -190,24 +188,45 @@ def run_derivation(num_seeds=5, demo=False):
         pool = multiprocessing.Pool(processes=num_workers)
         func = partial(worker, config_path=config_path, fvdm_H=fvdm_H, steps=observation_steps, burn_in=burn_in)
         
-        results = pool.map(func, seeds)
+        for seed, seed_data in pool.imap_unordered(func, seeds):
+            output_file = f"observations/{action_name}_seed_{seed}.json"
+            with open(output_file, 'w') as f:
+                json.dump(seed_data, f)
+            print(f"  Saved seed {seed} to {output_file} ({len(seed_data)} obs)")
+            
         pool.close()
         pool.join()
-        
-        action_obs = []
-        for seed_data in results:
-            action_obs.extend(seed_data)
-        
-        print(f"  Collected {len(action_obs)} raw observations for {action_name}")
-        
-        # Calculate coordinates
-        for raw in action_obs:
-            coords = calculate_coordinates(raw)
-            if coords:
-                all_observations.append(coords)
 
+def train_models():
     # 2. Training Phase: Estimate Coordinate Functions via Linear Regression
-    print("Training FVDM Coordinate Functions (Linear Regression)...")
+    print("Training Phase: Estimate Coordinate Functions via Linear Regression...")
+    all_observations = []
+    
+    if not os.path.exists("observations"):
+        print("No observations found. Run collection phase first.")
+        return
+        
+    bias_configs = [
+        "configs/bias_move.json",
+        "configs/bias_combat.json",
+        "configs/bias_trade.json",
+        "configs/bias_mate.json",
+        "configs/bias_credit.json",
+        "configs/bias_tagging.json"
+    ]
+    
+    print("Loading observations...")
+    for filename in os.listdir("observations"):
+        if filename.endswith(".json"):
+            with open(os.path.join("observations", filename), 'r') as f:
+                action_obs = json.load(f)
+                
+            # Calculate coordinates
+            for raw in action_obs:
+                coords = calculate_coordinates(raw)
+                if coords:
+                    all_observations.append(coords)
+                    
     fvdm_models = {}
     
     # Coordinates to estimate (Certainty is computed at runtime)
@@ -254,4 +273,14 @@ if __name__ == "__main__":
             seeds = int(sys.argv[i+1])
             break
             
-    run_derivation(num_seeds=seeds, demo=is_demo)
+    is_collect = "--collect" in sys.argv
+    is_train = "--train" in sys.argv
+    
+    if not is_collect and not is_train:
+        is_collect = True
+        is_train = True
+
+    if is_collect:
+        collect_observations(num_seeds=seeds, demo=is_demo)
+    if is_train:
+        train_models()
