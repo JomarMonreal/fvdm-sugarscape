@@ -152,7 +152,13 @@ def calculate_coordinates(raw_obs):
         "s_i": raw_obs["s_i"]
     }
 
-def collect_observations(num_seeds=5, demo=False):
+def collect_worker(args, fvdm_H, steps, burn_in):
+    seed, config_path = args
+    action_name = config_path.split("_")[-1].split(".")[0].upper()
+    _, seed_data = worker(seed, config_path, fvdm_H, steps, burn_in)
+    return action_name, seed, seed_data
+
+def collect_observations(num_seeds=5, demo=False, processes=None):
     # 1. Load H*
     fvdm_H = 23 # Default
     if os.path.exists("horizon.json"):
@@ -173,29 +179,37 @@ def collect_observations(num_seeds=5, demo=False):
     observation_steps = 50 if demo else 200
     burn_in = 20 if demo else 50
     
-    cpu_count = multiprocessing.cpu_count()
-    num_workers = min(num_seeds, max(1, cpu_count - 1))
+    all_tasks = []
+    for config_path in bias_configs:
+        seeds = [random.randint(0, 1000000) for _ in range(num_seeds)]
+        for seed in seeds:
+            all_tasks.append((seed, config_path))
+    
+    if processes is None:
+        cpu_count = multiprocessing.cpu_count()
+        num_workers = min(len(all_tasks), max(1, cpu_count - 1))
+    else:
+        num_workers = processes
+        
+    print(f"Using {num_workers} processes to collect {len(all_tasks)} observations across {len(bias_configs)} action types.")
     
     if not os.path.exists("observations"):
         os.makedirs("observations")
     
-    for config_path in bias_configs:
-        action_name = config_path.split("_")[-1].split(".")[0].upper()
-        print(f"Rolling derivation for action: {action_name}...")
-        
-        seeds = [random.randint(0, 1000000) for _ in range(num_seeds)]
-        
-        pool = multiprocessing.Pool(processes=num_workers)
-        func = partial(worker, config_path=config_path, fvdm_H=fvdm_H, steps=observation_steps, burn_in=burn_in)
-        
-        for seed, seed_data in pool.imap_unordered(func, seeds):
-            output_file = f"observations/{action_name}_seed_{seed}.json"
-            with open(output_file, 'w') as f:
-                json.dump(seed_data, f)
-            print(f"  Saved seed {seed} to {output_file} ({len(seed_data)} obs)")
+    pool = multiprocessing.Pool(processes=num_workers)
+    func = partial(collect_worker, fvdm_H=fvdm_H, steps=observation_steps, burn_in=burn_in)
+    
+    completed = 0
+    for action_name, seed, seed_data in pool.imap_unordered(func, all_tasks):
+        output_file = f"observations/{action_name}_seed_{seed}.json"
+        with open(output_file, 'w') as f:
+            json.dump(seed_data, f)
+        completed += 1
+        if completed % 10 == 0 or completed == len(all_tasks):
+            print(f"Progress: {completed}/{len(all_tasks)} simulations completed...")
             
-        pool.close()
-        pool.join()
+    pool.close()
+    pool.join()
 
 def train_models():
     # 2. Training Phase: Estimate Coordinate Functions via Linear Regression
@@ -265,22 +279,24 @@ def train_models():
     print(f"Derivation complete. Regression models saved to {output_path}")
 
 if __name__ == "__main__":
-    import sys
-    is_demo = "--demo" in sys.argv
-    seeds = 5 if is_demo else 20
-    for i, arg in enumerate(sys.argv):
-        if arg == "--seeds" and i + 1 < len(sys.argv):
-            seeds = int(sys.argv[i+1])
-            break
-            
-    is_collect = "--collect" in sys.argv
-    is_train = "--train" in sys.argv
+    import argparse
+    parser = argparse.ArgumentParser(description="Felicific Derivation Pipeline")
+    parser.add_argument("--demo", action="store_true", help="Run in demo mode with fewer seeds/steps")
+    parser.add_argument("--seeds", type=int, default=20, help="Number of seeds to run")
+    parser.add_argument("--collect", action="store_true", help="Run collection phase")
+    parser.add_argument("--train", action="store_true", help="Run training phase")
+    parser.add_argument("--processes", type=int, default=None, help="Number of worker processes")
     
-    if not is_collect and not is_train:
-        is_collect = True
-        is_train = True
+    args = parser.parse_args()
+    
+    if args.demo and args.seeds == 20:
+        args.seeds = 5
 
-    if is_collect:
-        collect_observations(num_seeds=seeds, demo=is_demo)
-    if is_train:
+    if not args.collect and not args.train:
+        args.collect = True
+        args.train = True
+
+    if args.collect:
+        collect_observations(num_seeds=args.seeds, demo=args.demo, processes=args.processes)
+    if args.train:
         train_models()

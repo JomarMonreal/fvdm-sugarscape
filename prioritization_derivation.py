@@ -180,7 +180,12 @@ def worker(seed, condition, steps=500):
             
     return s.prioritization_event_log
 
-def run_derivation(num_seeds=5, demo=False):
+def prioritization_worker(args, steps):
+    seed, condition = args
+    log = worker(seed, condition, steps)
+    return condition, log
+
+def run_derivation(num_seeds=5, demo=False, processes=None):
     print(f"Starting Prioritization Vector Derivation (seeds={num_seeds})...")
     
     conditions = {
@@ -198,20 +203,32 @@ def run_derivation(num_seeds=5, demo=False):
 
     results = {}
     
+    all_tasks = []
     for condition in conditions.keys():
-        print(f"Running condition: {condition}...")
-        
         seeds = [random.randint(0, 1000000) for _ in range(num_seeds)]
-        
-        pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-        func = partial(worker, condition=condition, steps=250 if demo else 500)
-        logs = pool.map(func, seeds)
-        pool.close()
-        pool.join()
-        
-        # Flatten logs
-        all_events = [event for log in logs for event in log]
-        print(f"  Collected {len(all_events)} decision events for {condition}")
+        for seed in seeds:
+            all_tasks.append((seed, condition))
+
+    num_workers = processes if processes is not None else multiprocessing.cpu_count()
+    print(f"Using {num_workers} processes to run {len(all_tasks)} simulations across {len(conditions)} conditions.")
+
+    results_by_condition = {c: [] for c in conditions.keys()}
+    
+    pool = multiprocessing.Pool(processes=num_workers)
+    func = partial(prioritization_worker, steps=250 if demo else 500)
+    
+    completed = 0
+    for condition, log in pool.imap_unordered(func, all_tasks):
+        results_by_condition[condition].extend(log)
+        completed += 1
+        if completed % 10 == 0 or completed == len(all_tasks):
+            print(f"Progress: {completed}/{len(all_tasks)} simulations completed...")
+            
+    pool.close()
+    pool.join()
+    
+    for condition, all_events in results_by_condition.items():
+        print(f"Processing results for {condition} ({len(all_events)} events)...")
         
         # Calculate predicted vectors for all events and average them
         sums = [0.0] * 5 # I, D, C, P, X
@@ -264,6 +281,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, default=10)
     parser.add_argument("--demo", action="store_true")
+    parser.add_argument("--processes", type=int, default=None)
     args = parser.parse_args()
     
-    run_derivation(num_seeds=args.seeds, demo=args.demo)
+    run_derivation(num_seeds=args.seeds, demo=args.demo, processes=args.processes)
