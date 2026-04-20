@@ -74,6 +74,7 @@ test:
 SEEDS_DEMO ?= 10
 SEEDS_MAIN ?= 500
 CORES ?= $(shell nproc)
+BATCHES ?= 1
 
 demo-horizon:
 	$(PYTHON) horizon_calibration.py --demo --seeds $(SEEDS_DEMO) --processes $(CORES)
@@ -94,7 +95,7 @@ derive-collect:
 	$(PYTHON) felicific_derivation.py --collect --seeds $(SEEDS_MAIN) --processes $(CORES)
 
 derive-train:
-	$(PYTHON) felicific_derivation.py --train
+	$(PYTHON) felicific_derivation.py --train --batches $(BATCHES)
 
 derive-clean:
 	rm -rf observations/
@@ -128,5 +129,5 @@ test-homogeneous:
 test-heterogeneous:
 	$(PYTHON) $(SUGARSCAPE) --headless --conf configs/test_hetero_$(ENV).json
 
-.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous
 # vim: set noexpandtab tabstop=4:
