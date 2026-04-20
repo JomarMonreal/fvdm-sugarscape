@@ -1,4 +1,4 @@
 .scraps/
 __pycache__/
 data/baseline_runs/
-data/observations
+observations/
