@@ -75,24 +75,25 @@ SEEDS_DEMO ?= 10
 SEEDS_MAIN ?= 500
 CORES ?= $(shell nproc)
 BATCHES ?= 1
+AGENTS ?= 250
 
 demo-horizon:
-	$(PYTHON) horizon_calibration.py --demo --seeds $(SEEDS_DEMO) --processes $(CORES)
+	$(PYTHON) horizon_calibration.py --demo --seeds $(SEEDS_DEMO) --processes $(CORES) --agents $(AGENTS)
 
 main-horizon:
-	$(PYTHON) horizon_calibration.py --baseline --seeds $(SEEDS_MAIN) --processes $(CORES)
+	$(PYTHON) horizon_calibration.py --baseline --seeds $(SEEDS_MAIN) --processes $(CORES) --agents $(AGENTS)
 
 demo-derive:
-	$(PYTHON) felicific_derivation.py --demo --seeds 5 --processes $(CORES)
+	$(PYTHON) felicific_derivation.py --demo --seeds 5 --processes $(CORES) --agents $(AGENTS)
 
 demo-collect:
-	$(PYTHON) felicific_derivation.py --collect --demo --seeds 5 --processes $(CORES)
+	$(PYTHON) felicific_derivation.py --collect --demo --seeds 5 --processes $(CORES) --agents $(AGENTS)
 
 derive-felicific:
-	$(PYTHON) felicific_derivation.py --seeds $(SEEDS_MAIN) --processes $(CORES)
+	$(PYTHON) felicific_derivation.py --seeds $(SEEDS_MAIN) --processes $(CORES) --agents $(AGENTS)
 
 derive-collect:
-	$(PYTHON) felicific_derivation.py --collect --seeds $(SEEDS_MAIN) --processes $(CORES)
+	$(PYTHON) felicific_derivation.py --collect --seeds $(SEEDS_MAIN) --processes $(CORES) --agents $(AGENTS)
 
 derive-train:
 	$(PYTHON) felicific_derivation.py --train --batches $(BATCHES)
@@ -101,10 +102,10 @@ derive-clean:
 	rm -rf observations/
 
 demo-prioritize:
-	$(PYTHON) prioritization_derivation.py --demo --seeds 10 --processes $(CORES)
+	$(PYTHON) prioritization_derivation.py --demo --seeds 10 --processes $(CORES) --agents $(AGENTS)
 
 derive-prioritization:
-	$(PYTHON) prioritization_derivation.py --seeds 20 --processes $(CORES)
+	$(PYTHON) prioritization_derivation.py --seeds $(SEEDS_MAIN) --processes $(CORES) --agents $(AGENTS)
 
 FVDM_CONF ?= configs/demo_fvdm.json
 

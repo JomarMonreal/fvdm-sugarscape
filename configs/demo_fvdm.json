@@ -1,5 +1,5 @@
 {
-    "timesteps": 1000,
+    "timesteps": 5000,
     "startingAgents": 250,
     "agentStartingSugar": [
         10,
@@ -11,8 +11,8 @@
     ],
     "headlessMode": true,
     "agentDecisionModels": [
-        "egoist",
-        "altruist",
+        "fvdmAltruist",
+        "fvdmSelfish",
         "fvdmBentham"
     ],
     "agentDecisionModelFactor": [

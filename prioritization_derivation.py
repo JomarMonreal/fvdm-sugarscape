@@ -6,10 +6,13 @@ import random
 import fvdm
 from functools import partial
 
-def worker(seed, condition, steps=500):
+def worker(seed, condition, steps=500, num_agents=None):
     # Load baseline
     with open('configs/baseline_horizon.json', 'r') as f:
         conf = json.load(f)
+    
+    if num_agents is not None:
+        conf["startingAgents"] = num_agents
     
     # Apply condition-specific overrides
     mapping = {
@@ -180,12 +183,12 @@ def worker(seed, condition, steps=500):
             
     return s.prioritization_event_log
 
-def prioritization_worker(args, steps):
+def prioritization_worker(args, steps, num_agents=None):
     seed, condition = args
-    log = worker(seed, condition, steps)
+    log = worker(seed, condition, steps, num_agents=num_agents)
     return condition, log
 
-def run_derivation(num_seeds=5, demo=False, processes=None):
+def run_derivation(num_seeds=5, demo=False, processes=None, num_agents=None):
     print(f"Starting Prioritization Vector Derivation (seeds={num_seeds})...")
     
     conditions = {
@@ -215,7 +218,7 @@ def run_derivation(num_seeds=5, demo=False, processes=None):
     results_by_condition = {c: [] for c in conditions.keys()}
     
     pool = multiprocessing.Pool(processes=num_workers)
-    func = partial(prioritization_worker, steps=250 if demo else 500)
+    func = partial(prioritization_worker, steps=250 if demo else 500, num_agents=num_agents)
     
     completed = 0
     for condition, log in pool.imap_unordered(func, all_tasks):
@@ -282,6 +285,7 @@ if __name__ == "__main__":
     parser.add_argument("--seeds", type=int, default=10)
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--processes", type=int, default=None)
+    parser.add_argument("--agents", type=int, default=None)
     args = parser.parse_args()
     
-    run_derivation(num_seeds=args.seeds, demo=args.demo, processes=args.processes)
+    run_derivation(num_seeds=args.seeds, demo=args.demo, processes=args.processes, num_agents=args.agents)

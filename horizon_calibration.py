@@ -7,10 +7,12 @@ import os
 import multiprocessing
 from functools import partial
 
-def worker(seed, conf, pilot_steps, burn_in_steps, sample_interval):
+def worker(seed, conf, pilot_steps, burn_in_steps, sample_interval, num_agents=None):
     # Setup local config for this seed
     local_conf = conf.copy()
     local_conf["seed"] = seed
+    if num_agents is not None:
+        local_conf["startingAgents"] = num_agents
     # Headless is handled in run_calibration for the batch/single case
     
     s = sugarscape.Sugarscape(local_conf)
@@ -58,7 +60,7 @@ def worker(seed, conf, pilot_steps, burn_in_steps, sample_interval):
                     
     return r_i_samples, h_stats
 
-def run_calibration(config_path, output_path="horizon.json", demo=False, num_seeds=1, processes=None):
+def run_calibration(config_path, output_path="horizon.json", demo=False, num_seeds=1, processes=None, num_agents=None):
     print(f"Loading configuration from {config_path}...")
     conf = {}
     if os.path.exists("config.json"):
@@ -95,7 +97,7 @@ def run_calibration(config_path, output_path="horizon.json", demo=False, num_see
     print(f"Running {num_seeds} simulations using {num_workers} processes...")
     
     pool = multiprocessing.Pool(processes=num_workers)
-    func = partial(worker, conf=conf, pilot_steps=pilot_steps, burn_in_steps=burn_in_steps, sample_interval=sample_interval)
+    func = partial(worker, conf=conf, pilot_steps=pilot_steps, burn_in_steps=burn_in_steps, sample_interval=sample_interval, num_agents=num_agents)
     
     all_r_i = []
     global_h_stats = {h: [0.0, 0] for h in range(1, 151)}
@@ -115,7 +117,7 @@ def run_calibration(config_path, output_path="horizon.json", demo=False, num_see
         else:
             # Single seed run: allow GUI if config says so
             # We run in the main process to ensure Tkinter stability
-            r_i, h_stats = worker(seeds[0], conf, pilot_steps, burn_in_steps, sample_interval)
+            r_i, h_stats = worker(seeds[0], conf, pilot_steps, burn_in_steps, sample_interval, num_agents=num_agents)
             all_r_i.extend(r_i)
             for h in h_stats:
                 global_h_stats[h][0] += h_stats[h][0]
@@ -185,7 +187,8 @@ if __name__ == "__main__":
     parser.add_argument("--seeds", type=int, default=1, help="Number of seeds to run")
     parser.add_argument("--baseline", action="store_true", help="Use baseline configuration")
     parser.add_argument("--processes", type=int, default=None, help="Number of worker processes")
+    parser.add_argument("--agents", type=int, default=None, help="Number of starting agents")
     args = parser.parse_args()
             
     config = "configs/demo_horizon.json" if args.demo else "configs/baseline_horizon.json"
-    run_calibration(config, demo=args.demo, num_seeds=args.seeds, processes=args.processes)
+    run_calibration(config, demo=args.demo, num_seeds=args.seeds, processes=args.processes, num_agents=args.agents)
