@@ -58,7 +58,7 @@ def worker(seed, conf, pilot_steps, burn_in_steps, sample_interval):
                     
     return r_i_samples, h_stats
 
-def run_calibration(config_path, output_path="horizon.json", demo=False, num_seeds=1):
+def run_calibration(config_path, output_path="horizon.json", demo=False, num_seeds=1, processes=None):
     print(f"Loading configuration from {config_path}...")
     conf = {}
     if os.path.exists("config.json"):
@@ -86,13 +86,13 @@ def run_calibration(config_path, output_path="horizon.json", demo=False, num_see
     if base_seed == -1: base_seed = random.randint(0, 1000000)
     seeds = [base_seed + i for i in range(num_seeds)]
 
-    print(f"Running {num_seeds} parallel simulations...")
-    
-    # Use ProcessPool to run simulations
-    # num_workers = num_seeds if num_seeds < multiprocessing.cpu_count() else multiprocessing.cpu_count()
-    # Safely conservative number of workers
-    cpu_count = multiprocessing.cpu_count()
-    num_workers = min(num_seeds, max(1, cpu_count - 1))
+    if processes is None:
+        cpu_count = multiprocessing.cpu_count()
+        num_workers = min(num_seeds, max(1, cpu_count - 1))
+    else:
+        num_workers = processes
+
+    print(f"Running {num_seeds} simulations using {num_workers} processes...")
     
     pool = multiprocessing.Pool(processes=num_workers)
     func = partial(worker, conf=conf, pilot_steps=pilot_steps, burn_in_steps=burn_in_steps, sample_interval=sample_interval)
@@ -101,7 +101,7 @@ def run_calibration(config_path, output_path="horizon.json", demo=False, num_see
     global_h_stats = {h: [0.0, 0] for h in range(1, 151)}
     
     try:
-        if num_seeds > 1:
+        if num_seeds > 1 or num_workers > 1:
             # Parallel batch run: must be headless
             results_iter = pool.imap_unordered(func, seeds)
             for i, (r_i, h_stats) in enumerate(results_iter):
@@ -179,14 +179,13 @@ def run_calibration(config_path, output_path="horizon.json", demo=False, num_see
     print(f"Derivation complete. Result saved to {output_path}")
 
 if __name__ == "__main__":
-    import sys
-    is_demo = "--demo" in sys.argv
-    # Find --seeds value
-    num_seeds = 1
-    for i, arg in enumerate(sys.argv):
-        if arg == "--seeds" and i + 1 < len(sys.argv):
-            num_seeds = int(sys.argv[i+1])
-            break
+    import argparse
+    parser = argparse.ArgumentParser(description="Horizon Calibration")
+    parser.add_argument("--demo", action="store_true", help="Run in demo mode")
+    parser.add_argument("--seeds", type=int, default=1, help="Number of seeds to run")
+    parser.add_argument("--baseline", action="store_true", help="Use baseline configuration")
+    parser.add_argument("--processes", type=int, default=None, help="Number of worker processes")
+    args = parser.parse_args()
             
-    config = "configs/demo_horizon.json" if is_demo else "configs/baseline_horizon.json"
-    run_calibration(config, demo=is_demo, num_seeds=num_seeds)
+    config = "configs/demo_horizon.json" if args.demo else "configs/baseline_horizon.json"
+    run_calibration(config, demo=args.demo, num_seeds=args.seeds, processes=args.processes)
