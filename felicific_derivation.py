@@ -211,10 +211,9 @@ def collect_observations(num_seeds=5, demo=False, processes=None):
     pool.close()
     pool.join()
 
-def train_models():
+def train_models(num_batches=1):
     # 2. Training Phase: Estimate Coordinate Functions via Linear Regression
     print("Training Phase: Estimate Coordinate Functions via Linear Regression...")
-    all_observations = []
     
     if not os.path.exists("observations"):
         print("No observations found. Run collection phase first.")
@@ -229,46 +228,164 @@ def train_models():
         "configs/bias_tagging.json"
     ]
     
-    print("Loading observations...")
-    for filename in os.listdir("observations"):
-        if filename.endswith(".json"):
-            with open(os.path.join("observations", filename), 'r') as f:
-                action_obs = json.load(f)
-                
-            # Calculate coordinates
+    # Gather all observation files
+    obs_files = sorted([f for f in os.listdir("observations") if f.endswith(".json")])
+    total_files = len(obs_files)
+    
+    if total_files == 0:
+        print("No observation files found in observations/.")
+        return
+    
+    # Split files into batches
+    batch_size = math.ceil(total_files / num_batches)
+    batches = [obs_files[i:i + batch_size] for i in range(0, total_files, batch_size)]
+    print(f"Processing {total_files} files in {len(batches)} batch(es) (batch size ~{batch_size})...")
+
+    # Accumulators per action: store running sums for Normal Equation components
+    # For OLS: beta = (X^T X)^-1 (X^T y)
+    # We accumulate X^T X and X^T y across batches, then solve at the end
+    action_names = [c.split("_")[-1].split(".")[0].upper() for c in bias_configs]
+    coords_to_train = ["I", "D", "P", "X"]
+    
+    # We need to know the feature dimension. It's 10 local state vars + 1 intercept = 11
+    n_features = 11  # 10 state vars + intercept
+    
+    # Accumulators: per action, per coord
+    accum = {}
+    scaler_accum = {}  # For computing global mean/std
+    for action in action_names:
+        accum[action] = {}
+        scaler_accum[action] = {"raw_X": [], "count": 0}
+        for c in coords_to_train:
+            accum[action][c] = {
+                "XTX": np.zeros((n_features, n_features)),
+                "XTy": np.zeros(n_features),
+                "sum_y2": 0.0,
+                "sum_y": 0.0,
+                "n": 0
+            }
+    
+    skipped_files = 0
+    total_obs = 0
+    
+    # Pass 1: Collect raw X values across all batches to compute global scaler
+    print("Pass 1: Computing global scalers...")
+    for batch_idx, batch_files in enumerate(batches):
+        print(f"  Scaler batch {batch_idx + 1}/{len(batches)} ({len(batch_files)} files)...")
+        for filename in batch_files:
+            filepath = os.path.join("observations", filename)
+            try:
+                with open(filepath, 'r') as f:
+                    action_obs = json.load(f)
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"  Warning: Skipping {filename} (JSON error: {e})")
+                skipped_files += 1
+                continue
+            
             for raw in action_obs:
                 coords = calculate_coordinates(raw)
                 if coords:
-                    all_observations.append(coords)
+                    action = coords["action"]
+                    if action in scaler_accum:
+                        scaler_accum[action]["raw_X"].append(coords["s_i"])
+                        scaler_accum[action]["count"] += 1
+                        total_obs += 1
+    
+    # Compute scalers
+    scalers = {}
+    for action in action_names:
+        if scaler_accum[action]["count"] > 0:
+            X_all = np.array(scaler_accum[action]["raw_X"])
+            scalers[action] = {
+                "mean": X_all.mean(axis=0).tolist(),
+                "std": X_all.std(axis=0).tolist()
+            }
+        else:
+            scalers[action] = {"mean": [0.0] * 10, "std": [1.0] * 10}
+    
+    # Free memory from scaler accumulation
+    del scaler_accum
+    
+    print(f"  Total valid observations: {total_obs}")
+    if skipped_files > 0:
+        print(f"  Skipped {skipped_files} corrupted file(s).")
+    
+    # Pass 2: Accumulate X^T X and X^T y using the computed scalers
+    print("Pass 2: Accumulating regression components...")
+    skipped_files = 0
+    
+    for batch_idx, batch_files in enumerate(batches):
+        print(f"  Training batch {batch_idx + 1}/{len(batches)} ({len(batch_files)} files)...")
+        
+        for filename in batch_files:
+            filepath = os.path.join("observations", filename)
+            try:
+                with open(filepath, 'r') as f:
+                    action_obs = json.load(f)
+            except (json.JSONDecodeError, ValueError) as e:
+                skipped_files += 1
+                continue
+
+            for raw in action_obs:
+                coords = calculate_coordinates(raw)
+                if not coords:
+                    continue
                     
+                action = coords["action"]
+                if action not in accum:
+                    continue
+                
+                x = np.array(coords["s_i"])
+                mean = np.array(scalers[action]["mean"])
+                std = np.array(scalers[action]["std"])
+                safe_std = np.where(np.array(std) < 1e-12, 1.0, std)
+                x_scaled = (x - mean) / safe_std
+                x_design = np.insert(x_scaled, 0, 1.0)
+                
+                for c in coords_to_train:
+                    y_val = coords[c]
+                    a = accum[action][c]
+                    a["XTX"] += np.outer(x_design, x_design)
+                    a["XTy"] += x_design * y_val
+                    a["sum_y2"] += y_val ** 2
+                    a["sum_y"] += y_val
+                    a["n"] += 1
+
+    # Pass 3: Solve for weights
+    print("Solving regression models...")
     fvdm_models = {}
     
-    # Coordinates to estimate (Certainty is computed at runtime)
-    coords_to_train = ["I", "D", "P", "X"]
-    
-    for config_path in bias_configs:
-        action_name = config_path.split("_")[-1].split(".")[0].upper()
-        # Filter observations for this action
-        action_obs = [o for o in all_observations if o["action"] == action_name]
-        
-        if not action_obs:
-            print(f"  Warning: No observations for {action_name}")
-            continue
-            
-        print(f"  Training models for {action_name} ({len(action_obs)} samples)...")
+    for action in action_names:
         action_models = {}
-        
-        X = [o["s_i"] for o in action_obs]
+        has_data = False
         
         for c in coords_to_train:
-            y = [o[c] for o in action_obs]
-            reg = LinearRegressor()
-            reg.fit(X, y)
-            action_models[c] = reg.to_dict()
+            a = accum[action][c]
+            if a["n"] == 0:
+                continue
+            has_data = True
             
-        fvdm_models[action_name] = action_models
+            XTX = a["XTX"] + np.eye(n_features) * 1e-6  # Regularization
+            inv_cov = np.linalg.inv(XTX)
+            weights = inv_cov @ a["XTy"]
+            
+            # MSE = (sum(y^2) - 2 * w^T * X^T * y + w^T * X^T * X * w) / n
+            mse = (a["sum_y2"] - 2 * weights @ a["XTy"] + weights @ XTX @ weights) / a["n"]
+            
+            action_models[c] = {
+                "weights": weights.tolist(),
+                "inv_cov": inv_cov.tolist(),
+                "mse": float(max(0, mse)),
+                "scaler": scalers[action]
+            }
+        
+        if has_data:
+            print(f"  {action}: {accum[action]['I']['n']} samples")
+            fvdm_models[action] = action_models
+        else:
+            print(f"  Warning: No observations for {action}")
 
-    # 3. Save models to results
+    # Save models to results
     if not os.path.exists("results"):
         os.makedirs("results")
         
@@ -286,6 +403,7 @@ if __name__ == "__main__":
     parser.add_argument("--collect", action="store_true", help="Run collection phase")
     parser.add_argument("--train", action="store_true", help="Run training phase")
     parser.add_argument("--processes", type=int, default=None, help="Number of worker processes")
+    parser.add_argument("--batches", type=int, default=1, help="Number of batches for training phase")
     
     args = parser.parse_args()
     
@@ -299,4 +417,4 @@ if __name__ == "__main__":
     if args.collect:
         collect_observations(num_seeds=args.seeds, demo=args.demo, processes=args.processes)
     if args.train:
-        train_models()
+        train_models(num_batches=args.batches)
