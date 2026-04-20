@@ -23,7 +23,9 @@ CLEAN = $(DATASET) \
 		$(LOGS) \
 		$(PLOTS) \
 		$(SCREENSHOTS) \
-		$(TESTS)
+		$(TESTS) \
+		observations/ \
+		results/fvdm_weights.json
 
 # Change to python3 (or other alias) if needed
 PYTHON = ./.venv/bin/python3
@@ -82,7 +84,16 @@ demo-derive:
 	$(PYTHON) felicific_derivation.py --demo --seeds 5
 
 derive-felicific:
-	$(PYTHON) felicific_derivation.py --seeds 20
+	$(PYTHON) felicific_derivation.py --seeds $(SEEDS_MAIN)
+
+derive-collect:
+	$(PYTHON) felicific_derivation.py --collect --seeds $(SEEDS_MAIN)
+
+derive-train:
+	$(PYTHON) felicific_derivation.py --train
+
+derive-clean:
+	rm -rf observations/
 
 demo-prioritize:
 	$(PYTHON) prioritization_derivation.py --demo --seeds 10
@@ -106,5 +117,12 @@ demo-fvdm-bentham:
 demo-fvdm:
 	$(PYTHON) $(SUGARSCAPE) --gui --conf $(FVDM_CONF)
 
-.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive derive-felicific demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham
+## Stage 5: Comparison Runs
+test-homogeneous:
+	$(PYTHON) $(SUGARSCAPE) --headless --conf configs/test_homo_$(ENV)_$(MODEL).json
+
+test-heterogeneous:
+	$(PYTHON) $(SUGARSCAPE) --headless --conf configs/test_hetero_$(ENV).json
+
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous
 # vim: set noexpandtab tabstop=4:
