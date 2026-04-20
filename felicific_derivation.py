@@ -81,7 +81,7 @@ class LinearRegressor:
             "scaler": self.scaler
         }
 
-def worker(seed, config_path, fvdm_H, steps=200, burn_in=50):
+def worker(seed, config_path, fvdm_H, steps=200, burn_in=50, num_agents=None):
     conf = {}
     if os.path.exists("config.json"):
         with open("config.json", 'r') as f:
@@ -93,6 +93,9 @@ def worker(seed, config_path, fvdm_H, steps=200, burn_in=50):
     with open(config_path, 'r') as f:
         overrides = json.load(f)
         conf.update(overrides)
+    
+    if num_agents is not None:
+        conf["startingAgents"] = num_agents
     
     conf["seed"] = seed
     conf["headlessMode"] = True # Force headless for parallel runs
@@ -180,13 +183,13 @@ def calculate_coordinates(raw_obs):
         "s_i": raw_obs["s_i"]
     }
 
-def collect_worker(args, fvdm_H, steps, burn_in):
+def collect_worker(args, fvdm_H, steps, burn_in, num_agents=None):
     seed, config_path = args
     action_name = config_path.split("_")[-1].split(".")[0].upper()
-    _, seed_data = worker(seed, config_path, fvdm_H, steps, burn_in)
+    _, seed_data = worker(seed, config_path, fvdm_H, steps, burn_in, num_agents=num_agents)
     return action_name, seed, seed_data
 
-def collect_observations(num_seeds=5, demo=False, processes=None):
+def collect_observations(num_seeds=5, demo=False, processes=None, num_agents=None):
     # 1. Load H*
     fvdm_H = 23 # Default
     if os.path.exists("horizon.json"):
@@ -225,7 +228,7 @@ def collect_observations(num_seeds=5, demo=False, processes=None):
         os.makedirs("observations")
     
     pool = multiprocessing.Pool(processes=num_workers)
-    func = partial(collect_worker, fvdm_H=fvdm_H, steps=observation_steps, burn_in=burn_in)
+    func = partial(collect_worker, fvdm_H=fvdm_H, steps=observation_steps, burn_in=burn_in, num_agents=num_agents)
     
     completed = 0
     for action_name, seed, seed_data in pool.imap_unordered(func, all_tasks):
@@ -411,6 +414,7 @@ if __name__ == "__main__":
     parser.add_argument("--train", action="store_true", help="Run training phase")
     parser.add_argument("--processes", type=int, default=None, help="Number of worker processes")
     parser.add_argument("--batches", type=int, default=1, help="Number of batches for training phase")
+    parser.add_argument("--agents", type=int, default=None, help="Number of starting agents")
     
     args = parser.parse_args()
     
@@ -422,6 +426,6 @@ if __name__ == "__main__":
         args.train = True
 
     if args.collect:
-        collect_observations(num_seeds=args.seeds, demo=args.demo, processes=args.processes)
+        collect_observations(num_seeds=args.seeds, demo=args.demo, processes=args.processes, num_agents=args.agents)
     if args.train:
         train_models(num_batches=args.batches)
