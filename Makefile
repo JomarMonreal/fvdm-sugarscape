@@ -76,6 +76,7 @@ SEEDS_MAIN ?= 500
 CORES ?= $(shell nproc)
 BATCHES ?= 1
 AGENTS ?= 250
+EXPERIMENT_SEEDS ?= 500
 
 demo-horizon:
 	$(PYTHON) horizon_calibration.py --demo --seeds $(SEEDS_DEMO) --processes $(CORES) --agents $(AGENTS)
@@ -130,5 +131,11 @@ test-homogeneous:
 test-heterogeneous:
 	$(PYTHON) $(SUGARSCAPE) --headless --conf configs/test_hetero_$(ENV).json
 
-.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous
+run-experiments:
+	$(PYTHON) run_experiments.py --seeds $(EXPERIMENT_SEEDS) --processes $(CORES)
+
+evaluate-experiments:
+	$(PYTHON) aggregate_evaluations.py results/experiments/
+
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous run-experiments evaluate-experiments
 # vim: set noexpandtab tabstop=4:
