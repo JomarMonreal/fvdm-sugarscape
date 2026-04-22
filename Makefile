@@ -137,5 +137,27 @@ run-experiments:
 evaluate-experiments:
 	$(PYTHON) aggregate_evaluations.py results/experiments/
 
-.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous run-experiments evaluate-experiments
+## Individual Outcome Evaluation Runs (500 seeds)
+eval-selfish-homo:
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_selfish --processes $(CORES)
+
+eval-altruist-homo:
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_altruist --processes $(CORES)
+
+eval-utilitarian-homo:
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_utilitarian --processes $(CORES)
+
+eval-selfish-hetero:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_selfish --processes $(CORES)
+
+eval-altruist-hetero:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_altruist --processes $(CORES)
+
+eval-utilitarian-hetero:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_utilitarian --processes $(CORES)
+
+eval-all-fvdm:
+	$(PYTHON) run_experiments.py --seeds 500 --filter fvdm --processes $(CORES)
+
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous run-experiments evaluate-experiments eval-selfish-homo eval-altruist-homo eval-utilitarian-homo eval-selfish-hetero eval-altruist-hetero eval-utilitarian-hetero eval-all-fvdm
 # vim: set noexpandtab tabstop=4:

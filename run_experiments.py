@@ -10,11 +10,14 @@ CONFIGS = {
     "homo_base_egoist": "configs/test_homo_base_selfish.json",
     "homo_base_altruist": "configs/test_homo_base_altruist.json",
     "homo_base_bentham": "configs/test_homo_base_utilitarian.json",
-    "homo_fvdm_egoist": "configs/test_homo_fvdm_selfish.json",
+    "homo_fvdm_selfish": "configs/test_homo_fvdm_selfish.json",
     "homo_fvdm_altruist": "configs/test_homo_fvdm_altruist.json",
-    "homo_fvdm_bentham": "configs/test_homo_fvdm_utilitarian.json",
+    "homo_fvdm_utilitarian": "configs/test_homo_fvdm_utilitarian.json",
     "hetero_base": "configs/test_hetero_base.json",
-    "hetero_fvdm": "configs/test_hetero_fvdm.json"
+    "hetero_fvdm": "configs/test_hetero_fvdm.json",
+    "hetero_fvdm_selfish": "configs/test_hetero_fvdm_selfish.json",
+    "hetero_fvdm_altruist": "configs/test_hetero_fvdm_altruist.json",
+    "hetero_fvdm_utilitarian": "configs/test_hetero_fvdm_utilitarian.json"
 }
 
 def worker(args):
@@ -215,7 +218,7 @@ def worker(args):
         traceback.print_exc()
         return condition_name, seed, False, str(e)
 
-def run_experiments(num_seeds, processes):
+def run_experiments(num_seeds, processes, filter_name=None):
     print(f"=== Starting Stage 5: Comparison Runs ===")
     print(f"Generating {num_seeds} random seeds...")
     
@@ -225,6 +228,8 @@ def run_experiments(num_seeds, processes):
     tasks = []
     for seed in seeds:
         for condition_name, config_path in CONFIGS.items():
+            if filter_name and filter_name not in condition_name:
+                continue
             tasks.append((seed, condition_name, config_path, output_dir))
             
     num_workers = processes if processes is not None else multiprocessing.cpu_count()
@@ -257,6 +262,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run comparison experiments across identical seeds.")
     parser.add_argument("--seeds", type=int, default=30, help="Number of seeds to run")
     parser.add_argument("--processes", type=int, default=None, help="Number of worker processes")
+    parser.add_argument("--filter", type=str, default=None, help="Filter configurations by name")
     args = parser.parse_args()
     
-    run_experiments(args.seeds, args.processes)
+    run_experiments(args.seeds, args.processes, filter_name=args.filter)
