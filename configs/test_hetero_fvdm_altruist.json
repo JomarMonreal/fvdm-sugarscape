@@ -1,0 +1,62 @@
+{
+    "timesteps": 5000,
+    "startingAgents": 250,
+    "startingDiseases": 50,
+    "agentStartingSugar": [
+        10,
+        40
+    ],
+    "agentStartingSpice": [
+        10,
+        40
+    ],
+    "environmentMaxTribes": 3,
+    "agentTagging": true,
+    "agentSugarMetabolism": [
+        1,
+        4
+    ],
+    "agentSpiceMetabolism": [
+        1,
+        4
+    ],
+    "agentVision": [
+        1,
+        10
+    ],
+    "agentMovement": [
+        1,
+        10
+    ],
+    "agentAggressionFactor": [
+        0,
+        2
+    ],
+    "agentTradeFactor": [
+        0,
+        2
+    ],
+    "agentLendingFactor": [
+        0,
+        2
+    ],
+    "agentDecisionModels": [
+        "fvdmSelfish",
+        "fvdmAltruist",
+        "fvdmBentham"
+    ],
+    "agentDecisionModelFactor": [
+        1,
+        1
+    ],
+    "headlessMode": true,
+    "environmentHeight": 50,
+    "environmentWidth": 50,
+    "environmentMaxSugar": 4,
+    "environmentMaxSpice": 4,
+    "environmentSugarRegrowRate": 1,
+    "environmentSpiceRegrowRate": 1,
+    "environmentWraparound": true,
+    "seed": 42,
+    "logfile": "results/test_hetero_fvdm_altruist.json"
+}
