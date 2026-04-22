@@ -96,6 +96,9 @@ def run_calibration(config_path, output_path="horizon.json", demo=False, num_see
 
     print(f"Running {num_seeds} simulations using {num_workers} processes...")
     
+    if num_seeds > 1 or num_workers > 1:
+        conf["headlessMode"] = True
+
     pool = multiprocessing.Pool(processes=num_workers)
     func = partial(worker, conf=conf, pilot_steps=pilot_steps, burn_in_steps=burn_in_steps, sample_interval=sample_interval, num_agents=num_agents)
     
