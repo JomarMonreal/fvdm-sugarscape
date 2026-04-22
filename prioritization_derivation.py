@@ -191,6 +191,8 @@ def prioritization_worker(args, steps, num_agents=None):
 def run_derivation(num_seeds=5, demo=False, processes=None, num_agents=None):
     print(f"Starting Prioritization Vector Derivation (seeds={num_seeds})...")
     
+    # The agent prioritization vector is derived empirically from the 
+    # observed choices of Digital Terrarium benchmark agents in homogeneous societies.
     conditions = {
         "selfish": "configs/prior_selfish.json",
         "altruist": "configs/prior_altruist.json",
@@ -231,41 +233,51 @@ def run_derivation(num_seeds=5, demo=False, processes=None, num_agents=None):
     pool.join()
     
     for condition, all_events in results_by_condition.items():
-        print(f"Processing results for {condition} ({len(all_events)} events)...")
+        # Methodology: The prioritization vector for condition g is derived as the 
+        # sample mean of the predicted felicific effects of chosen actions.
+        # N_g = len(all_events)
+        N_g = len(all_events)
+        print(f"Processing results for {condition} (N_g = {N_g} events)...")
         
-        # Calculate predicted vectors for all events and average them
-        sums = [0.0] * 5 # I, D, C, P, X
-        count = 0
+        # Accumulate sums for coordinates: I, D, C, P, X
+        p_sums = [0.0] * 5 
+        valid_count = 0
         
         for event in all_events:
             action_str = event["action"]
             state_vec = event["s_i"]
             
-            # Map string to ActionType enum
+            # Map recorded action string to ActionType enum
             try:
-                action_type = fvdm.ActionType[action_str]
+                a_n_g = fvdm.ActionType[action_str]
             except KeyError:
                 continue
                 
-            # Create a dummy LocalState for prediction
-            state = fvdm.LocalState(*state_vec)
+            # Substitute local state s_n into derived felicific coordinate functions
+            s_n = fvdm.LocalState(*state_vec)
             
-            # Predict
-            pred = store.predict(action_type, state)
+            # Obtain predicted felicific effect vector: f_hat(a_n_g, s_n)
+            # This evaluates I_hat, D_hat, C_hat, P_hat, X_hat for the chosen action
+            f_hat = store.predict(a_n_g, s_n)
             
-            # Update sums
-            sums[0] += pred.intensity
-            sums[1] += pred.duration
-            sums[2] += pred.certainty
-            sums[3] += pred.propinquity
-            sums[4] += pred.extent
-            count += 1
+            # Verify if the action has a valid coordinate model (avoid diluting with defaults)
+            if a_n_g.name not in store.models:
+                continue
+
+            # Update sample sums for each coordinate k in {I, D, C, P, X}
+            p_sums[0] += f_hat.intensity
+            p_sums[1] += f_hat.duration
+            p_sums[2] += f_hat.certainty
+            p_sums[3] += f_hat.propinquity
+            p_sums[4] += f_hat.extent
+            valid_count += 1
             
-        if count > 0:
-            results[condition] = [s / count for s in sums]
-            print(f"  Mean Vector ({condition}): {results[condition]}")
+        if valid_count > 0:
+            # Derived prioritization vector p_k^(g) as sample mean
+            results[condition] = [s / valid_count for s in p_sums]
+            print(f"  Derived Prioritization Vector p^(g) ({condition}): {results[condition]}")
         else:
-            print(f"  Warning: No valid decisions recorded for {condition}")
+            print(f"  Warning: No valid decisions with coordinate models recorded for {condition}")
 
     # Save to results
     if not os.path.exists("results"):
