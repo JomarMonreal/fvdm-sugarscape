@@ -183,9 +183,42 @@ def worker(seed, condition, steps=500, num_agents=None):
             
     return s.prioritization_event_log
 
-def prioritization_worker(args, steps, num_agents=None):
+def prioritization_worker(args, steps, num_agents=None, store_models=None):
     seed, condition = args
     log = worker(seed, condition, steps, num_agents=num_agents)
+    
+    if store_models:
+        store = fvdm.FelicificCoordinateStore()
+        store.models = store_models
+        
+        p_sums = [0.0] * 5
+        valid_count = 0
+        N_g_local = len(log)
+        
+        for event in log:
+            action_str = event["action"]
+            state_vec = event["s_i"]
+            
+            try:
+                a_n_g = fvdm.ActionType[action_str]
+            except KeyError:
+                continue
+                
+            s_n = fvdm.LocalState(*state_vec)
+            f_hat = store.predict(a_n_g, s_n)
+            
+            if a_n_g.name not in store.models:
+                continue
+
+            p_sums[0] += f_hat.intensity
+            p_sums[1] += f_hat.duration
+            p_sums[2] += f_hat.certainty
+            p_sums[3] += f_hat.propinquity
+            p_sums[4] += f_hat.extent
+            valid_count += 1
+            
+        return condition, valid_count, p_sums, N_g_local
+    
     return condition, log
 
 def run_derivation(num_seeds=5, demo=False, processes=None, num_agents=None):
@@ -217,61 +250,33 @@ def run_derivation(num_seeds=5, demo=False, processes=None, num_agents=None):
     num_workers = processes if processes is not None else multiprocessing.cpu_count()
     print(f"Using {num_workers} processes to run {len(all_tasks)} simulations across {len(conditions)} conditions.")
 
-    results_by_condition = {c: [] for c in conditions.keys()}
+    results_by_condition = {c: {"p_sums": [0.0]*5, "valid_count": 0, "N_g": 0} for c in conditions.keys()}
     
     pool = multiprocessing.Pool(processes=num_workers)
-    func = partial(prioritization_worker, steps=250 if demo else 500, num_agents=num_agents)
+    func = partial(prioritization_worker, steps=250 if demo else 500, num_agents=num_agents, store_models=store.models)
     
     completed = 0
-    for condition, log in pool.imap_unordered(func, all_tasks):
-        results_by_condition[condition].extend(log)
+    for condition, valid_count, p_sums, N_g_local in pool.imap_unordered(func, all_tasks):
+        res = results_by_condition[condition]
+        res["N_g"] += N_g_local
+        res["valid_count"] += valid_count
+        for i in range(5):
+            res["p_sums"][i] += p_sums[i]
+            
         completed += 1
         if completed % 10 == 0 or completed == len(all_tasks):
-            print(f"Progress: {completed}/{len(all_tasks)} simulations completed...")
+            print(f"Progress: {completed}/{len(all_tasks)} simulations and predictions completed...")
             
     pool.close()
     pool.join()
     
-    for condition, all_events in results_by_condition.items():
-        # Methodology: The prioritization vector for condition g is derived as the 
-        # sample mean of the predicted felicific effects of chosen actions.
-        # N_g = len(all_events)
-        N_g = len(all_events)
-        print(f"Processing results for {condition} (N_g = {N_g} events)...")
+    for condition, data in results_by_condition.items():
+        N_g = data["N_g"]
+        valid_count = data["valid_count"]
+        p_sums = data["p_sums"]
         
-        # Accumulate sums for coordinates: I, D, C, P, X
-        p_sums = [0.0] * 5 
-        valid_count = 0
+        print(f"Processing final results for {condition} (N_g = {N_g} events, Valid = {valid_count})...")
         
-        for event in all_events:
-            action_str = event["action"]
-            state_vec = event["s_i"]
-            
-            # Map recorded action string to ActionType enum
-            try:
-                a_n_g = fvdm.ActionType[action_str]
-            except KeyError:
-                continue
-                
-            # Substitute local state s_n into derived felicific coordinate functions
-            s_n = fvdm.LocalState(*state_vec)
-            
-            # Obtain predicted felicific effect vector: f_hat(a_n_g, s_n)
-            # This evaluates I_hat, D_hat, C_hat, P_hat, X_hat for the chosen action
-            f_hat = store.predict(a_n_g, s_n)
-            
-            # Verify if the action has a valid coordinate model (avoid diluting with defaults)
-            if a_n_g.name not in store.models:
-                continue
-
-            # Update sample sums for each coordinate k in {I, D, C, P, X}
-            p_sums[0] += f_hat.intensity
-            p_sums[1] += f_hat.duration
-            p_sums[2] += f_hat.certainty
-            p_sums[3] += f_hat.propinquity
-            p_sums[4] += f_hat.extent
-            valid_count += 1
-            
         if valid_count > 0:
             # Derived prioritization vector p_k^(g) as sample mean
             results[condition] = [s / valid_count for s in p_sums]
