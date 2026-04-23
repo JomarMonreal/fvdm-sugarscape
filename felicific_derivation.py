@@ -242,7 +242,71 @@ def collect_observations(num_seeds=5, demo=False, processes=None, num_agents=Non
     pool.close()
     pool.join()
 
-def train_models(num_batches=1):
+def pass1_worker(files_chunk):
+    local_accum = {}
+    for filename in files_chunk:
+        path = os.path.join("observations", filename)
+        if not os.path.exists(path): continue
+        with open(path, 'r') as f:
+            try:
+                action_obs = json.load(f)
+            except: continue
+        for raw in action_obs:
+            coords = calculate_coordinates(raw)
+            if not coords: continue
+            action = coords["action"]
+            if action not in local_accum:
+                local_accum[action] = {"sum_x": np.zeros(10), "sum_x2": np.zeros(10), "count": 0}
+            x = np.array(coords["s_i"])
+            local_accum[action]["sum_x"] += x
+            local_accum[action]["sum_x2"] += x**2
+            local_accum[action]["count"] += 1
+    return local_accum
+
+def pass2_worker(args):
+    files_chunk, scalers = args
+    n_features = 11
+    coords_to_train = ["I", "D", "P", "X"]
+    local_accum = {}
+    for filename in files_chunk:
+        path = os.path.join("observations", filename)
+        if not os.path.exists(path): continue
+        with open(path, 'r') as f:
+            try:
+                action_obs = json.load(f)
+            except: continue
+        for raw in action_obs:
+            coords = calculate_coordinates(raw)
+            if not coords: continue
+            action = coords["action"]
+            if action not in scalers: continue
+            if action not in local_accum:
+                local_accum[action] = {}
+                for c in coords_to_train:
+                    local_accum[action][c] = {
+                        "XTX": np.zeros((n_features, n_features)),
+                        "XTy": np.zeros(n_features),
+                        "sum_y2": 0.0,
+                        "sum_y": 0.0,
+                        "n": 0
+                    }
+            x = np.array(coords["s_i"])
+            mean = np.array(scalers[action]["mean"])
+            std = np.array(scalers[action]["std"])
+            safe_std = np.where(std < 1e-12, 1.0, std)
+            x_scaled = (x - mean) / safe_std
+            x_design = np.insert(x_scaled, 0, 1.0)
+            for c in coords_to_train:
+                y_val = coords[c]
+                a = local_accum[action][c]
+                a["XTX"] += np.outer(x_design, x_design)
+                a["XTy"] += x_design * y_val
+                a["sum_y2"] += y_val ** 2
+                a["sum_y"] += y_val
+                a["n"] += 1
+    return local_accum
+
+def train_models(num_batches=1, processes=None):
     # 2. Training Phase: Estimate Coordinate Functions via Linear Regression
     print("Training Phase: Estimate Coordinate Functions via Linear Regression...")
     
@@ -259,107 +323,88 @@ def train_models(num_batches=1):
         "configs/bias_tagging.json"
     ]
     
-    # Gather all observation files
     obs_files = sorted([f for f in os.listdir("observations") if f.endswith(".json")])
     total_files = len(obs_files)
-
-    batch_size = math.ceil(total_files / num_batches)
-    print(f"Processing {total_files} files in {num_batches} batch(es) (batch size ~{batch_size})...")
-
-    # Accumulators per action: store running sums for Normal Equation components
-    # For OLS: beta = (X^T X)^-1 (X^T y)
-    # We accumulate X^T X and X^T y across batches, then solve at the end
+    
+    num_workers = processes if processes is not None else multiprocessing.cpu_count()
+    print(f"Processing {total_files} files using {num_workers} processes...")
+    
+    # We distribute files equally across workers, regardless of batches
+    chunk_size = math.ceil(total_files / (num_workers * 2))  # smaller chunks for better load balancing
+    if chunk_size < 1: chunk_size = 1
+    file_chunks = [obs_files[i:i + chunk_size] for i in range(0, total_files, chunk_size)]
+    
+    pool = multiprocessing.Pool(processes=num_workers)
+    
     action_names = [c.split("_")[-1].split(".")[0].upper() for c in bias_configs]
     coords_to_train = ["I", "D", "P", "X"]
+    n_features = 11
+
+    # Pass 1: Compute global scalers (mean, std)
+    print("Pass 1: Computing global scalers (Multi-threaded)...")
+    global_scaler_accum = {a: {"sum_x": np.zeros(10), "sum_x2": np.zeros(10), "count": 0} for a in action_names}
     
-    # We need to know the feature dimension. It's 10 local state vars + 1 intercept = 11
-    n_features = 11  # 10 state vars + intercept
-    
-    # Accumulators: per action, per coord
-    accum = {}
-    scaler_accum = {}  # For computing global mean/std
+    completed = 0
+    for local_accum in pool.imap_unordered(pass1_worker, file_chunks):
+        for action, data in local_accum.items():
+            if action not in global_scaler_accum: continue
+            global_scaler_accum[action]["sum_x"] += data["sum_x"]
+            global_scaler_accum[action]["sum_x2"] += data["sum_x2"]
+            global_scaler_accum[action]["count"] += data["count"]
+        completed += 1
+        if completed % 10 == 0 or completed == len(file_chunks):
+            print(f"  Scaler pass progress: {completed}/{len(file_chunks)} chunks completed...")
+
+    # Compute actual mean and std from sums
+    scalers = {}
+    total_obs = 0
     for action in action_names:
-        accum[action] = {}
-        scaler_accum[action] = {"raw_X": [], "count": 0}
+        count = global_scaler_accum[action]["count"]
+        total_obs += count
+        if count > 0:
+            mean = global_scaler_accum[action]["sum_x"] / count
+            # Var(X) = E[X^2] - (E[X])^2
+            variance = (global_scaler_accum[action]["sum_x2"] / count) - (mean ** 2)
+            std = np.sqrt(np.maximum(0, variance))
+            scalers[action] = {"mean": mean.tolist(), "std": std.tolist()}
+        else:
+            scalers[action] = {"mean": [0.0] * 10, "std": [1.0] * 10}
+
+    print(f"  Total valid observations: {total_obs}")
+
+    # Pass 2: Accumulate X^TX and X^Ty for regression
+    print("Pass 2: Accumulating regression matrices (Multi-threaded)...")
+    global_ols_accum = {}
+    for action in action_names:
+        global_ols_accum[action] = {}
         for c in coords_to_train:
-            accum[action][c] = {
+            global_ols_accum[action][c] = {
                 "XTX": np.zeros((n_features, n_features)),
                 "XTy": np.zeros(n_features),
                 "sum_y2": 0.0,
                 "sum_y": 0.0,
                 "n": 0
             }
+
+    pass2_tasks = [(chunk, scalers) for chunk in file_chunks]
     
-    skipped_files = 0
-    total_obs = 0
-    
-    # Pass 1: Collect raw X values across all batches to compute global scaler
-    print("Pass 1: Computing global scalers...")
-    for batch_idx, batch_data in enumerate(iter_batches(obs_files, batch_size)):
-        print(f"  Scaler batch {batch_idx + 1}/{num_batches} ({len(batch_data)} loaded files)...")
+    completed = 0
+    for local_accum in pool.imap_unordered(pass2_worker, pass2_tasks):
+        for action, coords_data in local_accum.items():
+            if action not in global_ols_accum: continue
+            for c, data in coords_data.items():
+                ga = global_ols_accum[action][c]
+                ga["XTX"] += data["XTX"]
+                ga["XTy"] += data["XTy"]
+                ga["sum_y2"] += data["sum_y2"]
+                ga["sum_y"] += data["sum_y"]
+                ga["n"] += data["n"]
+        completed += 1
+        if completed % 10 == 0 or completed == len(file_chunks):
+            print(f"  Matrix pass progress: {completed}/{len(file_chunks)} chunks completed...")
 
-        for filename, action_obs in batch_data:
-            for raw in action_obs:
-                coords = calculate_coordinates(raw)
-                if coords:
-                    action = coords["action"]
-                    if action in scaler_accum:
-                        scaler_accum[action]["raw_X"].append(coords["s_i"])
-                        scaler_accum[action]["count"] += 1
-                        total_obs += 1
-    
-    # Compute scalers
-    scalers = {}
-    for action in action_names:
-        if scaler_accum[action]["count"] > 0:
-            X_all = np.array(scaler_accum[action]["raw_X"])
-            scalers[action] = {
-                "mean": X_all.mean(axis=0).tolist(),
-                "std": X_all.std(axis=0).tolist()
-            }
-        else:
-            scalers[action] = {"mean": [0.0] * 10, "std": [1.0] * 10}
-    
-    # Free memory from scaler accumulation
-    del scaler_accum
-    
-    print(f"  Total valid observations: {total_obs}")
-    if skipped_files > 0:
-        print(f"  Skipped {skipped_files} corrupted file(s).")
-    
-    # Pass 2: Accumulate X^T X and X^T y using the computed scalers
-    print("Pass 2: Accumulating regression components...")
-
-    for batch_idx, batch_data in enumerate(iter_batches(obs_files, batch_size)):
-        print(f"  Training batch {batch_idx + 1}/{num_batches} ({len(batch_data)} loaded files)...")
-
-        for filename, action_obs in batch_data:
-            for raw in action_obs:
-                coords = calculate_coordinates(raw)
-                if not coords:
-                    continue
-
-                action = coords["action"]
-                if action not in accum:
-                    continue
-
-                x = np.array(coords["s_i"])
-                mean = np.array(scalers[action]["mean"])
-                std = np.array(scalers[action]["std"])
-                safe_std = np.where(np.array(std) < 1e-12, 1.0, std)
-
-                x_scaled = (x - mean) / safe_std
-                x_design = np.insert(x_scaled, 0, 1.0)
-
-                for c in coords_to_train:
-                    y_val = coords[c]
-                    a = accum[action][c]
-
-                    a["XTX"] += np.outer(x_design, x_design)
-                    a["XTy"] += x_design * y_val
-                    a["sum_y2"] += y_val ** 2
-                    a["sum_y"] += y_val
-                    a["n"] += 1
+    pool.close()
+    pool.join()
 
     # Pass 3: Solve for weights
     print("Solving regression models...")
@@ -370,7 +415,7 @@ def train_models(num_batches=1):
         has_data = False
         
         for c in coords_to_train:
-            a = accum[action][c]
+            a = global_ols_accum[action][c]
             if a["n"] == 0:
                 continue
             has_data = True
@@ -390,7 +435,7 @@ def train_models(num_batches=1):
             }
         
         if has_data:
-            print(f"  {action}: {accum[action]['I']['n']} samples")
+            print(f"  {action}: {global_ols_accum[action]['I']['n']} samples")
             fvdm_models[action] = action_models
         else:
             print(f"  Warning: No observations for {action}")
@@ -428,4 +473,4 @@ if __name__ == "__main__":
     if args.collect:
         collect_observations(num_seeds=args.seeds, demo=args.demo, processes=args.processes, num_agents=args.agents)
     if args.train:
-        train_models(num_batches=args.batches)
+        train_models(num_batches=args.batches, processes=args.processes)
