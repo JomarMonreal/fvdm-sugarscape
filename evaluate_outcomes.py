@@ -10,7 +10,19 @@ def evaluate_outcomes(log_file):
         
     try:
         with open(log_file, 'r') as f:
-            log_data = json.load(f)
+            content = f.read().strip()
+            
+        # Gracefully handle incomplete JSON arrays (e.g. from crashed simulations)
+        if content.endswith(','):
+            content = content[:-1] + ']'
+        elif not content.endswith(']'):
+            last_brace = content.rfind('}')
+            if last_brace != -1:
+                content = content[:last_brace+1] + ']'
+            else:
+                content += ']'
+                
+        log_data = json.loads(content)
     except json.JSONDecodeError:
         print(f"Error: Could not decode JSON from '{log_file}'. Make sure the simulation finished cleanly.")
         return
