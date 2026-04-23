@@ -1063,6 +1063,7 @@ class Sugarscape:
         meanMoveRank = 0
         meanMoveDifferenceFromOptimal = 0
         modelCounts = {}
+        modelStats = {}  # per-model accumulators
 
         for agent in self.agents:
             if group != None and agent.isInGroup(group, notInGroup) == False:
@@ -1071,6 +1072,15 @@ class Sugarscape:
             agentTimeToLiveAgeLimited = agent.findTimeToLive(True)
             agentWealth = agent.sugar + agent.spice
             modelCounts[agent.decisionModel] = modelCounts.get(agent.decisionModel, 0) + 1
+            # Per-model accumulators
+            m = agent.decisionModel
+            if m not in modelStats:
+                modelStats[m] = {"wealthTotal": 0, "wealthSum": 0, "ttlSum": 0, "count": 0, "deaths": 0, "ageAtDeathSum": 0, "deadCount": 0,
+                                 "starvationDeaths": 0, "combatDeaths": 0, "agingDeaths": 0, "diseaseDeaths": 0}
+            modelStats[m]["wealthTotal"] += agentWealth
+            modelStats[m]["wealthSum"] += agentWealth
+            modelStats[m]["ttlSum"] += agentTimeToLiveAgeLimited
+            modelStats[m]["count"] += 1
             meanSelfishness += agent.selfishnessFactor
             meanSugarMetabolism += agent.sugarMetabolism
             meanSpiceMetabolism += agent.spiceMetabolism
@@ -1177,6 +1187,18 @@ class Sugarscape:
             agentCombatDeaths += 1 if agent.causeOfDeath == "combat" else 0
             agentDiseaseDeaths += 1 if agent.diseaseDeath == True else 0
             agentStarvationDeaths += 1 if agent.causeOfDeath == "starvation" else 0
+            # Per-model death tracking
+            m = agent.decisionModel
+            if m not in modelStats:
+                modelStats[m] = {"wealthTotal": 0, "wealthSum": 0, "ttlSum": 0, "count": 0, "deaths": 0, "ageAtDeathSum": 0, "deadCount": 0,
+                                 "starvationDeaths": 0, "combatDeaths": 0, "agingDeaths": 0, "diseaseDeaths": 0}
+            modelStats[m]["deaths"] += 1
+            modelStats[m]["ageAtDeathSum"] += agent.age
+            modelStats[m]["deadCount"] += 1
+            modelStats[m]["starvationDeaths"] += 1 if agent.causeOfDeath == "starvation" else 0
+            modelStats[m]["combatDeaths"] += 1 if agent.causeOfDeath == "combat" else 0
+            modelStats[m]["agingDeaths"] += 1 if agent.causeOfDeath == "aging" else 0
+            modelStats[m]["diseaseDeaths"] += 1 if agent.diseaseDeath == True else 0
             if group != None and agent.isInGroup(group):
                 combatExperimentalToControl += agent.combatWithControlGroup
                 combatExperimentalToExperimental += agent.combatWithExperimentalGroup
@@ -1213,6 +1235,22 @@ class Sugarscape:
                     if self.timestep != 0:
                         infectors.add(disease["infector"])
         meanAgeAtDeath = round(meanAgeAtDeath / numDeadAgents, 2) if numDeadAgents > 0 else 0
+
+        # Finalize per-model stats
+        finalModelStats = {}
+        for m, s in modelStats.items():
+            count = s["count"]
+            finalModelStats[m] = {
+                "wealthTotal": round(s["wealthTotal"], 2),
+                "meanWealth": round(s["wealthSum"] / count, 2) if count > 0 else 0,
+                "meanTimeToLive": round(s["ttlSum"] / count, 2) if count > 0 else 0,
+                "deaths": s["deaths"],
+                "starvationDeaths": s["starvationDeaths"],
+                "combatDeaths": s["combatDeaths"],
+                "agingDeaths": s["agingDeaths"],
+                "diseaseDeaths": s["diseaseDeaths"],
+                "meanAgeAtDeath": round(s["ageAtDeathSum"] / s["deadCount"], 2) if s["deadCount"] > 0 else 0
+            }
 
         for disease in self.diseases:
             # If in the experimental group for a specific disease, skip other diseases
@@ -1312,7 +1350,7 @@ class Sugarscape:
                         "meanDeathsPercentage": meanDeathsPercentage, "sickAgentsPercentage": sickAgentsPercentage,
                         "diseaseEffectiveReproductionRate": diseaseEffectiveReproductionRate, "diseaseIncidence": diseaseIncidence,
                         "diseasePrevalence": diseasePrevalence, "agentLastMoveOptimalityPercentage": agentLastMoveOptimalityPercentage,
-                        "populationByModel": modelCounts
+                        "populationByModel": modelCounts, "statsByModel": finalModelStats
                         }
 
         controlInteractionStats = {"combatControlGroupToControlGroup": combatControlToControl, "combatControlGroupToExperimentalGroup": combatControlToExperimental,
@@ -1859,3 +1897,4 @@ if __name__ == "__main__":
     else:
         S.runSimulation(configuration["timesteps"])
     exit(0)
+    
