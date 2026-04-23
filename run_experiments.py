@@ -205,6 +205,10 @@ def worker(args):
             if len(s.agents) == 0: # Stop early if extinct
                 break
                 
+        # Properly close the JSON logs since we bypassed s.run()
+        s.endLog(s.log)
+        s.endLog(s.agentLog)
+                
         # Evaluate immediately and clean up raw log to save disk space
         import evaluate_outcomes
         evaluate_outcomes.evaluate_outcomes(conf["logfile"])
