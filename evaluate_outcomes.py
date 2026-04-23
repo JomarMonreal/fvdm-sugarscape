@@ -66,7 +66,47 @@ def evaluate_outcomes(log_file):
     total_loans = sum(step.get("lendingVolume", 0) for step in log_data)
     total_combats = sum(step.get("agentCombatDeaths", 0) for step in log_data)
 
-    # Per-timestep wealth time series
+    # Per-model aggregation across all timesteps
+    model_accumulators = {}
+    for step in log_data:
+        stats_by_model = step.get("statsByModel", {})
+        for model, s in stats_by_model.items():
+            if model not in model_accumulators:
+                model_accumulators[model] = {
+                    "wealthTotalSum": 0, "meanWealthSum": 0, "meanTTLSum": 0,
+                    "totalDeaths": 0, "starvationDeaths": 0, "combatDeaths": 0,
+                    "agingDeaths": 0, "diseaseDeaths": 0,
+                    "meanAgeAtDeathSum": 0, "ageAtDeathCount": 0, "timestepCount": 0
+                }
+            acc = model_accumulators[model]
+            acc["wealthTotalSum"] += s.get("wealthTotal", 0)
+            acc["meanWealthSum"] += s.get("meanWealth", 0)
+            acc["meanTTLSum"] += s.get("meanTimeToLive", 0)
+            acc["totalDeaths"] += s.get("deaths", 0)
+            acc["starvationDeaths"] += s.get("starvationDeaths", 0)
+            acc["combatDeaths"] += s.get("combatDeaths", 0)
+            acc["agingDeaths"] += s.get("agingDeaths", 0)
+            acc["diseaseDeaths"] += s.get("diseaseDeaths", 0)
+            if s.get("meanAgeAtDeath", 0) > 0:
+                acc["meanAgeAtDeathSum"] += s.get("meanAgeAtDeath", 0)
+                acc["ageAtDeathCount"] += 1
+            acc["timestepCount"] += 1
+
+    per_model_summary = {}
+    for model, acc in model_accumulators.items():
+        tc = acc["timestepCount"]
+        per_model_summary[model] = {
+            "meanSocietalWealth": round(acc["wealthTotalSum"] / tc, 2) if tc > 0 else 0,
+            "meanAgentWealth": round(acc["meanWealthSum"] / tc, 2) if tc > 0 else 0,
+            "meanTimeToLive": round(acc["meanTTLSum"] / tc, 2) if tc > 0 else 0,
+            "totalDeaths": acc["totalDeaths"],
+            "starvationDeaths": acc["starvationDeaths"],
+            "combatDeaths": acc["combatDeaths"],
+            "agingDeaths": acc["agingDeaths"],
+            "diseaseDeaths": acc["diseaseDeaths"],
+            "meanAgeAtDeath": round(acc["meanAgeAtDeathSum"] / acc["ageAtDeathCount"], 2) if acc["ageAtDeathCount"] > 0 else 0
+        }
+
     wealth_timeseries = []
     for step in log_data:
         wealth_timeseries.append({
@@ -110,6 +150,20 @@ def evaluate_outcomes(log_file):
     print(f"\n--- Wealth Time Series ---")
     print(f"Recorded {len(wealth_timeseries)} timesteps of agentWealthTotal and meanWealth")
 
+    if per_model_summary:
+        print(f"\n--- Per-Model Statistics ---")
+        for model, s in per_model_summary.items():
+            print(f"  [{model}]")
+            print(f"    Mean Societal Wealth:  {s['meanSocietalWealth']:.2f}")
+            print(f"    Mean Agent Wealth:     {s['meanAgentWealth']:.2f}")
+            print(f"    Mean Time To Live:     {s['meanTimeToLive']:.2f}")
+            print(f"    Mean Age At Death:     {s['meanAgeAtDeath']:.2f}")
+            print(f"    Total Deaths:          {s['totalDeaths']}")
+            print(f"      - Starvation:        {s['starvationDeaths']}")
+            print(f"      - Combat:            {s['combatDeaths']}")
+            print(f"      - Aging:             {s['agingDeaths']}")
+            print(f"      - Disease:           {s['diseaseDeaths']}")
+
     # Population breakdown by decision model and tribe
     if "populationByModel" in first_step:
         print(f"\n--- Population by Decision Model ---")
@@ -142,7 +196,8 @@ def evaluate_outcomes(log_file):
             "total_trades": total_trades,
             "total_loans": total_loans,
             "total_combats": total_combats
-        }
+        },
+        "per_model_metrics": per_model_summary
     }
     
     output_filename = os.path.splitext(log_file)[0] + "_evaluation.json"
