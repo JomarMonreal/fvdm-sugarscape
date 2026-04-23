@@ -40,6 +40,7 @@ def worker(args):
     conf["agentInheritancePolicy"] = "children"
     conf["agentStartingSugar"] = [10, 40]
     conf["agentStartingSpice"] = [10, 40]
+    conf["keepAlivePostExtinction"] = False  # Always end on extinction
     # Ensure seasons and pollution are disabled
     conf["environmentSeasonInterval"] = 0
     conf["environmentPollutionDiffusionDelay"] = 0
@@ -208,7 +209,9 @@ def worker(args):
         s.startLog(s.log)
         for t in range(conf["timesteps"]):
             s.doTimestep()
-            if len(s.agents) == 0: # Stop early if extinct
+            # Stop immediately on extinction (s.end is set internally by sugarscape
+            # when it detects len(agents) == 0 and keepAlivePostExtinction is False)
+            if len(s.agents) == 0 or s.end:
                 break
                 
         # Properly close the JSON logs since we bypassed s.run().
