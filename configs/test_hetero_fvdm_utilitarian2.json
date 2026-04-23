@@ -41,8 +41,8 @@
         2
     ],
     "agentDecisionModels": [
-        "fvdmSelfish",
-        "fvdmAltruist",
+        "fvdmSelfish2",
+        "fvdmAltruist2",
         "fvdmBentham"
     ],
     "agentDecisionModelFactor": [
@@ -58,5 +58,5 @@
     "environmentSpiceRegrowRate": 1,
     "environmentWraparound": true,
     "seed": 42,
-    "logfile": "results/test_hetero_fvdm_selfish.json"
+    "logfile": "results/test_hetero_fvdm_utilitarian.json"
 }

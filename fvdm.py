@@ -243,6 +243,8 @@ class PrioritizationVectorStore:
             "fvdmSelfish": "selfish",
             "fvdmAltruist": "altruist",
             "fvdmBentham": "utilitarian",
+            "fvdmSelfish2": "selfish2",
+            "fvdmAltruist2": "altruist2",
         }
         key = mapping.get(condition, "utilitarian")
         return self.vectors.get(key, FelicificEffectVector(0.8, 0.8, 0.8, 0.8, 0.5))

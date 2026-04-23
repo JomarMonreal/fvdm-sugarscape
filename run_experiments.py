@@ -13,11 +13,12 @@ CONFIGS = {
     "homo_fvdm_selfish": "configs/test_homo_fvdm_selfish.json",
     "homo_fvdm_altruist": "configs/test_homo_fvdm_altruist.json",
     "homo_fvdm_utilitarian": "configs/test_homo_fvdm_utilitarian.json",
+    "homo_fvdm_selfish2": "configs/test_homo_fvdm_selfish2.json",
+    "homo_fvdm_altruist2": "configs/test_homo_fvdm_altruist2.json",
     "hetero_base": "configs/test_hetero_base.json",
     "hetero_fvdm": "configs/test_hetero_fvdm.json",
-    "hetero_fvdm_selfish": "configs/test_hetero_fvdm_selfish.json",
-    "hetero_fvdm_altruist": "configs/test_hetero_fvdm_altruist.json",
-    "hetero_fvdm_utilitarian": "configs/test_hetero_fvdm_utilitarian.json"
+    "hetero_fvdm_utilitarian1": "configs/test_hetero_fvdm_utilitarian1.json",
+    "hetero_fvdm_utilitarian2": "configs/test_hetero_fvdm_utilitarian2.json"
 }
 
 def worker(args):
