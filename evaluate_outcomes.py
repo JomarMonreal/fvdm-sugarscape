@@ -136,8 +136,7 @@ def evaluate_outcomes(log_file):
             "total_trades": total_trades,
             "total_loans": total_loans,
             "total_combats": total_combats
-        },
-        "wealth_timeseries": wealth_timeseries
+        }
     }
     
     output_filename = os.path.splitext(log_file)[0] + "_evaluation.json"
@@ -147,6 +146,17 @@ def evaluate_outcomes(log_file):
         print(f"\nReport successfully saved to: {output_filename}")
     except IOError as e:
         print(f"\nError saving report to JSON: {e}")
+
+    # Save wealth time series to a separate folder
+    timeseries_dir = os.path.join(os.path.dirname(log_file), "wealth_timeseries")
+    os.makedirs(timeseries_dir, exist_ok=True)
+    timeseries_filename = os.path.join(timeseries_dir, os.path.splitext(os.path.basename(log_file))[0] + "_wealth_timeseries.json")
+    try:
+        with open(timeseries_filename, 'w') as ts_f:
+            json.dump(wealth_timeseries, ts_f)
+        print(f"Wealth time series saved to: {timeseries_filename}")
+    except IOError as e:
+        print(f"Error saving wealth time series: {e}")
 
     print("========================================================\n")
 
