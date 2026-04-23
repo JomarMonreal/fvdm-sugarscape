@@ -251,8 +251,13 @@ def run_experiments(num_seeds, processes, filter_name=None):
     tasks = []
     for seed in seeds:
         for condition_name, config_path in CONFIGS.items():
-            if filter_name and filter_name not in condition_name:
-                continue
+            if filter_name:
+                # Exact match, or prefix match when filter ends with '*'
+                if filter_name.endswith('*'):
+                    if not condition_name.startswith(filter_name[:-1]):
+                        continue
+                elif condition_name != filter_name:
+                    continue
             tasks.append((seed, condition_name, config_path, output_dir))
             
     num_workers = processes if processes is not None else multiprocessing.cpu_count()

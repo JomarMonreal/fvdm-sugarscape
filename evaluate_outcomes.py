@@ -60,12 +60,11 @@ def evaluate_outcomes(log_file):
     # Age at death
     mean_age_at_death = sum(step.get("meanAgeAtDeath", 0) for step in log_data) / total_timesteps if any("meanAgeAtDeath" in step for step in log_data) else "N/A"
 
-    # Action-Selection Frequencies (Derived from recorded interaction metrics if FVDM events missing)
-    # The sugarscape logic records interactions per timestep as a proxy for actions
-    total_reproductions = sum(step.get("reproductionExperimentalToExperimental", 0) + step.get("reproductionControlToControl", 0) + step.get("reproductionControlToExperimental", 0) + step.get("reproductionExperimentalToControl", 0) for step in log_data)
-    total_trades = sum(step.get("tradeExperimentalToExperimental", 0) + step.get("tradeControlToControl", 0) + step.get("tradeControlToExperimental", 0) + step.get("tradeExperimentalToControl", 0) for step in log_data)
-    total_loans = sum(step.get("lendingExperimentalToExperimental", 0) + step.get("lendingControlToControl", 0) + step.get("lendingControlToExperimental", 0) + step.get("lendingExperimentalToControl", 0) for step in log_data)
-    total_combats = sum(step.get("combatExperimentalToExperimental", 0) + step.get("combatControlToControl", 0) + step.get("combatControlToExperimental", 0) + step.get("combatExperimentalToControl", 0) for step in log_data)
+    # Behavioral metrics: use the standard runtimeStats keys logged every timestep
+    total_reproductions = sum(step.get("agentsBorn", 0) for step in log_data)
+    total_trades = sum(step.get("tradeVolume", 0) for step in log_data)
+    total_loans = sum(step.get("lendingVolume", 0) for step in log_data)
+    total_combats = sum(step.get("agentCombatDeaths", 0) for step in log_data)
 
     # Categorical Population End State
     end_state = "Better"
