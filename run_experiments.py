@@ -4,6 +4,10 @@ import os
 import random
 import multiprocessing
 import fnmatch
+import gc
+import math
+import sys
+import hashlib
 from functools import partial
 import sugarscape
 
@@ -23,7 +27,7 @@ CONFIGS = {
 }
 
 def worker(args):
-    seed, condition_name, config_path, output_dir = args
+    seed, condition_name, config_path, output_dir, timesteps = args
     
     # Load the specific config
     with open(config_path, 'r') as f:
@@ -31,7 +35,7 @@ def worker(args):
         
     # ENFORCE BASELINE PARAMETERS
     conf["seed"] = seed
-    conf["timesteps"] = 5000
+    conf["timesteps"] = timesteps
     conf["startingAgents"] = 250
     conf["startingDiseases"] = 50
     conf["headlessMode"] = True
@@ -222,11 +226,6 @@ def worker(args):
                 s.endLog(s.log)
         except Exception:
             pass
-        try:
-            if s.agentLog and not s.agentLog.closed:
-                s.endLog(s.agentLog)
-        except Exception:
-            pass
                 
         # Evaluate immediately and clean up raw log to save disk space
         import evaluate_outcomes
@@ -235,14 +234,17 @@ def worker(args):
         # Remove the massive raw log file (can be 80MB+ per seed)
         if os.path.exists(conf["logfile"]):
             os.remove(conf["logfile"])
+        # Explicitly trigger garbage collection to prevent memory bloat in long-running workers
+        s = None
+        gc.collect()
         
-        return condition_name, seed, True, log_filename
+        return condition_name, seed, True, None
     except Exception as e:
         import traceback
         traceback.print_exc()
         return condition_name, seed, False, str(e)
 
-def run_experiments(num_seeds, processes, filter_name=None):
+def run_experiments(num_seeds, processes, filter_name=None, timesteps=5000):
     print(f"=== Starting Stage 5: Comparison Runs ===")
     print(f"Generating {num_seeds} random seeds...")
     
@@ -256,13 +258,15 @@ def run_experiments(num_seeds, processes, filter_name=None):
                 # Use fnmatch to support exact matches and wildcards (e.g. '*fvdm*')
                 if not fnmatch.fnmatch(condition_name, filter_name):
                     continue
-            tasks.append((seed, condition_name, config_path, output_dir))
+            tasks.append((seed, condition_name, config_path, output_dir, timesteps))
             
     num_workers = processes if processes is not None else multiprocessing.cpu_count()
     print(f"Executing {len(tasks)} total simulations using {num_workers} processes.")
     print("This will take a significant amount of time. Please wait...\n")
     
-    pool = multiprocessing.Pool(processes=num_workers)
+    # maxtasksperchild=10 ensures worker processes are periodically restarted,
+    # which clears any memory leaks or resource fragmentation in long-running experiments.
+    pool = multiprocessing.Pool(processes=num_workers, maxtasksperchild=10)
     
     completed = 0
     successful = 0
@@ -289,6 +293,7 @@ if __name__ == "__main__":
     parser.add_argument("--seeds", type=int, default=30, help="Number of seeds to run")
     parser.add_argument("--processes", type=int, default=None, help="Number of worker processes")
     parser.add_argument("--filter", type=str, default=None, help="Filter configurations by name")
+    parser.add_argument("--timesteps", type=int, default=5000, help="Number of timesteps to run")
     args = parser.parse_args()
     
-    run_experiments(args.seeds, args.processes, filter_name=args.filter)
+    run_experiments(args.seeds, args.processes, filter_name=args.filter, timesteps=args.timesteps)
