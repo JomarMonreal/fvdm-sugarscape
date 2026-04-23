@@ -109,6 +109,12 @@ def evaluate_outcomes(log_file):
 
     print(f"\n--- Wealth Time Series ---")
     print(f"Recorded {len(wealth_timeseries)} timesteps of agentWealthTotal and meanWealth")
+
+    # Population breakdown by decision model and tribe
+    if "populationByModel" in first_step:
+        print(f"\n--- Population by Decision Model ---")
+        print(f"Initial: {first_step.get('populationByModel', {})}")
+        print(f"Final:   {last_step.get('populationByModel', {})}")
     
     # Save the report to a JSON file
     report = {

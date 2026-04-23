@@ -1312,7 +1312,7 @@ class Sugarscape:
                         "meanDeathsPercentage": meanDeathsPercentage, "sickAgentsPercentage": sickAgentsPercentage,
                         "diseaseEffectiveReproductionRate": diseaseEffectiveReproductionRate, "diseaseIncidence": diseaseIncidence,
                         "diseasePrevalence": diseasePrevalence, "agentLastMoveOptimalityPercentage": agentLastMoveOptimalityPercentage,
-                        "populationByModel": modelCounts, "populationByTribe": tribes
+                        "populationByModel": modelCounts
                         }
 
         controlInteractionStats = {"combatControlGroupToControlGroup": combatControlToControl, "combatControlGroupToExperimentalGroup": combatControlToExperimental,
