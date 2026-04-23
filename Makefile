@@ -97,7 +97,7 @@ derive-collect:
 	$(PYTHON) felicific_derivation.py --collect --seeds $(SEEDS_MAIN) --processes $(CORES) --agents $(AGENTS)
 
 derive-train:
-	$(PYTHON) felicific_derivation.py --train --batches $(BATCHES)
+	$(PYTHON) felicific_derivation.py --train --batches $(BATCHES) --processes $(CORES)
 
 derive-clean:
 	rm -rf observations/
