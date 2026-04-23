@@ -38,6 +38,8 @@ def worker(args):
     conf["environmentWidth"] = 50
     conf["agentTagging"] = True
     conf["agentInheritancePolicy"] = "children"
+    conf["agentStartingSugar"] = [10, 40]
+    conf["agentStartingSpice"] = [10, 40]
     # Ensure seasons and pollution are disabled
     conf["environmentSeasonInterval"] = 0
     conf["environmentPollutionDiffusionDelay"] = 0
@@ -82,8 +84,8 @@ def worker(args):
         "agentReplacements": 0,
         "agentSelfishnessFactor": [0, 0],
         "agentSpiceMetabolism": [1, 1],
-        "agentStartingSpice": [50, 100],
-        "agentStartingSugar": [50, 100],
+        "agentStartingSpice": [10, 40],
+        "agentStartingSugar": [10, 40],
         "agentSugarMetabolism": [1, 1],
         "agentTagging": False,
         "agentTagPreferences": [0, 0],
@@ -161,7 +163,7 @@ def worker(args):
         "lendingFactor": 0,
         "loanDuration": 0,
         "logfile": None,
-        "logfileFormat": "csv",
+        "logfileFormat": "json",
         "lookaheadFactor": 0,
         "maxAge": [60, 100],
         "maxFriends": 0,
