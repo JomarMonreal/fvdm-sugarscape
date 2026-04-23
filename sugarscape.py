@@ -1062,6 +1062,7 @@ class Sugarscape:
         meanValidMoves = 0
         meanMoveRank = 0
         meanMoveDifferenceFromOptimal = 0
+        modelCounts = {}
 
         for agent in self.agents:
             if group != None and agent.isInGroup(group, notInGroup) == False:
@@ -1069,6 +1070,7 @@ class Sugarscape:
             agentTimeToLive = agent.findTimeToLive()
             agentTimeToLiveAgeLimited = agent.findTimeToLive(True)
             agentWealth = agent.sugar + agent.spice
+            modelCounts[agent.decisionModel] = modelCounts.get(agent.decisionModel, 0) + 1
             meanSelfishness += agent.selfishnessFactor
             meanSugarMetabolism += agent.sugarMetabolism
             meanSpiceMetabolism += agent.spiceMetabolism
@@ -1309,7 +1311,8 @@ class Sugarscape:
                         "population": numAgents, "sickAgents": sickAgents, "remainingTribes": remainingTribes, "tradeVolume": tradeVolume,
                         "meanDeathsPercentage": meanDeathsPercentage, "sickAgentsPercentage": sickAgentsPercentage,
                         "diseaseEffectiveReproductionRate": diseaseEffectiveReproductionRate, "diseaseIncidence": diseaseIncidence,
-                        "diseasePrevalence": diseasePrevalence, "agentLastMoveOptimalityPercentage": agentLastMoveOptimalityPercentage
+                        "diseasePrevalence": diseasePrevalence, "agentLastMoveOptimalityPercentage": agentLastMoveOptimalityPercentage,
+                        "populationByModel": modelCounts, "populationByTribe": tribes
                         }
 
         controlInteractionStats = {"combatControlGroupToControlGroup": combatControlToControl, "combatControlGroupToExperimentalGroup": combatControlToExperimental,
