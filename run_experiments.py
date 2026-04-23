@@ -3,6 +3,7 @@ import json
 import os
 import random
 import multiprocessing
+import fnmatch
 from functools import partial
 import sugarscape
 
@@ -252,11 +253,8 @@ def run_experiments(num_seeds, processes, filter_name=None):
     for seed in seeds:
         for condition_name, config_path in CONFIGS.items():
             if filter_name:
-                # Exact match, or prefix match when filter ends with '*'
-                if filter_name.endswith('*'):
-                    if not condition_name.startswith(filter_name[:-1]):
-                        continue
-                elif condition_name != filter_name:
+                # Use fnmatch to support exact matches and wildcards (e.g. '*fvdm*')
+                if not fnmatch.fnmatch(condition_name, filter_name):
                     continue
             tasks.append((seed, condition_name, config_path, output_dir))
             
