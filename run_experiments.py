@@ -200,6 +200,10 @@ def worker(args):
     try:
         # Initialize and run the simulation
         s = sugarscape.Sugarscape(conf)
+        # startLog writes the JSON array opening bracket and first stats entry.
+        # This is normally called by s.runSimulation(), but we drive the loop manually.
+        s.updateRuntimeStats()
+        s.startLog(s.log)
         for t in range(conf["timesteps"]):
             s.doTimestep()
             if len(s.agents) == 0: # Stop early if extinct
