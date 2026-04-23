@@ -1,9 +1,11 @@
-import hashlib
 import math
+import os
+import json
 import random
-import re
 import sys
+import hashlib
 import fvdm
+from fvdm import LocalState
 
 class Agent:
     def __init__(self, agentID, birthday, cell, configuration):
@@ -106,6 +108,8 @@ class Agent:
         self.lastTradeTimestep = -1
         self.lastTradePartners = 0
         self.lastUniversalSpiceIncomeTimestep = 0
+        self.lastTTLCalculationTimestep = -1
+        self.lastTTLValue = 0
         self.lastUniversalSugarIncomeTimestep = 0
         self.lastValidMoves = 0
         self.marginalRateOfSubstitution = 1
@@ -1088,6 +1092,9 @@ class Agent:
         return max(0, self.sugarMetabolism + self.sugarMetabolismModifier)
 
     def findTimeToLive(self, ageLimited=False):
+        if ageLimited == False and self.lastTTLCalculationTimestep == self.cell.environment.sugarscape.timestep:
+            return self.lastTTLValue
+            
         spiceMetabolism = self.findSpiceMetabolism()
         sugarMetabolism = self.findSugarMetabolism()
         # If no sugar or spice metabolism, set days to death for that resource to seemingly infinite
@@ -1101,6 +1108,10 @@ class Agent:
             spiceIncome = (spiceTimeToLive * self.universalSpice) / self.cell.environment.universalSpiceIncomeInterval
             spiceTimeToLive = (self.spice + spiceIncome) / spiceMetabolism if spiceMetabolism > 0 else sys.maxsize
         timeToLive = min(sugarTimeToLive, spiceTimeToLive)
+        if ageLimited == False:
+            self.lastTTLValue = timeToLive
+            self.lastTTLCalculationTimestep = self.cell.environment.sugarscape.timestep
+            
         if ageLimited == True:
             timeToLive = min(timeToLive, self.maxAge - self.age)
         self.timeToLive = timeToLive
@@ -1620,8 +1631,6 @@ class Agent:
         return f"{self.ID}"
 
     def get_fvdm_local_state(self):
-        from fvdm import LocalState
-        
         # 1. Internal state variables
         wealth = self.sugar + self.spice
         metabolism = self.findSugarMetabolism() + self.findSpiceMetabolism()

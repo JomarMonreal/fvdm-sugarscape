@@ -138,26 +138,28 @@ evaluate-experiments:
 	$(PYTHON) aggregate_evaluations.py results/experiments/
 
 ## Individual Outcome Evaluation Runs (500 seeds)
+TIMESTEPS ?= 5000
+
 eval-selfish-homo:
-	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_selfish --processes $(CORES)
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_selfish --processes $(CORES) --timesteps $(TIMESTEPS)
 
 eval-altruist-homo:
-	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_altruist --processes $(CORES)
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_altruist --processes $(CORES) --timesteps $(TIMESTEPS)
 
 eval-utilitarian-homo:
-	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_utilitarian --processes $(CORES)
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_utilitarian --processes $(CORES) --timesteps $(TIMESTEPS)
 
 eval-selfish2-homo:
-	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_selfish2 --processes $(CORES)
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_selfish2 --processes $(CORES) --timesteps $(TIMESTEPS)
 
 eval-altruist2-homo:
-	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_altruist2 --processes $(CORES)
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_fvdm_altruist2 --processes $(CORES) --timesteps $(TIMESTEPS)
 
 eval-utilitarian-hetero1:
-	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_utilitarian1 --processes $(CORES)
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_utilitarian1 --processes $(CORES) --timesteps $(TIMESTEPS)
 
 eval-utilitarian-hetero2:
-	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_utilitarian2 --processes $(CORES)
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_utilitarian2 --processes $(CORES) --timesteps $(TIMESTEPS)
 
 eval-all-fvdm: eval-selfish-homo eval-altruist-homo eval-utilitarian-homo eval-selfish2-homo eval-altruist2-homo eval-utilitarian-hetero1 eval-utilitarian-hetero2
 
