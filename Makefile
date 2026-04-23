@@ -159,8 +159,7 @@ eval-utilitarian-hetero1:
 eval-utilitarian-hetero2:
 	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_utilitarian2 --processes $(CORES)
 
-eval-all-fvdm:
-	$(PYTHON) run_experiments.py --seeds 500 --filter fvdm* --processes $(CORES)
+eval-all-fvdm: eval-selfish-homo eval-altruist-homo eval-utilitarian-homo eval-selfish2-homo eval-altruist2-homo eval-utilitarian-hetero1 eval-utilitarian-hetero2
 
 .PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous run-experiments evaluate-experiments eval-selfish-homo eval-altruist-homo eval-utilitarian-homo eval-selfish2-homo eval-altruist2-homo eval-utilitarian-hetero1 eval-utilitarian-hetero2 eval-all-fvdm
 # vim: set noexpandtab tabstop=4:
