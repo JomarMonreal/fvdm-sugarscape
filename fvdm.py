@@ -73,13 +73,28 @@ class FelicificCoordinateStore:
         self.models = {} # action_name -> {coord -> {weights, inv_cov, mse, scaler}}
 
     def load(self, path="results/fvdm_weights.json"):
-        """Loads the parametric regression models."""
+        """Loads the parametric regression models and pre-converts all lists to numpy arrays."""
         if not os.path.exists(path):
             return
         with open(path, 'r') as f:
             try:
-                self.models = json.load(f)
-            except: pass
+                raw = json.load(f)
+            except: return
+        
+        # Pre-convert all JSON lists to numpy arrays once at load time
+        # so predict() incurs zero conversion overhead at runtime.
+        self.models = {}
+        for action_name, coords in raw.items():
+            self.models[action_name] = {}
+            for coord, m in coords.items():
+                std = np.array(m["scaler"]["std"])
+                self.models[action_name][coord] = {
+                    "weights": np.array(m["weights"]),
+                    "inv_cov": np.array(m["inv_cov"]),
+                    "mse": float(m["mse"]),
+                    "mean": np.array(m["scaler"]["mean"]),
+                    "safe_std": np.where(std == 0, 1.0, std),
+                }
 
     def predict(self, action, state):
         """Predicts the FelicificEffectVector using Linear Regression weights."""
@@ -91,40 +106,26 @@ class FelicificCoordinateStore:
         x = np.array(state.to_vector())
         
         preds = {}
-        # 1. Predict I, D, P, X using their respective linear models
+        # 1. Predict I, D, P, X using their respective linear models.
+        # All numpy arrays are pre-cached at load time — no conversion overhead here.
         for c in ["I", "D", "P", "X"]:
-            model = m[c]
-            w = np.array(model["weights"])
-            mean = np.array(model["scaler"]["mean"])
-            std = np.array(model["scaler"]["std"])
-            
-            # Scale input for this specific model, replacing 0s with 1s to prevent division by zero
-            safe_std = np.where(std == 0, 1.0, std)
-            x_scaled = (x - mean) / safe_std
-            # Add intercept term
-            x_design = np.insert(x_scaled, 0, 1.0)
-            
-            preds[c] = float(np.dot(x_design, w))
-            
-        # 2. Dynamic Certainty (C) Calculation
-        # Computed at runtime based on the Prediction Variance of the Intensity (I) model.
-        # This captures both global noise (MSE) and state-space distance (via Inverse Covariance).
-        model_i = m["I"]
-        inv_cov_i = np.array(model_i["inv_cov"])
-        mse_i = model_i["mse"]
-        mean_i = np.array(model_i["scaler"]["mean"])
-        std_i = np.array(model_i["scaler"]["std"])
-        
-        safe_std_i = np.where(std_i == 0, 1.0, std_i)
-        x_scaled_i = (x - mean_i) / safe_std_i
-        x_design_i = np.insert(x_scaled_i, 0, 1.0)
-        
-        # Pred Var = sigma^2 * (1 + x^T * (X^T X)^-1 * x)
-        pred_var = mse_i * (1.0 + x_design_i.T @ inv_cov_i @ x_design_i)
-        
-        # Map variance to Certainty [0, 1]
+            cm = m[c]
+            x_scaled = (x - cm["mean"]) / cm["safe_std"]
+            x_design = np.empty(len(x_scaled) + 1)
+            x_design[0] = 1.0
+            x_design[1:] = x_scaled
+            preds[c] = float(x_design @ cm["weights"])
+
+        # 2. Dynamic Certainty (C) using pre-cached I model arrays.
+        # Reuse the x_design already computed for I (same scaler).
+        cm_i = m["I"]
+        x_scaled_i = (x - cm_i["mean"]) / cm_i["safe_std"]
+        x_design_i = np.empty(len(x_scaled_i) + 1)
+        x_design_i[0] = 1.0
+        x_design_i[1:] = x_scaled_i
+        pred_var = cm_i["mse"] * (1.0 + x_design_i @ cm_i["inv_cov"] @ x_design_i)
         preds["C"] = 1.0 / (1.0 + pred_var)
-        
+
         return FelicificEffectVector(preds["I"], preds["D"], preds["C"], preds["P"], preds["X"])
 
 class FVDMDecisionModel:
