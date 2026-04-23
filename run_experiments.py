@@ -231,9 +231,7 @@ def worker(args):
         import evaluate_outcomes
         evaluate_outcomes.evaluate_outcomes(conf["logfile"])
         
-        # Remove the massive raw log file (can be 80MB+ per seed)
-        if os.path.exists(conf["logfile"]):
-            os.remove(conf["logfile"])
+        # Keep the raw per-timestep JSON log for downstream analysis
         # Explicitly trigger garbage collection to prevent memory bloat in long-running workers
         s = None
         gc.collect()
