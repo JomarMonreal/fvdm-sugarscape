@@ -11,20 +11,25 @@ def evaluate_outcomes(log_file):
     try:
         with open(log_file, 'r') as f:
             content = f.read().strip()
-            
-        # Gracefully handle incomplete JSON arrays (e.g. from crashed simulations)
-        if content.endswith(','):
-            content = content[:-1] + ']'
-        elif not content.endswith(']'):
+
+        # Gracefully repair incomplete JSON arrays (e.g. from OOM kills or crashes).
+        # The log is a JSON array like: [\n\t{...},\n\t{...},\n\t{...}\n]
+        # If killed mid-write, it may end with: ',', '{...', or just have no ']'.
+        if not content.startswith('['):
+            print(f"Error: Could not decode JSON from '{log_file}'. Make sure the simulation finished cleanly.")
+            return
+
+        if not content.endswith(']'):
+            # Truncate to the last complete JSON object
             last_brace = content.rfind('}')
-            if last_brace != -1:
-                content = content[:last_brace+1] + ']'
-            else:
-                content += ']'
-                
+            if last_brace == -1:
+                print(f"Error: Could not decode JSON from '{log_file}'. File contains no complete records.")
+                return
+            content = content[:last_brace + 1] + '\n]'
+
         log_data = json.loads(content)
-    except json.JSONDecodeError:
-        print(f"Error: Could not decode JSON from '{log_file}'. Make sure the simulation finished cleanly.")
+    except json.JSONDecodeError as e:
+        print(f"Error: Could not decode JSON from '{log_file}'. Make sure the simulation finished cleanly. ({e})")
         return
 
     if not log_data or not isinstance(log_data, list):
