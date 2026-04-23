@@ -66,6 +66,15 @@ def evaluate_outcomes(log_file):
     total_loans = sum(step.get("lendingVolume", 0) for step in log_data)
     total_combats = sum(step.get("agentCombatDeaths", 0) for step in log_data)
 
+    # Per-timestep wealth time series
+    wealth_timeseries = []
+    for step in log_data:
+        wealth_timeseries.append({
+            "timestep": step.get("timestep", 0),
+            "agentWealthTotal": round(step.get("agentWealthTotal", 0), 2),
+            "meanWealth": round(step.get("meanWealth", 0), 2)
+        })
+
     # Categorical Population End State
     end_state = "Better"
     if final_population == 0:
@@ -97,6 +106,9 @@ def evaluate_outcomes(log_file):
     print(f"Total Trades: {total_trades}")
     print(f"Total Loans: {total_loans}")
     print(f"Total Combats: {total_combats}")
+
+    print(f"\n--- Wealth Time Series ---")
+    print(f"Recorded {len(wealth_timeseries)} timesteps of agentWealthTotal and meanWealth")
     
     # Save the report to a JSON file
     report = {
@@ -124,7 +136,8 @@ def evaluate_outcomes(log_file):
             "total_trades": total_trades,
             "total_loans": total_loans,
             "total_combats": total_combats
-        }
+        },
+        "wealth_timeseries": wealth_timeseries
     }
     
     output_filename = os.path.splitext(log_file)[0] + "_evaluation.json"
