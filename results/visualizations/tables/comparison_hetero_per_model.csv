@@ -1,0 +1,7 @@
+Condition,Model,Mean Wealth,Mean TTL,Mean Age@Death,Total Deaths,Combat Deaths
+Hetero (Derived),Altruist (Derived),175.03,19.11,31.45,1408.2,64.4
+Hetero (Derived),Selfish (Derived),173.27,19.26,32.33,1515.6,65.4
+Hetero (Derived),Utilitarian,178.25,19.25,31.16,1193.7,63.4
+Hetero (Idealized),Selfish (Idealized),138.62,19.2,43.11,2077.9,72.3
+Hetero (Idealized),Altruist (Idealized),142.22,19.86,49.67,3771.4,93.8
+Hetero (Idealized),Utilitarian,128.88,19.13,44.31,2435.5,75.3

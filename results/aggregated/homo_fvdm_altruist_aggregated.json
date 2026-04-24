@@ -1,50 +1,50 @@
 {
   "condition": "homo_fvdm_altruist",
-  "num_seeds": 499,
+  "num_seeds": 500,
   "end_states": {
     "counts": {
-      "Extinct": 318,
+      "Extinct": 319,
       "Worse": 38,
       "Better": 143
     },
     "percentages": {
-      "Extinct": 63.73,
-      "Worse": 7.62,
-      "Better": 28.66
+      "Extinct": 63.8,
+      "Worse": 7.6,
+      "Better": 28.6
     }
   },
   "mean_societal_metrics": {
     "initial_population": 250.0,
-    "final_population": 120.6152,
-    "mean_population": 118.4437,
-    "total_societal_wealth_end": 8654.1459,
-    "mean_agent_wealth_overall": 222.6724
+    "final_population": 120.374,
+    "mean_population": 118.246,
+    "total_societal_wealth_end": 8636.8376,
+    "mean_agent_wealth_overall": 222.8865
   },
   "mean_health_metrics": {
-    "mean_time_to_live": 20.5066,
-    "mean_age_at_death": 28.0624,
-    "mean_deaths_per_timestep": 2.9032,
-    "starvation_deaths": 91.1703,
-    "combat_deaths": 189.1323,
-    "aging_deaths": 3844.4429,
+    "mean_time_to_live": 20.5138,
+    "mean_age_at_death": 28.0265,
+    "mean_deaths_per_timestep": 2.9007,
+    "starvation_deaths": 91.148,
+    "combat_deaths": 189.158,
+    "aging_deaths": 3836.776,
     "disease_deaths": 0.0
   },
   "mean_behavioral_metrics": {
-    "total_reproductions": 3995.3607,
-    "total_trades": 111630.6152,
+    "total_reproductions": 3987.456,
+    "total_trades": 111408.01,
     "total_loans": 0.0,
-    "total_combats": 189.1323
+    "total_combats": 189.158
   },
   "mean_per_model_metrics": {
     "fvdmAltruist": {
-      "meanSocietalWealth": 9382.3534,
-      "meanAgentWealth": 222.6724,
-      "meanTimeToLive": 20.5066,
-      "meanAgeAtDeath": 42.4709,
-      "totalDeaths": 4124.7455,
-      "starvationDeaths": 91.1703,
-      "combatDeaths": 189.1323,
-      "agingDeaths": 3844.4429,
+      "meanSocietalWealth": 9368.6821,
+      "meanAgentWealth": 222.8865,
+      "meanTimeToLive": 20.5138,
+      "meanAgeAtDeath": 42.444,
+      "totalDeaths": 4117.082,
+      "starvationDeaths": 91.148,
+      "combatDeaths": 189.158,
+      "agingDeaths": 3836.776,
       "diseaseDeaths": 0.0
     }
   }

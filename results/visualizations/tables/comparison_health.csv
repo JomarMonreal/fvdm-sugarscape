@@ -1,0 +1,8 @@
+Condition,Mean TTL,Mean Age@Death,Deaths/Timestep,Starvation,Combat,Aging
+Hetero (Derived),19.94,27.43,2.91,90.7,193.1,3833.7
+Hetero (Idealized),19.93,46.22,3.89,119.7,241.5,7923.7
+Homo Altruist (Derived),20.51,28.03,2.9,91.1,189.2,3836.8
+Homo Altruist (Idealized),18.08,63.95,5.99,235.0,98.0,14661.0
+Homo Selfish (Derived),19.94,26.17,2.88,90.5,192.9,3544.8
+Homo Selfish (Idealized),20.21,28.01,2.9,107.9,172.6,3855.4
+Homo Utilitarian,20.16,27.92,2.88,90.7,185.4,3732.7
