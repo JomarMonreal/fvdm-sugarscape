@@ -1,114 +1,159 @@
+"""
+aggregate_evaluations.py
+
+Reads all *_evaluation.json files in a condition's evaluation/ subfolder,
+aggregates categorical end states and mean metrics across all seeds,
+and writes to results/aggregated/<condition>_aggregated.json.
+"""
+
 import os
+import sys
 import json
 import glob
-import statistics
-import csv
+import argparse
+from collections import defaultdict
 
-def flatten_dict(d, parent_key='', sep='.'):
-    items = []
-    for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
 
-def aggregate(results_dir):
-    print("=== Stage 6: Outcome Evaluation ===")
-    
-    # Find all evaluation files
-    eval_files = glob.glob(os.path.join(results_dir, "*_evaluation.json"))
+def infer_condition(eval_dir):
+    parent = os.path.dirname(os.path.normpath(eval_dir))
+    return os.path.basename(parent)
+
+
+def mean(values):
+    return round(sum(values) / len(values), 4) if values else 0
+
+
+def aggregate(eval_dir):
+    condition = infer_condition(eval_dir)
+    eval_files = sorted(glob.glob(os.path.join(eval_dir, "*_evaluation.json")))
+
     if not eval_files:
-        print(f"No evaluation files found in {results_dir}")
-        return
+        print(f"No evaluation JSON files found in '{eval_dir}'.")
+        sys.exit(1)
 
-    # Group by condition
-    # Filename format: {condition_name}_seed_{seed}_evaluation.json
-    conditions = {}
-    
-    for fpath in eval_files:
-        filename = os.path.basename(fpath)
-        # Extract condition name
-        condition_name = filename.split("_seed_")[0]
-        
-        with open(fpath, 'r') as f:
-            try:
+    # --- Accumulators ---
+    end_state_counts = {"Extinct": 0, "Worse": 0, "Better": 0}
+    num_seeds = 0
+
+    # Societal metrics
+    societal = defaultdict(list)
+
+    # Health/survival metrics
+    health = defaultdict(list)
+
+    # Behavioral metrics
+    behavioral = defaultdict(list)
+
+    # Per-model metrics: model -> metric -> [values]
+    per_model = defaultdict(lambda: defaultdict(list))
+
+    for path in eval_files:
+        try:
+            with open(path) as f:
                 data = json.load(f)
-                flat_data = flatten_dict(data)
-                
-                if condition_name not in conditions:
-                    conditions[condition_name] = []
-                conditions[condition_name].append(flat_data)
-            except json.JSONDecodeError:
-                print(f"Warning: Could not parse {filename}")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"  Skipping (unreadable): {os.path.basename(path)} — {e}")
+            continue
 
-    if not conditions:
-        print("No valid evaluation data to aggregate.")
-        return
+        num_seeds += 1
 
-    print(f"Aggregating {len(eval_files)} files across {len(conditions)} conditions...")
+        # Categorical end state
+        state = data.get("societal_metrics", {}).get("categorical_end_state", "Unknown")
+        if state in end_state_counts:
+            end_state_counts[state] += 1
 
-    # Determine all possible metrics (excluding non-numeric ones like log_file and categorical_end_state)
-    all_metrics = set()
-    for cond_data in conditions.values():
-        for run in cond_data:
-            for k, v in run.items():
-                if isinstance(v, (int, float)):
-                    all_metrics.add(k)
-    
-    all_metrics = sorted(list(all_metrics))
-    
-    # Calculate means and stddevs
-    summary = []
-    for condition_name, runs in conditions.items():
-        row = {"Condition": condition_name, "N_Seeds": len(runs)}
-        
-        # Categorical counts
-        extinct_count = sum(1 for r in runs if r.get("societal_metrics.categorical_end_state") == "Extinct")
-        worse_count = sum(1 for r in runs if r.get("societal_metrics.categorical_end_state") == "Worse")
-        better_count = sum(1 for r in runs if r.get("societal_metrics.categorical_end_state") == "Better")
-        
-        row["End_Extinct"] = extinct_count
-        row["End_Worse"] = worse_count
-        row["End_Better"] = better_count
-        
-        # Numeric metrics
-        for metric in all_metrics:
-            values = [r[metric] for r in runs if metric in r and isinstance(r[metric], (int, float))]
-            if values:
-                mean_val = statistics.mean(values)
-                stdev_val = statistics.stdev(values) if len(values) > 1 else 0.0
-                row[f"{metric}_mean"] = round(mean_val, 2)
-                row[f"{metric}_stdev"] = round(stdev_val, 2)
-            else:
-                row[f"{metric}_mean"] = "N/A"
-                row[f"{metric}_stdev"] = "N/A"
-                
-        summary.append(row)
+        # Societal metrics
+        sm = data.get("societal_metrics", {})
+        for key in ("initial_population", "final_population", "mean_population",
+                    "total_societal_wealth_end", "mean_agent_wealth_overall"):
+            if key in sm:
+                societal[key].append(sm[key])
 
-    # Sort summary logically (Base first, then FVDM)
-    summary.sort(key=lambda x: ("fvdm" in x["Condition"], x["Condition"]))
+        # Health/survival metrics
+        hm = data.get("health_survival_metrics", {})
+        for key in ("mean_time_to_live", "mean_age_at_death", "mean_deaths_per_timestep",
+                    "starvation_deaths", "combat_deaths", "aging_deaths", "disease_deaths"):
+            if key in hm:
+                health[key].append(hm[key])
 
-    # Write CSV
-    csv_path = os.path.join(results_dir, "comparative_summary.csv")
-    fieldnames = ["Condition", "N_Seeds", "End_Extinct", "End_Worse", "End_Better"]
-    for metric in all_metrics:
-        fieldnames.append(f"{metric}_mean")
-        fieldnames.append(f"{metric}_stdev")
-        
-    with open(csv_path, 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in summary:
-            writer.writerow(row)
-            
-    print(f"\nSuccessfully created comparative summary at {csv_path}")
+        # Behavioral metrics
+        bm = data.get("behavioral_metrics", {})
+        for key in ("total_reproductions", "total_trades", "total_loans", "total_combats"):
+            if key in bm:
+                behavioral[key].append(bm[key])
+
+        # Per-model metrics
+        for model, ms in data.get("per_model_metrics", {}).items():
+            for key in ("meanSocietalWealth", "meanAgentWealth", "meanTimeToLive",
+                        "meanAgeAtDeath", "totalDeaths", "starvationDeaths",
+                        "combatDeaths", "agingDeaths", "diseaseDeaths"):
+                if key in ms:
+                    per_model[model][key].append(ms[key])
+
+    # --- Finalize ---
+    end_state_pct = {
+        state: round((count / num_seeds) * 100, 2) if num_seeds > 0 else 0
+        for state, count in end_state_counts.items()
+    }
+
+    output = {
+        "condition": condition,
+        "num_seeds": num_seeds,
+        "end_states": {
+            "counts": end_state_counts,
+            "percentages": end_state_pct
+        },
+        "mean_societal_metrics": {k: mean(v) for k, v in societal.items()},
+        "mean_health_metrics": {k: mean(v) for k, v in health.items()},
+        "mean_behavioral_metrics": {k: mean(v) for k, v in behavioral.items()},
+        "mean_per_model_metrics": {
+            model: {k: mean(v) for k, v in metrics.items()}
+            for model, metrics in per_model.items()
+        }
+    }
+
+    out_dir = os.path.join("results", "aggregated")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, f"{condition}_aggregated.json")
+    with open(out_path, "w") as f:
+        json.dump(output, f, indent=2)
+
+    # --- Print summary ---
+    print(f"Condition:  {condition}")
+    print(f"Seeds:      {num_seeds}")
+    print(f"\nEnd States:")
+    for state, count in end_state_counts.items():
+        print(f"  {state:8s}: {count:4d}  ({end_state_pct[state]:.1f}%)")
+
+    print(f"\nMean Societal Metrics:")
+    for k, v in output["mean_societal_metrics"].items():
+        print(f"  {k}: {v}")
+
+    print(f"\nMean Health Metrics:")
+    for k, v in output["mean_health_metrics"].items():
+        print(f"  {k}: {v}")
+
+    print(f"\nMean Behavioral Metrics:")
+    for k, v in output["mean_behavioral_metrics"].items():
+        print(f"  {k}: {v}")
+
+    if output["mean_per_model_metrics"]:
+        print(f"\nMean Per-Model Metrics:")
+        for model, metrics in output["mean_per_model_metrics"].items():
+            print(f"  [{model}]")
+            for k, v in metrics.items():
+                print(f"    {k}: {v}")
+
+    print(f"\nSaved to: {out_path}")
+
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Aggregate evaluation JSONs into a comparative summary.")
-    parser.add_argument("results_dir", help="Directory containing the *_evaluation.json files")
+    parser = argparse.ArgumentParser(
+        description="Aggregate evaluation JSONs from a condition's evaluation/ folder."
+    )
+    parser.add_argument(
+        "eval_dir",
+        help="Path to the evaluation/ subfolder (e.g. results/experiments/hetero_fvdm_utilitarian1/evaluation/)"
+    )
     args = parser.parse_args()
-    
-    aggregate(args.results_dir)
+    aggregate(args.eval_dir)
