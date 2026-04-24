@@ -1,0 +1,956 @@
+{
+  "condition": "homo_fvdm_selfish",
+  "num_seeds": 1,
+  "models": [
+    "fvdmSelfish"
+  ],
+  "timeseries": {
+    "fvdmSelfish": {
+      "0": {
+        "mean_population": 250.0,
+        "mean_societal_wealth": 12442.0,
+        "mean_agent_wealth": 49.77,
+        "mean_ttl": 7.94,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "1": {
+        "mean_population": 237.0,
+        "mean_societal_wealth": 10994.95,
+        "mean_agent_wealth": 46.39,
+        "mean_ttl": 7.39,
+        "mean_deaths_per_pop": 0.0549,
+        "mean_age_at_death": 0.46,
+        "seed_count": 1
+      },
+      "2": {
+        "mean_population": 224.0,
+        "mean_societal_wealth": 9638.23,
+        "mean_agent_wealth": 43.03,
+        "mean_ttl": 6.79,
+        "mean_deaths_per_pop": 0.058,
+        "mean_age_at_death": 1.54,
+        "seed_count": 1
+      },
+      "3": {
+        "mean_population": 211.0,
+        "mean_societal_wealth": 8501.14,
+        "mean_agent_wealth": 40.29,
+        "mean_ttl": 6.29,
+        "mean_deaths_per_pop": 0.0616,
+        "mean_age_at_death": 2.15,
+        "seed_count": 1
+      },
+      "4": {
+        "mean_population": 181.0,
+        "mean_societal_wealth": 6919.25,
+        "mean_agent_wealth": 38.23,
+        "mean_ttl": 6.22,
+        "mean_deaths_per_pop": 0.1657,
+        "mean_age_at_death": 3.27,
+        "seed_count": 1
+      },
+      "5": {
+        "mean_population": 156.0,
+        "mean_societal_wealth": 5824.42,
+        "mean_agent_wealth": 37.34,
+        "mean_ttl": 6.25,
+        "mean_deaths_per_pop": 0.1603,
+        "mean_age_at_death": 4.16,
+        "seed_count": 1
+      },
+      "6": {
+        "mean_population": 134.0,
+        "mean_societal_wealth": 4899.3,
+        "mean_agent_wealth": 36.56,
+        "mean_ttl": 6.37,
+        "mean_deaths_per_pop": 0.1642,
+        "mean_age_at_death": 5.18,
+        "seed_count": 1
+      },
+      "7": {
+        "mean_population": 112.0,
+        "mean_societal_wealth": 4149.0,
+        "mean_agent_wealth": 37.04,
+        "mean_ttl": 6.81,
+        "mean_deaths_per_pop": 0.1964,
+        "mean_age_at_death": 6.14,
+        "seed_count": 1
+      },
+      "8": {
+        "mean_population": 91.0,
+        "mean_societal_wealth": 3488.39,
+        "mean_agent_wealth": 38.33,
+        "mean_ttl": 7.44,
+        "mean_deaths_per_pop": 0.2308,
+        "mean_age_at_death": 7.24,
+        "seed_count": 1
+      },
+      "9": {
+        "mean_population": 75.0,
+        "mean_societal_wealth": 3064.89,
+        "mean_agent_wealth": 40.87,
+        "mean_ttl": 8.26,
+        "mean_deaths_per_pop": 0.2133,
+        "mean_age_at_death": 8.06,
+        "seed_count": 1
+      },
+      "10": {
+        "mean_population": 63.0,
+        "mean_societal_wealth": 2852.5,
+        "mean_agent_wealth": 45.28,
+        "mean_ttl": 9.38,
+        "mean_deaths_per_pop": 0.1905,
+        "mean_age_at_death": 9.0,
+        "seed_count": 1
+      },
+      "11": {
+        "mean_population": 54.0,
+        "mean_societal_wealth": 2652.3,
+        "mean_agent_wealth": 49.12,
+        "mean_ttl": 10.33,
+        "mean_deaths_per_pop": 0.1667,
+        "mean_age_at_death": 10.0,
+        "seed_count": 1
+      },
+      "12": {
+        "mean_population": 48.0,
+        "mean_societal_wealth": 2478.06,
+        "mean_agent_wealth": 51.63,
+        "mean_ttl": 10.44,
+        "mean_deaths_per_pop": 0.125,
+        "mean_age_at_death": 11.0,
+        "seed_count": 1
+      },
+      "13": {
+        "mean_population": 42.0,
+        "mean_societal_wealth": 2318.46,
+        "mean_agent_wealth": 55.2,
+        "mean_ttl": 11.39,
+        "mean_deaths_per_pop": 0.1429,
+        "mean_age_at_death": 12.17,
+        "seed_count": 1
+      },
+      "14": {
+        "mean_population": 39.0,
+        "mean_societal_wealth": 2261.06,
+        "mean_agent_wealth": 57.98,
+        "mean_ttl": 12.0,
+        "mean_deaths_per_pop": 0.1026,
+        "mean_age_at_death": 13.25,
+        "seed_count": 1
+      },
+      "15": {
+        "mean_population": 35.0,
+        "mean_societal_wealth": 2130.72,
+        "mean_agent_wealth": 60.88,
+        "mean_ttl": 13.0,
+        "mean_deaths_per_pop": 0.1429,
+        "mean_age_at_death": 14.4,
+        "seed_count": 1
+      },
+      "16": {
+        "mean_population": 31.0,
+        "mean_societal_wealth": 2105.31,
+        "mean_agent_wealth": 67.91,
+        "mean_ttl": 14.5,
+        "mean_deaths_per_pop": 0.1935,
+        "mean_age_at_death": 12.5,
+        "seed_count": 1
+      },
+      "17": {
+        "mean_population": 31.0,
+        "mean_societal_wealth": 2166.43,
+        "mean_agent_wealth": 69.88,
+        "mean_ttl": 14.49,
+        "mean_deaths_per_pop": 0.0645,
+        "mean_age_at_death": 16.0,
+        "seed_count": 1
+      },
+      "18": {
+        "mean_population": 29.0,
+        "mean_societal_wealth": 2073.67,
+        "mean_agent_wealth": 71.51,
+        "mean_ttl": 14.8,
+        "mean_deaths_per_pop": 0.1034,
+        "mean_age_at_death": 17.33,
+        "seed_count": 1
+      },
+      "19": {
+        "mean_population": 27.0,
+        "mean_societal_wealth": 2142.94,
+        "mean_agent_wealth": 79.37,
+        "mean_ttl": 15.53,
+        "mean_deaths_per_pop": 0.0741,
+        "mean_age_at_death": 18.0,
+        "seed_count": 1
+      },
+      "20": {
+        "mean_population": 27.0,
+        "mean_societal_wealth": 2202.94,
+        "mean_agent_wealth": 81.59,
+        "mean_ttl": 15.98,
+        "mean_deaths_per_pop": 0.037,
+        "mean_age_at_death": 19.0,
+        "seed_count": 1
+      },
+      "21": {
+        "mean_population": 27.0,
+        "mean_societal_wealth": 2279.94,
+        "mean_agent_wealth": 84.44,
+        "mean_ttl": 16.55,
+        "mean_deaths_per_pop": 0.037,
+        "mean_age_at_death": 20.0,
+        "seed_count": 1
+      },
+      "22": {
+        "mean_population": 26.0,
+        "mean_societal_wealth": 2291.94,
+        "mean_agent_wealth": 88.15,
+        "mean_ttl": 17.63,
+        "mean_deaths_per_pop": 0.0385,
+        "mean_age_at_death": 21.0,
+        "seed_count": 1
+      },
+      "23": {
+        "mean_population": 28.0,
+        "mean_societal_wealth": 2330.94,
+        "mean_agent_wealth": 83.25,
+        "mean_ttl": 16.92,
+        "mean_deaths_per_pop": 0.0357,
+        "mean_age_at_death": 22.0,
+        "seed_count": 1
+      },
+      "24": {
+        "mean_population": 28.0,
+        "mean_societal_wealth": 2403.94,
+        "mean_agent_wealth": 85.86,
+        "mean_ttl": 17.52,
+        "mean_deaths_per_pop": 0.0357,
+        "mean_age_at_death": 23.0,
+        "seed_count": 1
+      },
+      "25": {
+        "mean_population": 28.0,
+        "mean_societal_wealth": 2490.94,
+        "mean_agent_wealth": 88.96,
+        "mean_ttl": 18.72,
+        "mean_deaths_per_pop": 0.0357,
+        "mean_age_at_death": 25.0,
+        "seed_count": 1
+      },
+      "26": {
+        "mean_population": 25.0,
+        "mean_societal_wealth": 2365.43,
+        "mean_agent_wealth": 94.62,
+        "mean_ttl": 20.44,
+        "mean_deaths_per_pop": 0.12,
+        "mean_age_at_death": 12.0,
+        "seed_count": 1
+      },
+      "27": {
+        "mean_population": 26.0,
+        "mean_societal_wealth": 2460.43,
+        "mean_agent_wealth": 94.63,
+        "mean_ttl": 20.37,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "28": {
+        "mean_population": 26.0,
+        "mean_societal_wealth": 2566.2,
+        "mean_agent_wealth": 98.7,
+        "mean_ttl": 21.3,
+        "mean_deaths_per_pop": 0.0385,
+        "mean_age_at_death": 27.0,
+        "seed_count": 1
+      },
+      "29": {
+        "mean_population": 26.0,
+        "mean_societal_wealth": 2564.04,
+        "mean_agent_wealth": 98.62,
+        "mean_ttl": 21.11,
+        "mean_deaths_per_pop": 0.0385,
+        "mean_age_at_death": 13.0,
+        "seed_count": 1
+      },
+      "30": {
+        "mean_population": 27.0,
+        "mean_societal_wealth": 2665.04,
+        "mean_agent_wealth": 98.71,
+        "mean_ttl": 21.16,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "31": {
+        "mean_population": 26.0,
+        "mean_societal_wealth": 2758.04,
+        "mean_agent_wealth": 106.08,
+        "mean_ttl": 22.77,
+        "mean_deaths_per_pop": 0.0385,
+        "mean_age_at_death": 31.0,
+        "seed_count": 1
+      },
+      "32": {
+        "mean_population": 26.0,
+        "mean_societal_wealth": 2778.6,
+        "mean_agent_wealth": 106.87,
+        "mean_ttl": 23.23,
+        "mean_deaths_per_pop": 0.0385,
+        "mean_age_at_death": 32.0,
+        "seed_count": 1
+      },
+      "33": {
+        "mean_population": 27.0,
+        "mean_societal_wealth": 2884.6,
+        "mean_agent_wealth": 106.84,
+        "mean_ttl": 22.95,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "34": {
+        "mean_population": 28.0,
+        "mean_societal_wealth": 2984.6,
+        "mean_agent_wealth": 106.59,
+        "mean_ttl": 22.89,
+        "mean_deaths_per_pop": 0.0357,
+        "mean_age_at_death": 34.0,
+        "seed_count": 1
+      },
+      "35": {
+        "mean_population": 27.0,
+        "mean_societal_wealth": 2841.45,
+        "mean_agent_wealth": 105.24,
+        "mean_ttl": 22.38,
+        "mean_deaths_per_pop": 0.0741,
+        "mean_age_at_death": 8.5,
+        "seed_count": 1
+      },
+      "36": {
+        "mean_population": 27.0,
+        "mean_societal_wealth": 2943.45,
+        "mean_agent_wealth": 109.02,
+        "mean_ttl": 22.75,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "37": {
+        "mean_population": 29.0,
+        "mean_societal_wealth": 3051.45,
+        "mean_agent_wealth": 105.22,
+        "mean_ttl": 21.61,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "38": {
+        "mean_population": 31.0,
+        "mean_societal_wealth": 3160.45,
+        "mean_agent_wealth": 101.95,
+        "mean_ttl": 20.6,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "39": {
+        "mean_population": 33.0,
+        "mean_societal_wealth": 3283.45,
+        "mean_agent_wealth": 99.5,
+        "mean_ttl": 19.89,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "40": {
+        "mean_population": 33.0,
+        "mean_societal_wealth": 3400.45,
+        "mean_agent_wealth": 103.04,
+        "mean_ttl": 20.32,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "41": {
+        "mean_population": 34.0,
+        "mean_societal_wealth": 3527.45,
+        "mean_agent_wealth": 103.75,
+        "mean_ttl": 20.75,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "42": {
+        "mean_population": 35.0,
+        "mean_societal_wealth": 3652.45,
+        "mean_agent_wealth": 104.36,
+        "mean_ttl": 21.21,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "43": {
+        "mean_population": 39.0,
+        "mean_societal_wealth": 3789.45,
+        "mean_agent_wealth": 97.17,
+        "mean_ttl": 19.81,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "44": {
+        "mean_population": 43.0,
+        "mean_societal_wealth": 3930.45,
+        "mean_agent_wealth": 91.41,
+        "mean_ttl": 19.08,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "45": {
+        "mean_population": 43.0,
+        "mean_societal_wealth": 4059.45,
+        "mean_agent_wealth": 94.41,
+        "mean_ttl": 19.53,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "46": {
+        "mean_population": 44.0,
+        "mean_societal_wealth": 4190.45,
+        "mean_agent_wealth": 95.24,
+        "mean_ttl": 19.6,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "47": {
+        "mean_population": 45.0,
+        "mean_societal_wealth": 4336.45,
+        "mean_agent_wealth": 96.37,
+        "mean_ttl": 19.86,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "48": {
+        "mean_population": 46.0,
+        "mean_societal_wealth": 4492.45,
+        "mean_agent_wealth": 97.66,
+        "mean_ttl": 20.36,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "49": {
+        "mean_population": 47.0,
+        "mean_societal_wealth": 4646.45,
+        "mean_agent_wealth": 98.86,
+        "mean_ttl": 20.57,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "50": {
+        "mean_population": 47.0,
+        "mean_societal_wealth": 4802.45,
+        "mean_agent_wealth": 102.18,
+        "mean_ttl": 21.25,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "51": {
+        "mean_population": 48.0,
+        "mean_societal_wealth": 4878.34,
+        "mean_agent_wealth": 101.63,
+        "mean_ttl": 21.11,
+        "mean_deaths_per_pop": 0.0208,
+        "mean_age_at_death": 13.0,
+        "seed_count": 1
+      },
+      "52": {
+        "mean_population": 50.0,
+        "mean_societal_wealth": 5045.34,
+        "mean_agent_wealth": 100.91,
+        "mean_ttl": 20.84,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "53": {
+        "mean_population": 51.0,
+        "mean_societal_wealth": 5201.34,
+        "mean_agent_wealth": 101.99,
+        "mean_ttl": 21.04,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "54": {
+        "mean_population": 52.0,
+        "mean_societal_wealth": 5354.34,
+        "mean_agent_wealth": 102.97,
+        "mean_ttl": 21.56,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "55": {
+        "mean_population": 56.0,
+        "mean_societal_wealth": 5527.34,
+        "mean_agent_wealth": 98.7,
+        "mean_ttl": 20.73,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "56": {
+        "mean_population": 58.0,
+        "mean_societal_wealth": 5690.34,
+        "mean_agent_wealth": 98.11,
+        "mean_ttl": 20.69,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "57": {
+        "mean_population": 59.0,
+        "mean_societal_wealth": 5849.34,
+        "mean_agent_wealth": 99.14,
+        "mean_ttl": 20.94,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "58": {
+        "mean_population": 60.0,
+        "mean_societal_wealth": 6008.34,
+        "mean_agent_wealth": 100.14,
+        "mean_ttl": 21.21,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "59": {
+        "mean_population": 63.0,
+        "mean_societal_wealth": 6190.34,
+        "mean_agent_wealth": 98.26,
+        "mean_ttl": 20.96,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "60": {
+        "mean_population": 68.0,
+        "mean_societal_wealth": 6373.34,
+        "mean_agent_wealth": 93.73,
+        "mean_ttl": 19.94,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "61": {
+        "mean_population": 72.0,
+        "mean_societal_wealth": 6571.34,
+        "mean_agent_wealth": 91.27,
+        "mean_ttl": 19.15,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "62": {
+        "mean_population": 74.0,
+        "mean_societal_wealth": 6746.34,
+        "mean_agent_wealth": 91.17,
+        "mean_ttl": 19.1,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "63": {
+        "mean_population": 75.0,
+        "mean_societal_wealth": 6908.34,
+        "mean_agent_wealth": 92.11,
+        "mean_ttl": 19.44,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "64": {
+        "mean_population": 76.0,
+        "mean_societal_wealth": 7004.34,
+        "mean_agent_wealth": 92.16,
+        "mean_ttl": 19.53,
+        "mean_deaths_per_pop": 0.0132,
+        "mean_age_at_death": 29.0,
+        "seed_count": 1
+      },
+      "65": {
+        "mean_population": 78.0,
+        "mean_societal_wealth": 7140.8,
+        "mean_agent_wealth": 91.55,
+        "mean_ttl": 19.31,
+        "mean_deaths_per_pop": 0.0128,
+        "mean_age_at_death": 65.0,
+        "seed_count": 1
+      },
+      "66": {
+        "mean_population": 80.0,
+        "mean_societal_wealth": 7313.8,
+        "mean_agent_wealth": 91.42,
+        "mean_ttl": 19.29,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "67": {
+        "mean_population": 82.0,
+        "mean_societal_wealth": 7485.8,
+        "mean_agent_wealth": 91.29,
+        "mean_ttl": 19.2,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "68": {
+        "mean_population": 80.0,
+        "mean_societal_wealth": 7620.04,
+        "mean_agent_wealth": 95.25,
+        "mean_ttl": 20.26,
+        "mean_deaths_per_pop": 0.025,
+        "mean_age_at_death": 67.5,
+        "seed_count": 1
+      },
+      "69": {
+        "mean_population": 85.0,
+        "mean_societal_wealth": 7788.04,
+        "mean_agent_wealth": 91.62,
+        "mean_ttl": 19.77,
+        "mean_deaths_per_pop": 0.0118,
+        "mean_age_at_death": 48.0,
+        "seed_count": 1
+      },
+      "70": {
+        "mean_population": 86.0,
+        "mean_societal_wealth": 7967.04,
+        "mean_agent_wealth": 92.64,
+        "mean_ttl": 20.3,
+        "mean_deaths_per_pop": 0.0233,
+        "mean_age_at_death": 70.0,
+        "seed_count": 1
+      },
+      "71": {
+        "mean_population": 89.0,
+        "mean_societal_wealth": 7945.05,
+        "mean_agent_wealth": 89.27,
+        "mean_ttl": 19.82,
+        "mean_deaths_per_pop": 0.0112,
+        "mean_age_at_death": 71.0,
+        "seed_count": 1
+      },
+      "72": {
+        "mean_population": 90.0,
+        "mean_societal_wealth": 8108.05,
+        "mean_agent_wealth": 90.09,
+        "mean_ttl": 19.94,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "73": {
+        "mean_population": 95.0,
+        "mean_societal_wealth": 8280.05,
+        "mean_agent_wealth": 87.16,
+        "mean_ttl": 19.05,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "74": {
+        "mean_population": 99.0,
+        "mean_societal_wealth": 8447.05,
+        "mean_agent_wealth": 85.32,
+        "mean_ttl": 18.61,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "75": {
+        "mean_population": 102.0,
+        "mean_societal_wealth": 8545.36,
+        "mean_agent_wealth": 83.78,
+        "mean_ttl": 17.83,
+        "mean_deaths_per_pop": 0.0098,
+        "mean_age_at_death": 0.0,
+        "seed_count": 1
+      },
+      "76": {
+        "mean_population": 105.0,
+        "mean_societal_wealth": 8684.36,
+        "mean_agent_wealth": 82.71,
+        "mean_ttl": 17.62,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "77": {
+        "mean_population": 105.0,
+        "mean_societal_wealth": 8820.36,
+        "mean_agent_wealth": 84.0,
+        "mean_ttl": 17.8,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "78": {
+        "mean_population": 107.0,
+        "mean_societal_wealth": 8968.36,
+        "mean_agent_wealth": 83.82,
+        "mean_ttl": 17.64,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "79": {
+        "mean_population": 106.0,
+        "mean_societal_wealth": 9063.68,
+        "mean_agent_wealth": 85.51,
+        "mean_ttl": 17.73,
+        "mean_deaths_per_pop": 0.0189,
+        "mean_age_at_death": 20.0,
+        "seed_count": 1
+      },
+      "80": {
+        "mean_population": 109.0,
+        "mean_societal_wealth": 9236.68,
+        "mean_agent_wealth": 84.74,
+        "mean_ttl": 17.52,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "81": {
+        "mean_population": 111.0,
+        "mean_societal_wealth": 9282.68,
+        "mean_agent_wealth": 83.63,
+        "mean_ttl": 17.64,
+        "mean_deaths_per_pop": 0.009,
+        "mean_age_at_death": 47.0,
+        "seed_count": 1
+      },
+      "82": {
+        "mean_population": 115.0,
+        "mean_societal_wealth": 9455.68,
+        "mean_agent_wealth": 82.22,
+        "mean_ttl": 17.33,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "83": {
+        "mean_population": 115.0,
+        "mean_societal_wealth": 9565.52,
+        "mean_agent_wealth": 83.18,
+        "mean_ttl": 17.42,
+        "mean_deaths_per_pop": 0.0087,
+        "mean_age_at_death": 3.0,
+        "seed_count": 1
+      },
+      "84": {
+        "mean_population": 117.0,
+        "mean_societal_wealth": 9744.52,
+        "mean_agent_wealth": 83.29,
+        "mean_ttl": 17.3,
+        "mean_deaths_per_pop": 0.0085,
+        "mean_age_at_death": 28.0,
+        "seed_count": 1
+      },
+      "85": {
+        "mean_population": 116.0,
+        "mean_societal_wealth": 9854.24,
+        "mean_agent_wealth": 84.95,
+        "mean_ttl": 17.64,
+        "mean_deaths_per_pop": 0.0172,
+        "mean_age_at_death": 48.0,
+        "seed_count": 1
+      },
+      "86": {
+        "mean_population": 114.0,
+        "mean_societal_wealth": 10034.24,
+        "mean_agent_wealth": 88.02,
+        "mean_ttl": 18.48,
+        "mean_deaths_per_pop": 0.0175,
+        "mean_age_at_death": 56.0,
+        "seed_count": 1
+      },
+      "87": {
+        "mean_population": 118.0,
+        "mean_societal_wealth": 10219.24,
+        "mean_agent_wealth": 86.6,
+        "mean_ttl": 17.99,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "88": {
+        "mean_population": 122.0,
+        "mean_societal_wealth": 10409.24,
+        "mean_agent_wealth": 85.32,
+        "mean_ttl": 17.61,
+        "mean_deaths_per_pop": 0.0082,
+        "mean_age_at_death": 88.0,
+        "seed_count": 1
+      },
+      "89": {
+        "mean_population": 124.0,
+        "mean_societal_wealth": 10587.24,
+        "mean_agent_wealth": 85.38,
+        "mean_ttl": 17.66,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "90": {
+        "mean_population": 126.0,
+        "mean_societal_wealth": 10434.95,
+        "mean_agent_wealth": 82.82,
+        "mean_ttl": 17.43,
+        "mean_deaths_per_pop": 0.0079,
+        "mean_age_at_death": 90.0,
+        "seed_count": 1
+      },
+      "91": {
+        "mean_population": 122.0,
+        "mean_societal_wealth": 10606.95,
+        "mean_agent_wealth": 86.94,
+        "mean_ttl": 18.91,
+        "mean_deaths_per_pop": 0.0328,
+        "mean_age_at_death": 75.5,
+        "seed_count": 1
+      },
+      "92": {
+        "mean_population": 124.0,
+        "mean_societal_wealth": 10776.95,
+        "mean_agent_wealth": 86.91,
+        "mean_ttl": 18.82,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "93": {
+        "mean_population": 126.0,
+        "mean_societal_wealth": 10959.95,
+        "mean_agent_wealth": 86.98,
+        "mean_ttl": 19.13,
+        "mean_deaths_per_pop": 0.0079,
+        "mean_age_at_death": 68.0,
+        "seed_count": 1
+      },
+      "94": {
+        "mean_population": 126.0,
+        "mean_societal_wealth": 11067.45,
+        "mean_agent_wealth": 87.84,
+        "mean_ttl": 19.23,
+        "mean_deaths_per_pop": 0.0079,
+        "mean_age_at_death": 22.0,
+        "seed_count": 1
+      },
+      "95": {
+        "mean_population": 129.0,
+        "mean_societal_wealth": 11263.45,
+        "mean_agent_wealth": 87.31,
+        "mean_ttl": 19.59,
+        "mean_deaths_per_pop": 0.0078,
+        "mean_age_at_death": 68.0,
+        "seed_count": 1
+      },
+      "96": {
+        "mean_population": 129.0,
+        "mean_societal_wealth": 11458.45,
+        "mean_agent_wealth": 88.83,
+        "mean_ttl": 20.05,
+        "mean_deaths_per_pop": 0.0155,
+        "mean_age_at_death": 45.5,
+        "seed_count": 1
+      },
+      "97": {
+        "mean_population": 131.0,
+        "mean_societal_wealth": 11559.73,
+        "mean_agent_wealth": 88.24,
+        "mean_ttl": 19.71,
+        "mean_deaths_per_pop": 0.0153,
+        "mean_age_at_death": 23.0,
+        "seed_count": 1
+      },
+      "98": {
+        "mean_population": 132.0,
+        "mean_societal_wealth": 11759.73,
+        "mean_agent_wealth": 89.09,
+        "mean_ttl": 19.7,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "99": {
+        "mean_population": 135.0,
+        "mean_societal_wealth": 11952.73,
+        "mean_agent_wealth": 88.54,
+        "mean_ttl": 19.35,
+        "mean_deaths_per_pop": 0.0074,
+        "mean_age_at_death": 47.0,
+        "seed_count": 1
+      },
+      "100": {
+        "mean_population": 135.0,
+        "mean_societal_wealth": 12139.73,
+        "mean_agent_wealth": 89.92,
+        "mean_ttl": 19.37,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      },
+      "101": {
+        "mean_population": 137.0,
+        "mean_societal_wealth": 12259.48,
+        "mean_agent_wealth": 89.49,
+        "mean_ttl": 19.01,
+        "mean_deaths_per_pop": 0.0073,
+        "mean_age_at_death": 12.0,
+        "seed_count": 1
+      },
+      "102": {
+        "mean_population": 137.0,
+        "mean_societal_wealth": 12389.97,
+        "mean_agent_wealth": 90.44,
+        "mean_ttl": 19.0,
+        "mean_deaths_per_pop": 0.0073,
+        "mean_age_at_death": 0.0,
+        "seed_count": 1
+      },
+      "103": {
+        "mean_population": 137.0,
+        "mean_societal_wealth": 12572.97,
+        "mean_agent_wealth": 91.77,
+        "mean_ttl": 19.15,
+        "mean_deaths_per_pop": 0.0073,
+        "mean_age_at_death": 71.0,
+        "seed_count": 1
+      },
+      "104": {
+        "mean_population": 140.0,
+        "mean_societal_wealth": 12760.97,
+        "mean_agent_wealth": 91.15,
+        "mean_ttl": 18.79,
+        "mean_deaths_per_pop": 0.0,
+        "mean_age_at_death": 0,
+        "seed_count": 1
+      }
+    }
+  }
+}
