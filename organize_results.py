@@ -17,6 +17,8 @@ def organize_results():
         "hetero_fvdm_utilitarian1",
         "hetero_fvdm_utilitarian2"
     ]
+    # Sort targets by length descending so that 'selfish2' is matched before 'selfish'
+    targets.sort(key=len, reverse=True)
 
     # Create target directories
     for target in targets:
