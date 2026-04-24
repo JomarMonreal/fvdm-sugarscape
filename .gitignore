@@ -4,3 +4,4 @@ data/baseline_runs/
 results/experiments/
 observations/
 .venv
+logs.json
