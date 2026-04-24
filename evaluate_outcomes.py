@@ -107,14 +107,6 @@ def evaluate_outcomes(log_file):
             "meanAgeAtDeath": round(acc["meanAgeAtDeathSum"] / acc["ageAtDeathCount"], 2) if acc["ageAtDeathCount"] > 0 else 0
         }
 
-    wealth_timeseries = []
-    for step in log_data:
-        wealth_timeseries.append({
-            "timestep": step.get("timestep", 0),
-            "agentWealthTotal": round(step.get("agentWealthTotal", 0), 2),
-            "meanWealth": round(step.get("meanWealth", 0), 2)
-        })
-
     # Categorical Population End State
     end_state = "Better"
     if final_population == 0:
@@ -146,9 +138,6 @@ def evaluate_outcomes(log_file):
     print(f"Total Trades: {total_trades}")
     print(f"Total Loans: {total_loans}")
     print(f"Total Combats: {total_combats}")
-
-    print(f"\n--- Wealth Time Series ---")
-    print(f"Recorded {len(wealth_timeseries)} timesteps of agentWealthTotal and meanWealth")
 
     if per_model_summary:
         print(f"\n--- Per-Model Statistics ---")
@@ -208,16 +197,7 @@ def evaluate_outcomes(log_file):
     except IOError as e:
         print(f"\nError saving report to JSON: {e}")
 
-    # Save wealth time series to a separate folder
-    timeseries_dir = os.path.join(os.path.dirname(log_file), "wealth_timeseries")
-    os.makedirs(timeseries_dir, exist_ok=True)
-    timeseries_filename = os.path.join(timeseries_dir, os.path.splitext(os.path.basename(log_file))[0] + "_wealth_timeseries.json")
-    try:
-        with open(timeseries_filename, 'w') as ts_f:
-            json.dump(wealth_timeseries, ts_f)
-        print(f"Wealth time series saved to: {timeseries_filename}")
-    except IOError as e:
-        print(f"Error saving wealth time series: {e}")
+
 
     print("========================================================\n")
 
