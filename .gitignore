@@ -1,5 +1,6 @@
 .scraps/
 __pycache__/
 data/baseline_runs/
+results/experiments/
 observations/
-results/experiments
+.venv
