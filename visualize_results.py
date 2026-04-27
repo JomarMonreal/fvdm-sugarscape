@@ -66,11 +66,11 @@ CONDITION_LABELS = {
 }
 
 MODEL_LABELS = {
-    "fvdmSelfish":   "Selfish (Derived)",
-    "fvdmSelfish2":  "Selfish (Idealized)",
-    "fvdmAltruist":  "Altruist (Derived)",
-    "fvdmAltruist2": "Altruist (Idealized)",
-    "fvdmBentham":   "Utilitarian",
+    "fvdmSelfish":   "Homo Selfish (Derived)",
+    "fvdmSelfish2":  "Homo Selfish (Idealized)",
+    "fvdmAltruist":  "Homo Altruist (Derived)",
+    "fvdmAltruist2": "Homo Altruist (Idealized)",
+    "fvdmBentham":   "Homo Utilitarian",
 }
 
 OUT_DIR = "results/visualizations"
@@ -264,7 +264,8 @@ def plot_individual_timeseries(all_ts):
             for m in models:
                 t, y = extract_series(ts, m, metric_key)
                 color = MODEL_COLORS.get(m, None)
-                ax.plot(t, y, label=model_label(m), color=color, linewidth=1.2)
+                lbl = label(cond) if len(models) == 1 else model_label(m)
+                ax.plot(t, y, label=lbl, color=color, linewidth=1.2)
 
             ax.set_title(f"{label(cond)} — {metric_title}", fontsize=13, fontweight="bold")
             ax.set_xlabel("Timestep")
@@ -327,7 +328,8 @@ def plot_comparison_timeseries(all_ts):
         ax.set_ylabel(y_label)
         ax.legend(fontsize=8)
         fig.tight_layout()
-        fig.savefig(os.path.join(PLOT_DIR, f"comparison_{metric_key}.png"))
+        filename = "global_population_comparison.png" if metric_key == "mean_population" else f"comparison_{metric_key}.png"
+        fig.savefig(os.path.join(PLOT_DIR, filename))
         plt.close(fig)
 
     print(f"  ✓ Comparison timeseries plots: {len(METRIC_INFO)} metrics")

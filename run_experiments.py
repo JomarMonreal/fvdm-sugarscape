@@ -45,8 +45,6 @@ def worker(args):
     conf["agentInheritancePolicy"] = "children"
     conf["agentStartingSugar"] = [10, 40]
     conf["agentStartingSpice"] = [10, 40]
-    conf["agentLoanDuration"] = [5, 15]
-    conf["agentBaseInterestRate"] = [0.05, 0.15]
     conf["keepAlivePostExtinction"] = False  # Always end on extinction
     # Ensure seasons and pollution are disabled
     conf["environmentSeasonInterval"] = 0
