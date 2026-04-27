@@ -5,3 +5,4 @@ results/experiments/
 observations/
 .venv
 logs.json
+past_results/
