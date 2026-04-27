@@ -1,5 +1,5 @@
 {
-    "timesteps": 500,
+    "timesteps": 1000,
     "startingAgents": 250,
     "headlessMode": true,
     "agentStartingSugar": [
@@ -11,23 +11,44 @@
         40
     ],
     "agentVision": [
-        10,
-        15
+        1,
+        6
     ],
     "agentMovement": [
-        6,
-        10
+        1,
+        6
     ],
     "agentSugarMetabolism": [
         1,
-        1
+        4
     ],
     "agentSpiceMetabolism": [
         1,
-        1
+        4
     ],
     "agentDecisionModels": [
         "bentham"
     ],
-    "seed": 67
+    "seed": 67,
+    "agentAggressionFactor": [
+        1,
+        1
+    ],
+    "agentTradeFactor": [
+        1,
+        1
+    ],
+    "agentLendingFactor": [
+        1,
+        1
+    ],
+    "environmentMaxSugar": 4,
+    "environmentMaxSpice": 4,
+    "environmentSugarRegrowRate": 1,
+    "environmentSpiceRegrowRate": 1,
+    "environmentMaxTribes": 3,
+    "environmentHeight": 50,
+    "environmentWidth": 50,
+    "environmentWraparound": true,
+    "startingDiseases": 50
 }

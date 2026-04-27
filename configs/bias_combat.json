@@ -1,5 +1,5 @@
 {
-    "timesteps": 500,
+    "timesteps": 1000,
     "startingAgents": 250,
     "headlessMode": true,
     "agentStartingSugar": [
@@ -11,12 +11,45 @@
         40
     ],
     "agentAggressionFactor": [
-        2.0,
-        2.0
+        1,
+        1
     ],
     "environmentMaxCombatLoot": 5,
     "agentDecisionModels": [
         "bentham"
     ],
-    "seed": 67
+    "seed": 67,
+    "agentSugarMetabolism": [
+        1,
+        4
+    ],
+    "agentSpiceMetabolism": [
+        1,
+        4
+    ],
+    "agentVision": [
+        1,
+        6
+    ],
+    "agentMovement": [
+        1,
+        6
+    ],
+    "agentTradeFactor": [
+        1,
+        1
+    ],
+    "agentLendingFactor": [
+        1,
+        1
+    ],
+    "environmentMaxSugar": 4,
+    "environmentMaxSpice": 4,
+    "environmentSugarRegrowRate": 1,
+    "environmentSpiceRegrowRate": 1,
+    "environmentMaxTribes": 3,
+    "environmentHeight": 50,
+    "environmentWidth": 50,
+    "environmentWraparound": true,
+    "startingDiseases": 50
 }

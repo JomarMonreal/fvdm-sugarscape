@@ -996,6 +996,7 @@ class Sugarscape:
         numTribes = 0
         sickAgents = 0
         tradeVolume = 0
+        lendingVolume = 0
         carryingCapacityWeight = 0.05
         carryingCapacity = math.ceil((carryingCapacityWeight * len(self.agents)) + ((1 - carryingCapacityWeight) * self.runtimeStats["carryingCapacity"]))
         if self.timestep == 0:
@@ -1098,6 +1099,8 @@ class Sugarscape:
                 meanTradePrice += max(agent.spicePrice, agent.sugarPrice)
                 tradeVolume += agent.tradeVolume
                 numTraders += 1
+            if agent.lastLoans > 0:
+                lendingVolume += agent.lastLoans
             agentWealthTotal += agentWealth
             agentWealthCollected += agentWealth - (agent.lastSugar + agent.lastSpice)
             agentWealthBurnRate += agentTimeToLive
@@ -1346,7 +1349,7 @@ class Sugarscape:
                         "meanMoveRank": meanMoveRank, "meanNeighbors": meanNeighbors, "meanSelfishness": meanSelfishness,
                         "meanSocialHappiness": meanSocialHappiness, "meanTradePrice": meanTradePrice, "meanWealth": meanWealth,
                         "meanWealthHappiness": meanWealthHappiness, "meanValidMoves": meanValidMoves, "meanVision": meanVision, "minWealth": minWealth,
-                        "population": numAgents, "sickAgents": sickAgents, "remainingTribes": remainingTribes, "tradeVolume": tradeVolume,
+                        "population": numAgents, "sickAgents": sickAgents, "remainingTribes": remainingTribes, "tradeVolume": tradeVolume, "lendingVolume": lendingVolume,
                         "meanDeathsPercentage": meanDeathsPercentage, "sickAgentsPercentage": sickAgentsPercentage,
                         "diseaseEffectiveReproductionRate": diseaseEffectiveReproductionRate, "diseaseIncidence": diseaseIncidence,
                         "diseasePrevalence": diseasePrevalence, "agentLastMoveOptimalityPercentage": agentLastMoveOptimalityPercentage,
