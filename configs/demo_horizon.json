@@ -1,5 +1,5 @@
 {
-    "timesteps": 250,
+    "timesteps": 1000,
     "startingAgents": 250,
     "agentStartingSugar": [
         10,
@@ -22,23 +22,23 @@
     ],
     "agentVision": [
         1,
-        15
+        6
     ],
     "agentMovement": [
         1,
-        10
+        6
     ],
     "agentAggressionFactor": [
-        0,
-        2
+        1,
+        1
     ],
     "agentTradeFactor": [
-        0.5,
-        2.0
+        1,
+        1
     ],
     "agentLendingFactor": [
-        0.5,
-        2.0
+        1,
+        1
     ],
     "agentDecisionModels": [
         "bentham",
@@ -52,5 +52,7 @@
     "environmentSugarRegrowRate": 1,
     "environmentSpiceRegrowRate": 1,
     "environmentWraparound": true,
-    "seed": 67
+    "seed": 67,
+    "environmentMaxTribes": 3,
+    "startingDiseases": 50
 }

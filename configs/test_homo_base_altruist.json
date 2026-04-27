@@ -1,20 +1,52 @@
 {
-    "timesteps": 5000,
+    "timesteps": 1000,
     "startingAgents": 250,
     "startingDiseases": 50,
-    "agentStartingSugar": [10, 40],
-    "agentStartingSpice": [10, 40],
+    "agentStartingSugar": [
+        10,
+        40
+    ],
+    "agentStartingSpice": [
+        10,
+        40
+    ],
     "environmentMaxTribes": 3,
     "agentTagging": true,
-    "agentSugarMetabolism": [1, 4],
-    "agentSpiceMetabolism": [1, 4],
-    "agentVision": [1, 10],
-    "agentMovement": [1, 10],
-    "agentAggressionFactor": [0, 2],
-    "agentTradeFactor": [0, 2],
-    "agentLendingFactor": [0, 2],
-    "agentDecisionModels": ["altruist"],
-    "agentDecisionModelFactor": [1, 1],
+    "agentSugarMetabolism": [
+        1,
+        4
+    ],
+    "agentSpiceMetabolism": [
+        1,
+        4
+    ],
+    "agentVision": [
+        1,
+        6
+    ],
+    "agentMovement": [
+        1,
+        6
+    ],
+    "agentAggressionFactor": [
+        1,
+        1
+    ],
+    "agentTradeFactor": [
+        1,
+        1
+    ],
+    "agentLendingFactor": [
+        1,
+        1
+    ],
+    "agentDecisionModels": [
+        "altruist"
+    ],
+    "agentDecisionModelFactor": [
+        1,
+        1
+    ],
     "headlessMode": true,
     "environmentHeight": 50,
     "environmentWidth": 50,
