@@ -59,7 +59,7 @@ def worker(args):
     # Ensure all required environment and agent keys exist
     defaults = {
         "agentAggressionFactor": [0, 0],
-        "agentBaseInterestRate": [0, 0],
+        "agentBaseInterestRate": [0.05, 0.15],
         "agentDecisionModel": "egoist",
         "agentDecisionModelFactor": [1.0, 1.0],
         "agentDecisionModelLookaheadDiscount": [0, 0],
@@ -78,7 +78,7 @@ def worker(args):
         "agentInheritancePolicy": "children",
         "agentLeader": False,
         "agentLendingFactor": [0, 0],
-        "agentLoanDuration": [0, 0],
+        "agentLoanDuration": [5, 15],
         "agentLookaheadFactor": [0, 0],
         "agentMaleFertilityAge": [12, 15],
         "agentMaleInfertilityAge": [40, 50],
