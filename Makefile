@@ -161,7 +161,34 @@ eval-utilitarian-hetero1:
 eval-utilitarian-hetero2:
 	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_fvdm_utilitarian2 --processes $(CORES) --timesteps $(TIMESTEPS)
 
+eval-egoist-homo:
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_base_egoist --processes $(CORES) --timesteps $(TIMESTEPS)
+
+eval-altruist-base-homo:
+	$(PYTHON) run_experiments.py --seeds 500 --filter homo_base_altruist --processes $(CORES) --timesteps $(TIMESTEPS)
+
+eval-hetero-base:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_base --processes $(CORES) --timesteps $(TIMESTEPS)
+
+eval-hetero-mixed-egoist:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_mixed_egoist --processes $(CORES) --timesteps $(TIMESTEPS)
+
+eval-hetero-mixed-altruist:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_mixed_altruist --processes $(CORES) --timesteps $(TIMESTEPS)
+
+eval-hetero-selfish:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_selfish --processes $(CORES) --timesteps $(TIMESTEPS)
+
+eval-hetero-altruist:
+	$(PYTHON) run_experiments.py --seeds 500 --filter hetero_altruist --processes $(CORES) --timesteps $(TIMESTEPS)
+
 eval-all-fvdm: eval-selfish-homo eval-altruist-homo eval-utilitarian-homo eval-selfish2-homo eval-altruist2-homo eval-utilitarian-hetero1 eval-utilitarian-hetero2
 
-.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous run-experiments evaluate-experiments eval-selfish-homo eval-altruist-homo eval-utilitarian-homo eval-selfish2-homo eval-altruist2-homo eval-utilitarian-hetero1 eval-utilitarian-hetero2 eval-all-fvdm
+eval-all-base: eval-egoist-homo eval-altruist-base-homo eval-hetero-base
+
+eval-all-mixed: eval-hetero-mixed-egoist eval-hetero-mixed-altruist eval-hetero-selfish eval-hetero-altruist
+
+eval-all: eval-all-fvdm eval-all-base eval-all-mixed
+
+.PHONY: all clean data lean plots run seeds setup test demo-horizon main-horizon demo-derive demo-collect derive-felicific derive-collect derive-train derive-clean demo-prioritize derive-prioritization demo-fvdm demo-fvdm-selfish demo-fvdm-altruist demo-fvdm-bentham test-homogeneous test-heterogeneous run-experiments evaluate-experiments eval-selfish-homo eval-altruist-homo eval-utilitarian-homo eval-selfish2-homo eval-altruist2-homo eval-utilitarian-hetero1 eval-utilitarian-hetero2 eval-egoist-homo eval-altruist-base-homo eval-hetero-base eval-hetero-mixed-egoist eval-hetero-mixed-altruist eval-hetero-selfish eval-hetero-altruist eval-all-fvdm eval-all-base eval-all-mixed eval-all
 # vim: set noexpandtab tabstop=4:

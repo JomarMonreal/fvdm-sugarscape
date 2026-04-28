@@ -1,9 +1,9 @@
 | Condition | Reproductions | Trades | Loans | Combats |
 | --- | --- | --- | --- | --- |
-| Hetero (Derived) | 3984.5 | 112404.8 | 0.0 | 193.1 |
-| Hetero (Idealized) | 8280.4 | 256182.2 | 0.0 | 241.5 |
-| Homo Altruist (Derived) | 3987.5 | 111408.0 | 0.0 | 189.2 |
-| Homo Altruist (Idealized) | 15179.5 | 554926.1 | 0.0 | 98.0 |
-| Homo Selfish (Derived) | 3687.2 | 106245.1 | 0.0 | 192.9 |
-| Homo Selfish (Idealized) | 4003.9 | 103623.0 | 0.0 | 172.6 |
-| Homo Utilitarian | 3873.6 | 105485.7 | 0.0 | 185.4 |
+| Hetero (Derived) | 1413.6 | 90063.7 | 19301.0 | 160.9 |
+| Hetero (Idealized) | 3218.0 | 222493.5 | 41318.2 | 161.3 |
+| Homo Altruist (Derived) | 1373.5 | 90511.9 | 19781.9 | 159.9 |
+| Homo Altruist (Idealized) | 15382.6 | 1224138.3 | 159175.6 | 365.4 |
+| Homo Selfish (Derived) | 1158.6 | 79063.4 | 18159.7 | 159.7 |
+| Homo Selfish (Idealized) | 1254.8 | 82660.9 | 17129.5 | 152.0 |
+| Homo Utilitarian | 1117.8 | 77106.2 | 15195.2 | 159.6 |

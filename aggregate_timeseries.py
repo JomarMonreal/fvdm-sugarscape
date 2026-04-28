@@ -44,6 +44,9 @@ CONDITION_MODEL_MAP = {
     "homo_fvdm_altruist":     "fvdmAltruist",
     "homo_fvdm_altruist2":    "fvdmAltruist2",
     "homo_fvdm_utilitarian":  "fvdmBentham",
+    "homo_base_egoist":       "egoist",
+    "homo_base_altruist":     "altruist",
+    "homo_base_bentham":      "bentham",
 }
 
 

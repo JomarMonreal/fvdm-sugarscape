@@ -1,21 +1,21 @@
 Metric,Value
 Seeds,500
-Extinct (%),63.0
-Worse (%),9.0
-Better (%),28.0
+Extinct (%),87.4
+Worse (%),4.0
+Better (%),8.6
 initial_population,250.0
-final_population,118.01
-mean_population,117.68
-total_societal_wealth_end,8440.61
-mean_agent_wealth_overall,219.25
-mean_time_to_live,20.21
-mean_age_at_death,28.01
-mean_deaths_per_timestep,2.9
-starvation_deaths,107.92
-combat_deaths,172.56
-aging_deaths,3855.39
+final_population,36.54
+mean_population,51.07
+total_societal_wealth_end,2906.18
+mean_agent_wealth_overall,232.77
+mean_time_to_live,19.61
+mean_age_at_death,13.8
+mean_deaths_per_timestep,2.67
+starvation_deaths,103.12
+combat_deaths,151.96
+aging_deaths,1213.22
 disease_deaths,0.0
-total_reproductions,4003.88
-total_trades,103622.96
-total_loans,0.0
-total_combats,172.56
+total_reproductions,1254.84
+total_trades,82660.86
+total_loans,17129.48
+total_combats,151.96
