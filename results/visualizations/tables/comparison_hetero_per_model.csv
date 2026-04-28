@@ -1,7 +1,7 @@
 Condition,Model,Mean Wealth,Mean TTL,Mean Age@Death,Total Deaths,Combat Deaths
-Hetero (Derived),Homo Altruist (Derived),175.03,19.11,31.45,1408.2,64.4
-Hetero (Derived),Homo Selfish (Derived),173.27,19.26,32.33,1515.6,65.4
-Hetero (Derived),Homo Utilitarian,178.25,19.25,31.16,1193.7,63.4
-Hetero (Idealized),Homo Selfish (Idealized),138.62,19.2,43.11,2077.9,72.3
-Hetero (Idealized),Homo Altruist (Idealized),142.22,19.86,49.67,3771.4,93.8
-Hetero (Idealized),Homo Utilitarian,128.88,19.13,44.31,2435.5,75.3
+Hetero (Derived),Homo Utilitarian,161.4,17.84,20.7,572.0,53.4
+Hetero (Derived),Homo Altruist (Derived),161.73,17.73,19.96,480.1,53.6
+Hetero (Derived),Homo Selfish (Derived),163.03,17.71,20.21,570.5,53.9
+Hetero (Idealized),Homo Altruist (Idealized),186.73,20.23,30.97,1744.1,63.0
+Hetero (Idealized),Homo Selfish (Idealized),166.52,19.22,26.6,850.4,49.6
+Hetero (Idealized),Homo Utilitarian,171.14,19.36,25.71,777.9,48.7

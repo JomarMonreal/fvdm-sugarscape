@@ -23,7 +23,11 @@ CONFIGS = {
     "hetero_base": "configs/test_hetero_base.json",
     "hetero_fvdm": "configs/test_hetero_fvdm.json",
     "hetero_fvdm_utilitarian1": "configs/test_hetero_fvdm_utilitarian1.json",
-    "hetero_fvdm_utilitarian2": "configs/test_hetero_fvdm_utilitarian2.json"
+    "hetero_fvdm_utilitarian2": "configs/test_hetero_fvdm_utilitarian2.json",
+    "hetero_mixed_egoist": "configs/test_hetero_mixed_egoist.json",
+    "hetero_mixed_altruist": "configs/test_hetero_mixed_altruist.json",
+    "hetero_selfish": "configs/test_hetero_selfish.json",
+    "hetero_altruist": "configs/test_hetero_altruist.json"
 }
 
 def worker(args):

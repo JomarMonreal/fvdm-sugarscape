@@ -9,13 +9,21 @@ def organize_results():
         return
 
     targets = [
+        "homo_base_egoist",
+        "homo_base_altruist",
+        "homo_base_bentham",
         "homo_fvdm_selfish",
         "homo_fvdm_altruist",
         "homo_fvdm_utilitarian",
         "homo_fvdm_selfish2",
         "homo_fvdm_altruist2",
+        "hetero_base",
         "hetero_fvdm_utilitarian1",
-        "hetero_fvdm_utilitarian2"
+        "hetero_fvdm_utilitarian2",
+        "hetero_mixed_egoist",
+        "hetero_mixed_altruist",
+        "hetero_selfish",
+        "hetero_altruist"
     ]
     # Sort targets by length descending so that 'selfish2' is matched before 'selfish'
     targets.sort(key=len, reverse=True)

@@ -1,22 +1,22 @@
 | Metric | Value |
 | --- | --- |
 | Seeds | 500 |
-| Extinct (%) | 63.0 |
-| Worse (%) | 9.8 |
-| Better (%) | 27.2 |
+| Extinct (%) | 85.4 |
+| Worse (%) | 5.4 |
+| Better (%) | 9.2 |
 | initial_population | 250.0 |
-| final_population | 116.9 |
-| mean_population | 115.52 |
-| total_societal_wealth_end | 8184.89 |
-| mean_agent_wealth_overall | 218.88 |
-| mean_time_to_live | 19.94 |
-| mean_age_at_death | 27.43 |
-| mean_deaths_per_timestep | 2.91 |
-| starvation_deaths | 90.73 |
-| combat_deaths | 193.1 |
-| aging_deaths | 3833.72 |
+| final_population | 41.09 |
+| mean_population | 53.66 |
+| total_societal_wealth_end | 3286.04 |
+| mean_agent_wealth_overall | 233.57 |
+| mean_time_to_live | 19.66 |
+| mean_age_at_death | 14.42 |
+| mean_deaths_per_timestep | 2.7 |
+| starvation_deaths | 96.75 |
+| combat_deaths | 160.87 |
+| aging_deaths | 1364.91 |
 | disease_deaths | 0.0 |
-| total_reproductions | 3984.45 |
-| total_trades | 112404.77 |
-| total_loans | 0.0 |
-| total_combats | 193.1 |
+| total_reproductions | 1413.62 |
+| total_trades | 90063.66 |
+| total_loans | 19300.95 |
+| total_combats | 160.87 |

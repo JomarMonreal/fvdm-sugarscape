@@ -1,8 +1,8 @@
 Condition,Mean Pop,Final Pop,End Wealth,Mean Agent Wealth
-Hetero (Derived),115.52,116.9,8184.89,218.88
-Hetero (Idealized),223.79,245.47,15499.67,146.72
-Homo Altruist (Derived),118.25,120.37,8636.84,222.89
-Homo Altruist (Idealized),391.41,435.55,20489.82,53.63
-Homo Selfish (Derived),109.36,109.03,7690.53,220.69
-Homo Selfish (Idealized),117.68,118.01,8440.61,219.25
-Homo Utilitarian,114.4,114.81,8418.21,214.88
+Hetero (Derived),53.66,41.09,3286.04,233.57
+Hetero (Idealized),99.55,95.59,6900.42,222.15
+Homo Altruist (Derived),53.1,41.08,3244.49,236.89
+Homo Altruist (Idealized),393.68,437.91,20953.33,53.77
+Homo Selfish (Derived),47.62,34.74,2619.05,236.67
+Homo Selfish (Idealized),51.07,36.54,2906.18,232.77
+Homo Utilitarian,47.3,33.2,2572.14,235.34

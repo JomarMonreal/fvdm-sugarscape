@@ -43,6 +43,9 @@ MODEL_COLORS = {
     "fvdmAltruist":  "#2a9d8f",
     "fvdmAltruist2": "#52b788",
     "fvdmBentham":   "#457b9d",
+    "egoist":        "#9b2226",
+    "altruist":      "#005f73",
+    "bentham":       "#6a4c93",
 }
 
 CONDITION_COLORS = {
@@ -53,6 +56,13 @@ CONDITION_COLORS = {
     "homo_fvdm_utilitarian":    "#457b9d",
     "hetero_fvdm_utilitarian1": "#f4a261",
     "hetero_fvdm_utilitarian2": "#e76f51",
+    "homo_base_egoist":         "#9b2226",
+    "homo_base_altruist":       "#005f73",
+    "hetero_base":              "#6a4c93",
+    "hetero_mixed_egoist":      "#bb3e03",
+    "hetero_mixed_altruist":    "#0a9396",
+    "hetero_selfish":           "#ae2012",
+    "hetero_altruist":          "#94d2bd",
 }
 
 CONDITION_LABELS = {
@@ -61,16 +71,26 @@ CONDITION_LABELS = {
     "homo_fvdm_altruist":       "Homo Altruist (Derived)",
     "homo_fvdm_altruist2":      "Homo Altruist (Idealized)",
     "homo_fvdm_utilitarian":    "Homo Utilitarian",
-    "hetero_fvdm_utilitarian1": "Hetero (Derived)",
-    "hetero_fvdm_utilitarian2": "Hetero (Idealized)",
+    "hetero_fvdm_utilitarian1": "Hetero FVDM (Derived)",
+    "hetero_fvdm_utilitarian2": "Hetero FVDM (Idealized)",
+    "homo_base_egoist":         "Homo Egoist (Original)",
+    "homo_base_altruist":       "Homo Altruist (Original)",
+    "hetero_base":              "Hetero (Original)",
+    "hetero_mixed_egoist":      "Hetero Mixed (Ideal Selfish)",
+    "hetero_mixed_altruist":    "Hetero Mixed (Ideal Altruist)",
+    "hetero_selfish":           "Hetero Mixed (Derived Selfish)",
+    "hetero_altruist":          "Hetero Mixed (Derived Altruist)",
 }
 
 MODEL_LABELS = {
-    "fvdmSelfish":   "Homo Selfish (Derived)",
-    "fvdmSelfish2":  "Homo Selfish (Idealized)",
-    "fvdmAltruist":  "Homo Altruist (Derived)",
-    "fvdmAltruist2": "Homo Altruist (Idealized)",
-    "fvdmBentham":   "Homo Utilitarian",
+    "fvdmSelfish":   "FVDM Selfish (Derived)",
+    "fvdmSelfish2":  "FVDM Selfish (Idealized)",
+    "fvdmAltruist":  "FVDM Altruist (Derived)",
+    "fvdmAltruist2": "FVDM Altruist (Idealized)",
+    "fvdmBentham":   "FVDM Utilitarian",
+    "egoist":        "Egoist (Original)",
+    "altruist":      "Altruist (Original)",
+    "bentham":       "Bentham (Original)",
 }
 
 OUT_DIR = "results/visualizations"
