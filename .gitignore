@@ -3,6 +3,6 @@ __pycache__/
 data/baseline_runs/
 results/experiments/
 observations/
-.venv
+.venv/
 logs.json
 past_results/
