@@ -58,6 +58,7 @@ CONDITION_COLORS = {
     "hetero_fvdm_utilitarian2": "#e76f51",
     "homo_base_egoist":         "#9b2226",
     "homo_base_altruist":       "#005f73",
+    "homo_base_bentham":        "#003049",
     "hetero_base":              "#6a4c93",
     "hetero_mixed_egoist":      "#bb3e03",
     "hetero_mixed_altruist":    "#0a9396",
@@ -76,6 +77,7 @@ CONDITION_LABELS = {
     "hetero_fvdm_utilitarian2": "Hetero FVDM (Idealized)",
     "homo_base_egoist":         "Homo Egoist (Original)",
     "homo_base_altruist":       "Homo Altruist (Original)",
+    "homo_base_bentham":        "Homo Bentham (Original)",
     "hetero_base":              "Hetero (Original)",
     "hetero_mixed_egoist":      "Hetero Mixed (Ideal Selfish)",
     "hetero_mixed_altruist":    "Hetero Mixed (Ideal Altruist)",
@@ -223,6 +225,22 @@ def create_comparison_tables(all_agg):
             round(b["total_combats"], 1),
         ])
     write_table("comparison_behavioral", headers, rows)
+
+    # ── Behavioral Ratios (Per-Capita) ──
+    headers = ["Condition", "Rep/Agent", "Trade/Agent", "Loan/Agent", "Combat/Agent"]
+    rows = []
+    for d in all_agg:
+        b = d["mean_behavioral_metrics"]
+        m = d["mean_societal_metrics"]
+        pop = m["mean_population"] if m["mean_population"] > 0 else 1.0
+        rows.append([
+            label(d["condition"]),
+            round(b["total_reproductions"] / pop, 2),
+            round(b["total_trades"] / pop, 2),
+            round(b["total_loans"] / pop, 2),
+            round(b["total_combats"] / pop, 2),
+        ])
+    write_table("comparison_behavioral_ratios", headers, rows)
 
     # ── Per-Model (hetero only) ──
     hetero = [d for d in all_agg if "hetero" in d["condition"]]

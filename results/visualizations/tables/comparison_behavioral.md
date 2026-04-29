@@ -5,9 +5,11 @@
 | Hetero FVDM (Derived) | 1208.7 | 76022.1 | 16804.2 | 160.0 |
 | Hetero FVDM (Idealized) | 3473.2 | 239011.3 | 47425.4 | 161.1 |
 | Hetero Mixed (Ideal Altruist) | 15121.1 | 1182307.9 | 159044.3 | 750.6 |
+| Hetero Mixed (Utilitarian) | 10241.4 | 763174.3 | 123032.4 | 338.4 |
 | Hetero Mixed (Ideal Selfish) | 10283.4 | 766290.6 | 124647.4 | 325.8 |
 | Hetero Mixed (Derived Selfish) | 10245.3 | 756268.0 | 119381.1 | 331.6 |
 | Homo Altruist (Original) | 14900.2 | 1164002.9 | 160120.3 | 700.4 |
+| Homo Bentham (Original) | 15028.3 | 1162496.1 | 154975.8 | 758.6 |
 | Homo Egoist (Original) | 15008.0 | 1168058.4 | 153245.6 | 718.7 |
 | Homo Altruist (Derived) | 1183.6 | 79441.0 | 17035.8 | 160.1 |
 | Homo Altruist (Idealized) | 15559.9 | 1237947.5 | 160595.4 | 369.0 |

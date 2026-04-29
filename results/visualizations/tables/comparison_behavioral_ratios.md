@@ -1,0 +1,18 @@
+| Condition | Rep/Agent | Trade/Agent | Loan/Agent | Combat/Agent |
+| --- | --- | --- | --- | --- |
+| Hetero Mixed (Derived Altruist) | 37.46 | 2742.97 | 442.54 | 1.35 |
+| Hetero (Original) | 39.65 | 3069.4 | 409.2 | 1.89 |
+| Hetero FVDM (Derived) | 24.79 | 1559.53 | 344.72 | 3.28 |
+| Hetero FVDM (Idealized) | 32.72 | 2251.87 | 446.82 | 1.52 |
+| Hetero Mixed (Ideal Altruist) | 39.64 | 3099.62 | 416.96 | 1.97 |
+| Hetero Mixed (Utilitarian) | 37.91 | 2825.21 | 455.46 | 1.25 |
+| Hetero Mixed (Ideal Selfish) | 37.84 | 2819.64 | 458.65 | 1.2 |
+| Hetero Mixed (Derived Selfish) | 38.07 | 2810.16 | 443.6 | 1.23 |
+| Homo Altruist (Original) | 39.46 | 3082.95 | 424.09 | 1.86 |
+| Homo Bentham (Original) | 39.55 | 3059.48 | 407.87 | 2.0 |
+| Homo Egoist (Original) | 39.52 | 3076.18 | 403.58 | 1.89 |
+| Homo Altruist (Derived) | 24.58 | 1649.87 | 353.81 | 3.33 |
+| Homo Altruist (Idealized) | 39.29 | 3126.02 | 405.53 | 0.93 |
+| Homo Selfish (Derived) | 24.52 | 1684.47 | 362.01 | 3.25 |
+| Homo Selfish (Idealized) | 27.41 | 1835.28 | 368.53 | 2.58 |
+| Homo Utilitarian | 25.06 | 1646.3 | 386.34 | 3.19 |
