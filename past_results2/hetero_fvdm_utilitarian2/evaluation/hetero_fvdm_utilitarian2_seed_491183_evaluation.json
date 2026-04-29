@@ -1,0 +1,62 @@
+{
+    "log_file": "hetero_fvdm_utilitarian2_seed_491183.json",
+    "total_timesteps": 2501,
+    "societal_metrics": {
+        "initial_population": 250,
+        "final_population": 433,
+        "mean_population": 364.74,
+        "categorical_end_state": "Better",
+        "total_societal_wealth_end": 25070.91,
+        "mean_agent_wealth_overall": 68.44
+    },
+    "health_survival_metrics": {
+        "mean_time_to_live": 22.71,
+        "mean_age_at_death": 58.36,
+        "mean_deaths_per_timestep": 6.02,
+        "starvation_deaths": 131,
+        "combat_deaths": 499,
+        "aging_deaths": 14414,
+        "disease_deaths": 0
+    },
+    "behavioral_metrics": {
+        "total_reproductions": 15227,
+        "total_trades": 1167405,
+        "total_loans": 99326,
+        "total_combats": 499
+    },
+    "per_model_metrics": {
+        "fvdmAltruist2": {
+            "meanSocietalWealth": 23742.0,
+            "meanAgentWealth": 68.57,
+            "meanTimeToLive": 22.82,
+            "totalDeaths": 14839,
+            "starvationDeaths": 39,
+            "combatDeaths": 407,
+            "agingDeaths": 14393,
+            "diseaseDeaths": 0,
+            "meanAgeAtDeath": 60.19
+        },
+        "fvdmSelfish2": {
+            "meanSocietalWealth": 853.5,
+            "meanAgentWealth": 25.29,
+            "meanTimeToLive": 4.99,
+            "totalDeaths": 84,
+            "starvationDeaths": 47,
+            "combatDeaths": 37,
+            "agingDeaths": 0,
+            "diseaseDeaths": 0,
+            "meanAgeAtDeath": 8.86
+        },
+        "fvdmBentham": {
+            "meanSocietalWealth": 825.3,
+            "meanAgentWealth": 110.63,
+            "meanTimeToLive": 20.75,
+            "totalDeaths": 121,
+            "starvationDeaths": 45,
+            "combatDeaths": 55,
+            "agingDeaths": 21,
+            "diseaseDeaths": 0,
+            "meanAgeAtDeath": 38.39
+        }
+    }
+}

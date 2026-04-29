@@ -1,0 +1,40 @@
+{
+    "log_file": "homo_fvdm_selfish_seed_502981.json",
+    "total_timesteps": 2501,
+    "societal_metrics": {
+        "initial_population": 250,
+        "final_population": 420,
+        "mean_population": 395.88,
+        "categorical_end_state": "Better",
+        "total_societal_wealth_end": 23912.75,
+        "mean_agent_wealth_overall": 60.58
+    },
+    "health_survival_metrics": {
+        "mean_time_to_live": 20.22,
+        "mean_age_at_death": 57.48,
+        "mean_deaths_per_timestep": 6.56,
+        "starvation_deaths": 138,
+        "combat_deaths": 156,
+        "aging_deaths": 16119,
+        "disease_deaths": 0
+    },
+    "behavioral_metrics": {
+        "total_reproductions": 16583,
+        "total_trades": 921262,
+        "total_loans": 217754,
+        "total_combats": 156
+    },
+    "per_model_metrics": {
+        "fvdmSelfish": {
+            "meanSocietalWealth": 22554.3,
+            "meanAgentWealth": 60.58,
+            "meanTimeToLive": 20.22,
+            "totalDeaths": 16413,
+            "starvationDeaths": 138,
+            "combatDeaths": 156,
+            "agingDeaths": 16119,
+            "diseaseDeaths": 0,
+            "meanAgeAtDeath": 59.92
+        }
+    }
+}

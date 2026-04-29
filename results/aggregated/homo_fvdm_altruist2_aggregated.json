@@ -15,36 +15,36 @@
   },
   "mean_societal_metrics": {
     "initial_population": 250.0,
-    "final_population": 437.914,
-    "mean_population": 393.6791,
-    "total_societal_wealth_end": 20953.3265,
-    "mean_agent_wealth_overall": 53.7694
+    "final_population": 438.634,
+    "mean_population": 396.0144,
+    "total_societal_wealth_end": 20889.7784,
+    "mean_agent_wealth_overall": 53.3188
   },
   "mean_health_metrics": {
-    "mean_time_to_live": 18.7554,
-    "mean_age_at_death": 63.3739,
-    "mean_deaths_per_timestep": 6.0754,
-    "starvation_deaths": 255.642,
-    "combat_deaths": 365.366,
-    "aging_deaths": 14573.678,
+    "mean_time_to_live": 18.7145,
+    "mean_age_at_death": 62.9889,
+    "mean_deaths_per_timestep": 6.1461,
+    "starvation_deaths": 257.418,
+    "combat_deaths": 368.992,
+    "aging_deaths": 14744.816,
     "disease_deaths": 0.0
   },
   "mean_behavioral_metrics": {
-    "total_reproductions": 15382.6,
-    "total_trades": 1224138.254,
-    "total_loans": 159175.56,
-    "total_combats": 365.366
+    "total_reproductions": 15559.86,
+    "total_trades": 1237947.458,
+    "total_loans": 160595.438,
+    "total_combats": 368.992
   },
   "mean_per_model_metrics": {
     "fvdmAltruist2": {
-      "meanSocietalWealth": 20587.5231,
-      "meanAgentWealth": 53.7694,
-      "meanTimeToLive": 18.7554,
-      "meanAgeAtDeath": 64.6084,
-      "totalDeaths": 15194.686,
-      "starvationDeaths": 255.642,
-      "combatDeaths": 365.366,
-      "agingDeaths": 14573.678,
+      "meanSocietalWealth": 20533.4548,
+      "meanAgentWealth": 53.3188,
+      "meanTimeToLive": 18.7145,
+      "meanAgeAtDeath": 64.1944,
+      "totalDeaths": 15371.226,
+      "starvationDeaths": 257.418,
+      "combatDeaths": 368.992,
+      "agingDeaths": 14744.816,
       "diseaseDeaths": 0.0
     }
   }

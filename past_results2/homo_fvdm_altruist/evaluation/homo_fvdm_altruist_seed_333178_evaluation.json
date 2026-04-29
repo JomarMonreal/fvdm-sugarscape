@@ -1,0 +1,40 @@
+{
+    "log_file": "homo_fvdm_altruist_seed_333178.json",
+    "total_timesteps": 132,
+    "societal_metrics": {
+        "initial_population": 250,
+        "final_population": 0,
+        "mean_population": 15.9,
+        "categorical_end_state": "Extinct",
+        "total_societal_wealth_end": 0,
+        "mean_agent_wealth_overall": 362.8
+    },
+    "health_survival_metrics": {
+        "mean_time_to_live": 18.66,
+        "mean_age_at_death": 7.14,
+        "mean_deaths_per_timestep": 1.93,
+        "starvation_deaths": 84,
+        "combat_deaths": 164,
+        "aging_deaths": 7,
+        "disease_deaths": 0
+    },
+    "behavioral_metrics": {
+        "total_reproductions": 5,
+        "total_trades": 118,
+        "total_loans": 0,
+        "total_combats": 164
+    },
+    "per_model_metrics": {
+        "fvdmAltruist": {
+            "meanSocietalWealth": 1383.83,
+            "meanAgentWealth": 362.8,
+            "meanTimeToLive": 18.66,
+            "totalDeaths": 255,
+            "starvationDeaths": 84,
+            "combatDeaths": 164,
+            "agingDeaths": 7,
+            "diseaseDeaths": 0,
+            "meanAgeAtDeath": 26.18
+        }
+    }
+}
