@@ -1,6 +1,7 @@
 import os
 import shutil
 import json
+import argparse
 
 def is_json_valid(file_path):
     """Checks if a JSON file is valid, with basic repair logic for raw logs."""
@@ -66,18 +67,19 @@ def cap_folder_to_500_pairs(folder_path):
             deleted_count += 1
     return deleted_count
 
-def organize_results():
+def organize_results(do_cleanup=False):
     base_dir = "results/experiments"
     
     if not os.path.exists(base_dir):
         print(f"Directory {base_dir} does not exist.")
         return
 
-    # 1. Cleanup broken files first
-    print("Checking for broken JSON files...")
-    broken_deleted = cleanup_broken_files(base_dir)
-    if broken_deleted > 0:
-        print(f"Deleted {broken_deleted} broken JSON files.")
+    # 1. Cleanup broken files if requested
+    if do_cleanup:
+        print("Checking for broken JSON files...")
+        broken_deleted = cleanup_broken_files(base_dir)
+        if broken_deleted > 0:
+            print(f"Deleted {broken_deleted} broken JSON files.")
 
     targets = [
         "homo_base_egoist",
@@ -119,14 +121,19 @@ def organize_results():
 
     print(f"Moved {moved_count} files into their respective folders.")
 
-    # 3. Cap each target folder to 500 pairs
-    print("Capping folders to 500 pairs...")
-    for target in targets:
-        target_dir = os.path.join(base_dir, target)
-        if os.path.exists(target_dir):
-            cap_deleted = cap_folder_to_500_pairs(target_dir)
-            if cap_deleted > 0:
-                print(f"  {target}: deleted {cap_deleted} excess/orphan files.")
+    # 3. Cap each target folder to 500 pairs if requested
+    if do_cleanup:
+        print("Capping folders to 500 pairs...")
+        for target in targets:
+            target_dir = os.path.join(base_dir, target)
+            if os.path.exists(target_dir):
+                cap_deleted = cap_folder_to_500_pairs(target_dir)
+                if cap_deleted > 0:
+                    print(f"  {target}: deleted {cap_deleted} excess/orphan files.")
 
 if __name__ == "__main__":
-    organize_results()
+    parser = argparse.ArgumentParser(description="Organize experimental results into subfolders.")
+    parser.add_argument("--cleanup", action="store_true", help="Perform broken JSON cleanup and cap folders to 500 pairs.")
+    args = parser.parse_args()
+    
+    organize_results(do_cleanup=args.cleanup)
