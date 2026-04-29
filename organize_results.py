@@ -37,21 +37,28 @@ def cleanup_broken_files(base_dir):
                     deleted_count += 1
     return deleted_count
 
-def cap_folder_to_500_pairs(folder_path):
-    """Ensures exactly 500 complete log-evaluation pairs exist, deleting excess and orphans."""
-    files = [f for f in os.listdir(folder_path) if f.endswith('.json')]
+def cap_folder_to_500_pairs(target_dir):
+    """Ensures exactly 500 complete log-evaluation pairs exist across logs/ and eval/ folders."""
+    logs_dir = os.path.join(target_dir, "logs")
+    eval_dir = os.path.join(target_dir, "eval")
+    
+    if not os.path.exists(logs_dir) or not os.path.exists(eval_dir):
+        return 0
+
+    log_files = [f for f in os.listdir(logs_dir) if f.endswith('.json')]
+    eval_files = [f for f in os.listdir(eval_dir) if f.endswith('.json')]
     
     # Map seed/base to its components
     pairs = {}
-    for f in files:
-        if f.endswith('_evaluation.json'):
-            base = f.replace('_evaluation.json', '')
-            if base not in pairs: pairs[base] = {}
-            pairs[base]['eval'] = f
-        else:
-            base = f.replace('.json', '')
-            if base not in pairs: pairs[base] = {}
-            pairs[base]['log'] = f
+    for f in log_files:
+        base = f.replace('.json', '')
+        if base not in pairs: pairs[base] = {}
+        pairs[base]['log'] = f
+        
+    for f in eval_files:
+        base = f.replace('_evaluation.json', '')
+        if base not in pairs: pairs[base] = {}
+        pairs[base]['eval'] = f
             
     # Filter only complete pairs and sort for deterministic capping
     complete_bases = sorted([b for b, p in pairs.items() if 'log' in p and 'eval' in p])
@@ -60,11 +67,20 @@ def cap_folder_to_500_pairs(folder_path):
     to_keep_bases = set(complete_bases[:500])
     
     deleted_count = 0
-    for f in files:
-        base = f.replace('_evaluation.json', '').replace('.json', '')
+    # Clean up logs
+    for f in log_files:
+        base = f.replace('.json', '')
         if base not in to_keep_bases:
-            os.remove(os.path.join(folder_path, f))
+            os.remove(os.path.join(logs_dir, f))
             deleted_count += 1
+            
+    # Clean up evals
+    for f in eval_files:
+        base = f.replace('_evaluation.json', '')
+        if base not in to_keep_bases:
+            os.remove(os.path.join(eval_dir, f))
+            deleted_count += 1
+            
     return deleted_count
 
 def organize_results(do_cleanup=False):
@@ -105,21 +121,33 @@ def organize_results(do_cleanup=False):
     for target in targets:
         target_dir = os.path.join(base_dir, target)
         os.makedirs(target_dir, exist_ok=True)
+        os.makedirs(os.path.join(target_dir, "logs"), exist_ok=True)
+        os.makedirs(os.path.join(target_dir, "eval"), exist_ok=True)
 
     moved_count = 0
-    for filename in os.listdir(base_dir):
-        file_path = os.path.join(base_dir, filename)
-        if os.path.isdir(file_path):
-            continue
+    # Search in base_dir and all subfolders to ensure everything is sorted correctly
+    all_files_to_check = []
+    for root, dirs, files in os.walk(base_dir):
+        for f in files:
+            if f.endswith(".json"):
+                all_files_to_check.append(os.path.join(root, f))
 
+    for file_path in all_files_to_check:
+        filename = os.path.basename(file_path)
         for target in targets:
             if filename.startswith(target):
-                dest_path = os.path.join(base_dir, target, filename)
-                shutil.move(file_path, dest_path)
-                moved_count += 1
+                subfolder = "eval" if filename.endswith("_evaluation.json") else "logs"
+                dest_path = os.path.join(base_dir, target, subfolder, filename)
+                
+                # Check if it's already in the correct place
+                if os.path.normpath(file_path) != os.path.normpath(dest_path):
+                    # Ensure destination directory exists (should be created already but just in case)
+                    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                    shutil.move(file_path, dest_path)
+                    moved_count += 1
                 break
 
-    print(f"Moved {moved_count} files into their respective folders.")
+    print(f"Moved {moved_count} files into their respective logs/ and eval/ folders.")
 
     # 3. Cap each target folder to 500 pairs if requested
     if do_cleanup:
