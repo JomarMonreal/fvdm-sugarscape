@@ -13,14 +13,23 @@ def check_counts():
     
     for folder in subfolders:
         folder_path = os.path.join(base_dir, folder)
-        # Check both the folder itself and a potential logs/ subfolder (to be flexible)
         logs_path = os.path.join(folder_path, "logs")
-        search_path = logs_path if os.path.exists(logs_path) else folder_path
+        eval_path = os.path.join(folder_path, "eval")
         
-        files = [f for f in os.listdir(search_path) if f.endswith('.json')]
+        # Collect logs and evals from their respective folders if they exist
+        logs = []
+        if os.path.exists(logs_path):
+            logs = [f for f in os.listdir(logs_path) if f.endswith('.json')]
         
-        logs = [f for f in files if not f.endswith('_evaluation.json')]
-        evals = [f for f in files if f.endswith('_evaluation.json')]
+        evals = []
+        if os.path.exists(eval_path):
+            evals = [f for f in os.listdir(eval_path) if f.endswith('.json')]
+            
+        # Fallback to base folder if subfolders don't exist yet
+        if not logs and not evals:
+            files = [f for f in os.listdir(folder_path) if f.endswith('.json')]
+            logs = [f for f in files if not f.endswith('_evaluation.json')]
+            evals = [f for f in files if f.endswith('_evaluation.json')]
         
         # Determine pairs
         log_bases = set(f.replace('.json', '') for f in logs)
@@ -29,7 +38,8 @@ def check_counts():
         pairs = log_bases.intersection(eval_bases)
         orphans = (log_bases.union(eval_bases)) - pairs
         
-        print(f"{folder:<30} | {len(files):<12} | {len(pairs):<15} | {len(orphans):<8}")
+        total_count = len(logs) + len(evals)
+        print(f"{folder:<30} | {total_count:<12} | {len(pairs):<15} | {len(orphans):<8}")
 
 if __name__ == "__main__":
     check_counts()
