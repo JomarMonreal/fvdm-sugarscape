@@ -1,0 +1,22 @@
+| Metric | Value |
+| --- | --- |
+| Seeds | 500 |
+| Extinct (%) | 89.0 |
+| Worse (%) | 3.2 |
+| Better (%) | 7.8 |
+| initial_population | 250.0 |
+| final_population | 34.5 |
+| mean_population | 48.15 |
+| total_societal_wealth_end | 2474.2 |
+| mean_agent_wealth_overall | 236.73 |
+| mean_time_to_live | 19.75 |
+| mean_age_at_death | 12.77 |
+| mean_deaths_per_timestep | 2.65 |
+| starvation_deaths | 97.16 |
+| combat_deaths | 160.14 |
+| aging_deaths | 1141.85 |
+| disease_deaths | 0.0 |
+| total_reproductions | 1183.65 |
+| total_trades | 79441.01 |
+| total_loans | 17035.76 |
+| total_combats | 160.14 |

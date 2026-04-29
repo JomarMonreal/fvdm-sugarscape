@@ -26,6 +26,7 @@ CONFIGS = {
     "hetero_fvdm_utilitarian2": "configs/test_hetero_fvdm_utilitarian2.json",
     "hetero_mixed_egoist": "configs/test_hetero_mixed_egoist.json",
     "hetero_mixed_altruist": "configs/test_hetero_mixed_altruist.json",
+    "hetero_mixed_bentham": "configs/test_hetero_mixed_bentham.json",
     "hetero_selfish": "configs/test_hetero_selfish.json",
     "hetero_altruist": "configs/test_hetero_altruist.json"
 }

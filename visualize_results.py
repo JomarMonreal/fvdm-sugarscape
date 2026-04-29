@@ -63,6 +63,7 @@ CONDITION_COLORS = {
     "hetero_mixed_altruist":    "#0a9396",
     "hetero_selfish":           "#ae2012",
     "hetero_altruist":          "#94d2bd",
+    "hetero_mixed_bentham":     "#3d5a80",
 }
 
 CONDITION_LABELS = {
@@ -80,6 +81,7 @@ CONDITION_LABELS = {
     "hetero_mixed_altruist":    "Hetero Mixed (Ideal Altruist)",
     "hetero_selfish":           "Hetero Mixed (Derived Selfish)",
     "hetero_altruist":          "Hetero Mixed (Derived Altruist)",
+    "hetero_mixed_bentham":     "Hetero Mixed (Utilitarian)",
 }
 
 MODEL_LABELS = {

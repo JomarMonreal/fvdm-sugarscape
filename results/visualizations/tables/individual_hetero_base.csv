@@ -1,0 +1,21 @@
+Metric,Value
+Seeds,500
+Extinct (%),0.0
+Worse (%),0.4
+Better (%),99.6
+initial_population,250.0
+final_population,431.38
+mean_population,380.23
+total_societal_wealth_end,21325.37
+mean_agent_wealth_overall,56.65
+mean_time_to_live,19.35
+mean_age_at_death,62.07
+mean_deaths_per_timestep,5.96
+starvation_deaths,148.27
+combat_deaths,718.62
+aging_deaths,14027.42
+disease_deaths,0.0
+total_reproductions,15075.68
+total_trades,1167083.91
+total_loans,155591.5
+total_combats,718.62

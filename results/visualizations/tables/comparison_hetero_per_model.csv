@@ -1,0 +1,22 @@
+Condition,Model,Mean Wealth,Mean TTL,Mean Age@Death,Total Deaths,Combat Deaths
+Hetero Mixed (Derived Altruist),FVDM Altruist (Derived),140.95,20.25,41.52,1954.5,71.0
+Hetero Mixed (Derived Altruist),Altruist (Original),131.16,20.35,48.4,2591.7,124.8
+Hetero Mixed (Derived Altruist),Egoist (Original),127.52,20.31,48.14,4410.8,126.6
+Hetero (Original),Altruist (Original),60.73,19.11,60.99,3423.2,256.1
+Hetero (Original),Bentham (Original),63.98,19.21,58.91,3733.2,193.3
+Hetero (Original),Egoist (Original),58.71,19.38,62.0,7737.9,269.2
+Hetero FVDM (Derived),FVDM Altruist (Derived),159.23,17.52,19.09,453.5,53.0
+Hetero FVDM (Derived),FVDM Selfish (Derived),165.08,17.7,20.19,442.0,53.8
+Hetero FVDM (Derived),FVDM Utilitarian,163.86,18.02,19.77,527.9,53.2
+Hetero FVDM (Idealized),FVDM Utilitarian,172.37,19.71,26.89,1061.7,49.8
+Hetero FVDM (Idealized),FVDM Altruist (Idealized),183.86,20.39,31.12,1756.1,61.0
+Hetero FVDM (Idealized),FVDM Selfish (Idealized),167.81,19.34,26.2,803.3,50.4
+Hetero Mixed (Ideal Altruist),FVDM Altruist (Idealized),60.5,19.28,61.46,6015.2,258.8
+Hetero Mixed (Ideal Altruist),Egoist (Original),59.16,19.29,61.38,6063.0,242.7
+Hetero Mixed (Ideal Altruist),Altruist (Original),60.87,19.22,60.69,2862.5,249.1
+Hetero Mixed (Ideal Selfish),Egoist (Original),116.31,20.43,50.81,5054.9,122.7
+Hetero Mixed (Ideal Selfish),FVDM Selfish (Idealized),122.67,20.07,44.86,2311.5,72.8
+Hetero Mixed (Ideal Selfish),Altruist (Original),116.89,20.33,51.79,2863.9,130.3
+Hetero Mixed (Derived Selfish),Egoist (Original),115.84,20.21,52.54,5532.2,130.3
+Hetero Mixed (Derived Selfish),FVDM Selfish (Derived),126.69,19.62,42.49,1884.3,72.0
+Hetero Mixed (Derived Selfish),Altruist (Original),112.18,19.86,50.85,2780.6,129.2

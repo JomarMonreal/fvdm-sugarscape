@@ -111,6 +111,7 @@ def organize_results(do_cleanup=False):
         "hetero_fvdm_utilitarian2",
         "hetero_mixed_egoist",
         "hetero_mixed_altruist",
+        "hetero_mixed_bentham",
         "hetero_selfish",
         "hetero_altruist"
     ]
