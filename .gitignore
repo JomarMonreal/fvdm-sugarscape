@@ -1,3 +1,6 @@
 .scraps/
 __pycache__/
 data/baseline_runs/
+.venv/
+log.json
+Texfiles/
