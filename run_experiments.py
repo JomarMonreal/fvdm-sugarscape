@@ -166,8 +166,6 @@ def parse_sugarscape_log(log_path: str, condition: str,
         born_this_ts = int(entry.get("agentsBorn", 0))
         total_deaths += deaths_this_ts
         total_born += born_this_ts
-        if pop == 0:
-            extinct = True
 
         # Action counts from main log (written by sugarscape.updateRuntimeStats)
         mv = int(entry.get("actionMovements", 0))
@@ -222,7 +220,7 @@ def parse_sugarscape_log(log_path: str, condition: str,
         "condition": condition,
         "seed": seed,
         "executionTime": round(duration, 2),
-        "extinct": extinct,
+        "extinct": (final_pop == 0),
         "finalPopulation": final_pop,
         "totalDeaths": total_deaths,
         "totalBorn": total_born,
