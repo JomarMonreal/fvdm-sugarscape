@@ -12,6 +12,7 @@ def main():
     # Check if files exist
     pts_path = os.path.join(results_dir, "per_timestep.csv")
     sum_path = os.path.join(results_dir, "per_seed_summary.csv")
+    agg_path = os.path.join(results_dir, "condition_aggregates.csv")
     
     if not os.path.exists(pts_path) or not os.path.exists(sum_path):
         print(f"Results files not found in {results_dir}")
@@ -20,6 +21,22 @@ def main():
     print(f"Loading data from {results_dir}...")
     df_ts = pd.read_csv(pts_path)
     df_sum = pd.read_csv(sum_path)
+    
+    # Fix extinct bug in per_seed_summary
+    if 'extinct' in df_sum.columns and 'finalPopulation' in df_sum.columns:
+        df_sum['extinct'] = df_sum['finalPopulation'] == 0
+        
+    df_agg = None
+    if os.path.exists(agg_path):
+        df_agg = pd.read_csv(agg_path)
+        # Fix extinctionRate in condition_aggregates
+        if 'extinctionRate' in df_agg.columns:
+            for idx, row in df_agg.iterrows():
+                cond = row['condition']
+                cond_sum = df_sum[df_sum['condition'] == cond]
+                if not cond_sum.empty:
+                    ext_rate = cond_sum['extinct'].mean()
+                    df_agg.at[idx, 'extinctionRate'] = ext_rate
     
     # Define condition mappings
     # ts_1_baseline
@@ -60,6 +77,11 @@ def main():
             print(f"Saving {group_name} data ({len(filtered_ts)} rows)...")
             filtered_ts.to_csv(os.path.join(group_dir, "per_timestep.csv"), index=False)
             filtered_sum.to_csv(os.path.join(group_dir, "per_seed_summary.csv"), index=False)
+            
+            if df_agg is not None:
+                filtered_agg = df_agg[df_agg['condition'].isin(conditions)]
+                if not filtered_agg.empty:
+                    filtered_agg.to_csv(os.path.join(group_dir, "condition_aggregates.csv"), index=False)
             
             # Also organize sim_logs if they exist
             sim_logs_dir = os.path.join("experiment_results", "sim_logs")
