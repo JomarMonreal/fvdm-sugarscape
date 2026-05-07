@@ -85,10 +85,9 @@ def make_run_config(base: dict, seed: int, decision_models: list,
     cfg["screenshots"] = False
     cfg["profileMode"] = False
 
-    # Per-run log paths
-    model_tag = "_".join(decision_models)
+    # Per-run log paths — agent log disabled for performance
     cfg["logfile"] = os.path.join(output_dir, f"{condition_name}_{seed}.json")
-    cfg["agentLogfile"] = os.path.join(output_dir, f"agents_{condition_name}_{seed}.json")
+    cfg["agentLogfile"] = None   # not needed: action counts now in main log
     cfg["logfileFormat"] = "json"
 
     return cfg
@@ -136,54 +135,22 @@ def safe_json_load(path: str):
         return None
 
 
-def parse_sugarscape_log(log_path: str, agent_log_path: str, condition: str,
+def parse_sugarscape_log(log_path: str, condition: str,
                           seed: int, timesteps: int, duration: float = 0.0):
     """
-    Parse a completed simulation log pair and return:
+    Parse a completed simulation log and return:
       - per_timestep: list of dicts (one per recorded timestep)
       - summary: dict of aggregated/final stats
     Returns (None, None) if logs are invalid.
+
+    Action counts (movementActions, combatActions, tradeActions,
+    reproductionActions, lendingActions) are now written directly to
+    the main simulation log by sugarscape.py — no agent log needed.
     """
     sim_log = safe_json_load(log_path)
-    agent_log = safe_json_load(agent_log_path)
 
     if sim_log is None or len(sim_log) == 0:
         return None, None
-
-    # ── Build per-timestep action frequency table from agent log ──
-    # Key: timestep → {combatActions, tradeActions, reproductionActions,
-    #                   lendingActions, diseaseSpreadActions, totalActions}
-    action_by_ts = {}
-    seen_agent_ts = set()
-    if agent_log is not None:
-        for entry in agent_log:
-            ts = entry.get("timestep", 0)
-            aid = entry.get("ID", -1)
-            
-            # Prevent double-counting if the simulator logs the same agent twice in one timestep
-            if (ts, aid) in seen_agent_ts:
-                continue
-            seen_agent_ts.add((ts, aid))
-            
-            if ts not in action_by_ts:
-                action_by_ts[ts] = {
-                    "movementActions": 0,
-                    "combatActions": 0,
-                    "tradeActions": 0,
-                    "reproductionActions": 0,
-                    "lendingActions": 0,
-                }
-            amap = action_by_ts[ts]
-            if entry.get("didMove", False):
-                amap["movementActions"] += 1
-            if entry.get("preyKilled", False):
-                amap["combatActions"] += 1
-            if entry.get("tradePartners", 0) > 0:
-                amap["tradeActions"] += 1
-            if entry.get("mates", 0) > 0:
-                amap["reproductionActions"] += 1
-            if entry.get("lendingPartners", 0) > 0:
-                amap["lendingActions"] += 1
 
     # ── Build per-timestep records from main sim log ──
     per_timestep = []
@@ -202,14 +169,13 @@ def parse_sugarscape_log(log_path: str, agent_log_path: str, condition: str,
         if pop == 0:
             extinct = True
 
-        actions = action_by_ts.get(ts, {
-            "movementActions": 0,
-            "combatActions": 0,
-            "tradeActions": 0,
-            "reproductionActions": 0,
-            "lendingActions": 0,
-        })
-        total_actions = sum(actions.values())
+        # Action counts from main log (written by sugarscape.updateRuntimeStats)
+        mv = int(entry.get("actionMovements", 0))
+        cb = int(entry.get("actionCombats", 0))
+        tr = int(entry.get("actionTrades", 0))
+        rp = int(entry.get("actionReproductions", 0))
+        ln = int(entry.get("actionLendings", 0))
+        total_actions = mv + cb + tr + rp + ln
 
         rec = {
             "condition": condition,
@@ -241,11 +207,11 @@ def parse_sugarscape_log(log_path: str, agent_log_path: str, condition: str,
             # Sickness
             "sickAgents": int(entry.get("sickAgents", 0)),
             # Action frequencies
-            "movementActions": actions["movementActions"],
-            "combatActions": actions["combatActions"],
-            "tradeActions": actions["tradeActions"],
-            "reproductionActions": actions["reproductionActions"],
-            "lendingActions": actions["lendingActions"],
+            "movementActions": mv,
+            "combatActions": cb,
+            "tradeActions": tr,
+            "reproductionActions": rp,
+            "lendingActions": ln,
             "totalActions": total_actions,
         }
         per_timestep.append(rec)
@@ -390,21 +356,20 @@ def run_experiments(args):
             cfg_path = os.path.join(condition_sim_dir, f"{condition_name}_{seed}.config")
             write_run_config(cfg, cfg_path)
             all_run_configs.append((
-                condition_name, seed, cfg_path,
-                cfg["logfile"], cfg["agentLogfile"]
+                condition_name, seed, cfg_path, cfg["logfile"]
             ))
 
     # Filter out already-completed runs
     pending = []
-    for (cname, seed, cfg_path, log_path, agent_log_path) in all_run_configs:
-        if os.path.exists(log_path) and os.path.exists(agent_log_path):
+    for (cname, seed, cfg_path, log_path) in all_run_configs:
+        if os.path.exists(log_path):
             log_data = safe_json_load(log_path)
             if log_data and len(log_data) > 0:
                 last_ts = log_data[-1].get("timestep", 0)
                 last_pop = log_data[-1].get("population", -1)
                 if int(last_ts) >= timesteps or int(last_pop) == 0:
                     continue   # completed
-        pending.append((cname, seed, cfg_path, log_path, agent_log_path))
+        pending.append((cname, seed, cfg_path, log_path))
 
     total_jobs = len(all_run_configs)
     skip_count = total_jobs - len(pending)
@@ -416,7 +381,7 @@ def run_experiments(args):
         if gui_mode:
             # In GUI mode, launch sugarscape directly (interactive)
             print("  [gui] Launching GUI simulation …")
-            _, _, cfg_path, _, _ = pending[0]
+            _, _, cfg_path, _ = pending[0]
             # Remove headlessMode override for GUI run
             with open(cfg_path) as f:
                 gui_cfg = json.load(f)
@@ -435,7 +400,7 @@ def run_experiments(args):
 
         worker_args = [
             (cfg_path, python_alias, i, len(pending), counter, lock)
-            for i, (_, _, cfg_path, _, _) in enumerate(pending)
+            for i, (_, _, cfg_path, _) in enumerate(pending)
         ]
 
         print(f"  Running simulations using {num_cores} core(s) …")
@@ -457,10 +422,10 @@ def run_experiments(args):
     all_summaries = []
     condition_summaries = {cname: [] for cname in CONDITIONS}
 
-    for (cname, seed, cfg_path, log_path, agent_log_path) in all_run_configs:
+    for (cname, seed, cfg_path, log_path) in all_run_configs:
         duration = session_durations.get(cfg_path, 0.0)
         pts, summary = parse_sugarscape_log(
-            log_path, agent_log_path, cname, seed, timesteps, duration=duration
+            log_path, cname, seed, timesteps, duration=duration
         )
         if pts is None:
             print(f"  [warn] Could not parse log for {cname} seed={seed}")

@@ -992,6 +992,13 @@ class Sugarscape:
         agentWealthCollected = 0
         agentWealthTotal = 0
 
+        # Action-selection frequency counters (for experiment logging)
+        actionMovements = 0
+        actionCombats = 0
+        actionTrades = 0
+        actionReproductions = 0
+        actionLendings = 0
+
         meanDeathsPercentage = 0
         sickAgentsPercentage = 0
 
@@ -1064,6 +1071,18 @@ class Sugarscape:
             if agent.lastMoveOptimal == True:
                 agentLastMoveOptimalityPercentage += 1
             agentMoves += 1
+
+            # Tally action-selection frequencies
+            if agent.lastChangedCoordinatesTimestep == self.timestep:
+                actionMovements += 1
+            if agent.lastCombatTimestep == self.timestep:
+                actionCombats += 1
+            if agent.lastTradeTimestep == self.timestep:
+                actionTrades += 1
+            if agent.lastReproducedTimestep == self.timestep:
+                actionReproductions += 1
+            if agent.lastLendedTimestep == self.timestep:
+                actionLendings += 1
 
             meanNeighbors += len(agent.movementNeighborhood)
             if self.experimentalGroup != None:
@@ -1279,7 +1298,9 @@ class Sugarscape:
                         "population": numAgents, "sickAgents": sickAgents, "remainingTribes": remainingTribes, "tradeVolume": tradeVolume,
                         "meanDeathsPercentage": meanDeathsPercentage, "sickAgentsPercentage": sickAgentsPercentage,
                         "diseaseEffectiveReproductionRate": diseaseEffectiveReproductionRate, "diseaseIncidence": diseaseIncidence,
-                        "diseasePrevalence": diseasePrevalence, "agentLastMoveOptimalityPercentage": agentLastMoveOptimalityPercentage
+                        "diseasePrevalence": diseasePrevalence, "agentLastMoveOptimalityPercentage": agentLastMoveOptimalityPercentage,
+                        "actionMovements": actionMovements, "actionCombats": actionCombats, "actionTrades": actionTrades,
+                        "actionReproductions": actionReproductions, "actionLendings": actionLendings
                         }
 
         controlInteractionStats = {"combatControlGroupToControlGroup": combatControlToControl, "combatControlGroupToExperimentalGroup": combatControlToExperimental,
