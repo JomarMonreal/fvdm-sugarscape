@@ -39,28 +39,12 @@ def main():
                     df_agg.at[idx, 'extinctionRate'] = ext_rate
     
     # Define condition mappings
-    # ts_1_baseline
-    baseline_conds = ["Homo Egoist", "Homo Altruist", "Homo Bentham", "Hetero Base", "egoist", "altruist", "bentham", "heterogeneous", "rawSugarscape"]
-    
-    # ts_2_derived
-    derived_conds = ["Homo Selfish Derived", "Homo Altruist Derived", "Homo Bentham Derived"]
-    
-    # ts_3_idealized
-    idealized_conds = ["Homo Selfish Ideal", "Homo Altruist Ideal"]
-    
-    # ts_4_hetero
-    hetero_conds = ["Hetero FVDM Derived", "Hetero FVDM Ideal"]
-    
-    # ts_5_mixed
-    mixed_conds = ["Hetero Mixed (Ideal Altruist)", "Hetero Mixed (Ideal Selfish)", 
-                   "Hetero Mixed (Derived Selfish)", "Hetero Mixed (Derived Altruist)", "Hetero Mixed (Derived Bentham)"]
-                   
     groups = {
-        "ts_1_baseline": baseline_conds,
-        "ts_2_derived": derived_conds,
-        "ts_3_idealized": idealized_conds,
-        "ts_4_hetero": hetero_conds,
-        "ts_5_mixed": mixed_conds
+        "heterogeneous": ["heterogeneous"],
+        "bentham": ["bentham"],
+        "altruist": ["altruist"],
+        "egoist": ["egoist"],
+        "rawSugarscape": ["rawSugarscape"]
     }
     
     for group_name, conditions in groups.items():
