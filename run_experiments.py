@@ -375,6 +375,8 @@ def run_experiments(args):
     all_run_configs = []   # list of (condition_name, seed, cfg_path, log_path, agent_log_path)
 
     for condition_name, decision_models in CONDITIONS.items():
+        condition_sim_dir = os.path.join(sim_dir, condition_name)
+        os.makedirs(condition_sim_dir, exist_ok=True)
         for seed in seeds:
             cfg = make_run_config(
                 base=base_cfg,
@@ -382,10 +384,10 @@ def run_experiments(args):
                 decision_models=decision_models,
                 timesteps=timesteps,
                 num_agents=num_agents,
-                output_dir=sim_dir,
+                output_dir=condition_sim_dir,
                 condition_name=condition_name,
             )
-            cfg_path = os.path.join(sim_dir, f"{condition_name}_{seed}.config")
+            cfg_path = os.path.join(condition_sim_dir, f"{condition_name}_{seed}.config")
             write_run_config(cfg, cfg_path)
             all_run_configs.append((
                 condition_name, seed, cfg_path,
