@@ -1,0 +1,6 @@
+Condition,Seeds,Extinction Rate,Mean Final Pop.,SD Final Pop.,Mean Wealth (final),Mean Gini (final),SD Gini,Mean TTL (final),SD TTL,Mean Total Deaths,Mean Total Born
+Raw Sugarscape,10,0.7,78.2,228.9589,22.007,0.064,0.098,4.554,7.0412,74.7,102.9
+Egoist,10,0.6,156.1,308.8257,33.254,0.0682,0.0953,7.391,9.5008,115.9,222.0
+Altruist,10,0.5,121.7,282.1457,49.75,0.1436,0.163,11.864,13.0957,107.7,179.4
+Bentham,10,0.3,198.3,220.5584,69.648,0.2269,0.1543,17.667,12.0659,189.8,338.1
+Heterogeneous,10,0.5,199.6,373.1622,63.454,0.1176,0.1544,6.941,7.9384,142.7,292.3

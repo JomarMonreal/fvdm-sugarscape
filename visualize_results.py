@@ -444,6 +444,77 @@ def plot_births_deaths(pts, out_dir):
     save(fig, os.path.join(out_dir, "ts_births_deaths.png"))
 
 
+def plot_end_state_summary(summary, out_dir):
+    """Summary of end states: Extinct, Better (Final > Initial), or Worse (0 < Final < Initial)."""
+    df = summary.copy()
+    
+    # Calculate initial population if not explicitly provided
+    # Final = Initial + Born - Deaths  =>  Initial = Final - Born + Deaths
+    if "initialPopulation" not in df.columns:
+        df["initialPopulation"] = df["finalPopulation"] - df["totalBorn"] + df["totalDeaths"]
+    
+    def get_state(row):
+        if row["finalPopulation"] == 0:
+            return "Extinct"
+        elif row["finalPopulation"] > row["initialPopulation"]:
+            return "Better"
+        else:
+            return "Worse"
+            
+    df["EndState"] = df.apply(get_state, axis=1)
+    
+    # Pivot to get counts per condition and state
+    state_counts = df.groupby(["condition", "EndState"]).size().unstack(fill_value=0)
+    
+    # Ensure all states exist in columns
+    for s in ["Extinct", "Better", "Worse"]:
+        if s not in state_counts.columns:
+            state_counts[s] = 0
+            
+    # Reorder columns and index
+    state_counts = state_counts[["Extinct", "Worse", "Better"]]
+    state_counts = state_counts.reindex([c for c in CONDITION_ORDER if c in state_counts.index])
+    
+    # Proportions for plotting
+    props = state_counts.div(state_counts.sum(axis=1), axis=0)
+    props.index = [label(c) for c in props.index]
+    
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 6))
+    colors = ["#e63946", "#f4a261", "#2a9d8f"] # Red (Extinct), Orange (Worse), Teal (Better)
+    props.plot(kind="bar", stacked=True, color=colors, ax=ax, edgecolor="white", width=0.6)
+    
+    ax.set_title("Simulation End States by Condition")
+    ax.set_ylabel("Proportion of Seeds")
+    ax.set_xlabel("")
+    ax.set_ylim(0, 1.05)
+    ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+    ax.tick_params(axis="x", rotation=20)
+    ax.legend(title="End State", loc="upper right")
+    
+    # Add counts as text on bars if feasible
+    for i, (idx, row) in enumerate(state_counts.iterrows()):
+        total = row.sum()
+        if total == 0: continue
+        current_y = 0
+        for state in ["Extinct", "Worse", "Better"]:
+            count = row[state]
+            if count > 0:
+                p = count / total
+                ax.text(i, current_y + p/2, str(count), ha='center', va='center', 
+                        color='white', fontweight='bold', fontsize=9)
+                current_y += p
+
+    save(fig, os.path.join(out_dir, "bar_end_states.png"))
+    
+    # Save table
+    tbl_path = os.path.join(out_dir, "end_state_table.csv")
+    state_counts.index = [label(c) for c in state_counts.index]
+    state_counts.to_csv(tbl_path)
+    print(f"  End State Table saved → {tbl_path}")
+
+
+
 def plot_wealth_inequality(pts, out_dir):
     """Min, mean, max wealth ribbons per condition."""
     fig, axes = plt.subplots(1, len(CONDITION_ORDER), figsize=(18, 4), sharey=True)
@@ -467,6 +538,270 @@ def plot_wealth_inequality(pts, out_dir):
     axes[0].legend(fontsize=7)
     fig.suptitle("Wealth Spread Over Time (Min / Mean / Max)", fontsize=12)
     save(fig, os.path.join(out_dir, "ts_wealth_spread.png"))
+
+
+# ─────────────────────────────────────────────────────────────────
+# Per-tribe (intra-condition) plots
+# ─────────────────────────────────────────────────────────────────
+
+# Dynamic palette for tribe lines – extended so any new model gets a color
+_TRIBE_COLORS = {
+    "egoist":         "#e63946",
+    "altruist":       "#2a9d8f",
+    "bentham":        "#e9c46a",
+    "rawSugarscape":  "#6c757d",
+    "negativeBentham":"#9b59b6",
+    "temperance":     "#f4a261",
+    "asimov":         "#264653",
+}
+_FALLBACK_COLORS = ["#1d3557", "#bc6c25", "#606c38", "#dda15e", "#780000"]
+
+
+def _detect_tribes(pts):
+    """Return sorted list of tribe prefixes found in per-timestep columns."""
+    tribes = set()
+    for col in pts.columns:
+        if col.endswith("_population"):
+            prefix = col[:-len("_population")]
+            if prefix:
+                tribes.add(prefix)
+    return sorted(tribes)
+
+
+def _tribe_color(tribe, idx=0):
+    if tribe in _TRIBE_COLORS:
+        return _TRIBE_COLORS[tribe]
+    return _FALLBACK_COLORS[idx % len(_FALLBACK_COLORS)]
+
+
+def _tribe_label(tribe):
+    return CONDITION_LABELS.get(tribe, tribe.capitalize())
+
+
+def _ts_tribe_metric(pts, metric_suffix, title, ylabel, out_dir, fname,
+                     condition="heterogeneous"):
+    """Plot a per-tribe metric over time for a specific condition."""
+    sub = pts[pts["condition"] == condition]
+    if sub.empty:
+        return
+    tribes = _detect_tribes(sub)
+    if not tribes:
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for i, tribe in enumerate(tribes):
+        col = f"{tribe}_{metric_suffix}"
+        if col not in sub.columns:
+            continue
+        grp = sub.groupby("timestep")[col]
+        mn = grp.mean()
+        se = grp.sem()
+        color = _tribe_color(tribe, i)
+        ax.plot(mn.index, mn.values, label=_tribe_label(tribe),
+                color=color, linewidth=1.8)
+        ax.fill_between(mn.index, (mn - 1.96*se).values, (mn + 1.96*se).values,
+                        alpha=0.18, color=color)
+
+    # Also plot global metric as dashed
+    global_col = metric_suffix
+    if global_col in sub.columns:
+        grp = sub.groupby("timestep")[global_col]
+        mn = grp.mean()
+        ax.plot(mn.index, mn.values, label="Global", color="#333",
+                linewidth=1.2, linestyle="--", alpha=0.6)
+
+    ax.set_title(title)
+    ax.set_xlabel("Timestep")
+    ax.set_ylabel(ylabel)
+    ax.legend(loc="upper right")
+    save(fig, os.path.join(out_dir, fname))
+
+
+def plot_tribe_population(pts, out_dir):
+    _ts_tribe_metric(pts, "population",
+                     "Per-Tribe Population (Heterogeneous)", "Population",
+                     out_dir, "tribe_population.png")
+
+
+def plot_tribe_wealth(pts, out_dir):
+    _ts_tribe_metric(pts, "meanWealth",
+                     "Per-Tribe Mean Wealth (Heterogeneous)", "Mean Wealth",
+                     out_dir, "tribe_mean_wealth.png")
+
+
+def plot_tribe_ttl(pts, out_dir):
+    _ts_tribe_metric(pts, "meanTimeToLive",
+                     "Per-Tribe Mean Time-to-Live (Heterogeneous)", "Mean TTL",
+                     out_dir, "tribe_ttl.png")
+
+
+def plot_tribe_happiness(pts, out_dir):
+    _ts_tribe_metric(pts, "meanHappiness",
+                     "Per-Tribe Mean Happiness (Heterogeneous)", "Mean Happiness",
+                     out_dir, "tribe_happiness.png")
+
+
+def plot_tribe_deaths(pts, out_dir):
+    """Per-tribe death breakdown over time."""
+    sub = pts[pts["condition"] == "heterogeneous"]
+    if sub.empty:
+        return
+    tribes = _detect_tribes(sub)
+    if not tribes:
+        return
+
+    death_metrics = [
+        ("agentDeaths",           "Total Deaths"),
+        ("agentStarvationDeaths", "Starvation Deaths"),
+        ("agentCombatDeaths",     "Combat Deaths"),
+    ]
+
+    fig, axes = plt.subplots(1, len(death_metrics), figsize=(5*len(death_metrics), 5))
+    if len(death_metrics) == 1:
+        axes = [axes]
+
+    for ax, (metric, title) in zip(axes, death_metrics):
+        for i, tribe in enumerate(tribes):
+            col = f"{tribe}_{metric}"
+            if col not in sub.columns:
+                continue
+            grp = sub.groupby("timestep")[col]
+            mn = grp.mean()
+            se = grp.sem()
+            color = _tribe_color(tribe, i)
+            ax.plot(mn.index, mn.values, label=_tribe_label(tribe),
+                    color=color, linewidth=1.5)
+            ax.fill_between(mn.index, (mn - 1.96*se).values, (mn + 1.96*se).values,
+                            alpha=0.15, color=color)
+        ax.set_title(f"Per-Tribe {title}")
+        ax.set_xlabel("Timestep")
+        ax.set_ylabel("Deaths")
+        ax.legend(fontsize=8)
+    fig.suptitle("Per-Tribe Deaths (Heterogeneous)", fontsize=13)
+    save(fig, os.path.join(out_dir, "tribe_deaths.png"))
+
+
+def plot_tribe_actions(pts, out_dir):
+    """Per-tribe action frequencies over time (one subplot per action type)."""
+    sub = pts[pts["condition"] == "heterogeneous"]
+    if sub.empty:
+        return
+    tribes = _detect_tribes(sub)
+    if not tribes:
+        return
+
+    action_metrics = [
+        ("movementActions", "Movement"),
+        ("combatActions",   "Combat"),
+        ("tradeActions",    "Trade"),
+        ("reproductionActions", "Reproduction"),
+        ("lendingActions",  "Lending"),
+    ]
+
+    fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+    axes = axes.flatten()
+
+    for idx, (metric, title) in enumerate(action_metrics):
+        ax = axes[idx]
+        for i, tribe in enumerate(tribes):
+            col = f"{tribe}_{metric}"
+            if col not in sub.columns:
+                continue
+            grp = sub.groupby("timestep")[col]
+            mn = grp.mean()
+            se = grp.sem()
+            color = _tribe_color(tribe, i)
+            ax.plot(mn.index, mn.values, label=_tribe_label(tribe),
+                    color=color, linewidth=1.5)
+            ax.fill_between(mn.index, (mn - 1.96*se).values, (mn + 1.96*se).values,
+                            alpha=0.15, color=color)
+        ax.set_title(f"{title} Actions")
+        ax.set_xlabel("Timestep")
+        ax.set_ylabel("# Agents")
+        ax.legend(fontsize=7)
+
+    # Stacked bar for action proportions per tribe (last panel)
+    ax = axes[5]
+    action_cols = [f"_{m}" for m, _ in action_metrics]
+    bar_data = {}
+    for tribe in tribes:
+        tribe_totals = []
+        for metric, _ in action_metrics:
+            col = f"{tribe}_{metric}"
+            if col in sub.columns:
+                tribe_totals.append(sub[col].sum())
+            else:
+                tribe_totals.append(0)
+        bar_data[_tribe_label(tribe)] = tribe_totals
+
+    bar_df = pd.DataFrame(bar_data, index=[lbl for _, lbl in action_metrics]).T
+    total_per_tribe = bar_df.sum(axis=1).replace(0, 1)
+    prop_df = bar_df.div(total_per_tribe, axis=0)
+    prop_df.plot(kind="bar", stacked=True, ax=ax,
+                 color=["#adb5bd", "#e63946", "#2a9d8f", "#e9c46a", "#457b9d"],
+                 edgecolor="white", width=0.7)
+    ax.set_title("Action Proportions by Tribe")
+    ax.set_ylabel("Proportion")
+    ax.set_ylim(0, 1.05)
+    ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+    ax.tick_params(axis="x", rotation=20)
+    ax.legend(fontsize=7, loc="upper right")
+
+    fig.suptitle("Per-Tribe Action Frequencies (Heterogeneous)", fontsize=13)
+    save(fig, os.path.join(out_dir, "tribe_actions.png"))
+
+
+def plot_tribe_summary_bars(summary, out_dir):
+    """Bar chart comparing final metrics across tribes in heterogeneous condition."""
+    sub = summary[summary["condition"] == "heterogeneous"]
+    if sub.empty:
+        return
+    tribes = []
+    for col in sub.columns:
+        if col.endswith("_finalPopulation"):
+            prefix = col[:-len("_finalPopulation")]
+            if prefix:
+                tribes.append(prefix)
+    tribes = sorted(tribes)
+    if not tribes:
+        return
+
+    metrics = [
+        ("finalPopulation",     "Final Population"),
+        ("finalMeanWealth",     "Final Mean Wealth"),
+        ("finalMeanTimeToLive", "Final Mean TTL"),
+        ("totalDeaths",         "Total Deaths"),
+        ("totalCombatActions",  "Total Combat Actions"),
+        ("totalTradeActions",   "Total Trade Actions"),
+    ]
+
+    fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+    axes = axes.flatten()
+
+    for idx, (metric, title) in enumerate(metrics):
+        ax = axes[idx]
+        tribe_labels = [_tribe_label(t) for t in tribes]
+        means = []
+        stds = []
+        colors = []
+        for i, tribe in enumerate(tribes):
+            col = f"{tribe}_{metric}"
+            if col in sub.columns:
+                means.append(sub[col].mean())
+                stds.append(sub[col].std() if len(sub) > 1 else 0)
+            else:
+                means.append(0)
+                stds.append(0)
+            colors.append(_tribe_color(tribe, i))
+
+        ax.bar(tribe_labels, means, color=colors, edgecolor="white", width=0.55,
+               yerr=stds if any(s > 0 for s in stds) else None,
+               error_kw={"elinewidth": 1.2, "capsize": 4, "ecolor": "#444"})
+        ax.set_title(title)
+        ax.tick_params(axis="x", rotation=20)
+
+    fig.suptitle("Per-Tribe Summary (Heterogeneous)", fontsize=13)
+    save(fig, os.path.join(out_dir, "tribe_summary_bars.png"))
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -525,6 +860,21 @@ def main():
     plot_bar_final_ttl(agg, out_dir)
     plot_bar_total_actions(agg, out_dir)
     plot_bar_action_breakdown(summary, out_dir)
+    plot_end_state_summary(summary, out_dir)
+
+    # ── Per-tribe plots (heterogeneous condition) ─────────────────
+    tribes = _detect_tribes(pts)
+    if tribes:
+        print(f"\n  Generating per-tribe plots (detected: {', '.join(tribes)}) …")
+        plot_tribe_population(pts, out_dir)
+        plot_tribe_wealth(pts, out_dir)
+        plot_tribe_ttl(pts, out_dir)
+        plot_tribe_happiness(pts, out_dir)
+        plot_tribe_deaths(pts, out_dir)
+        plot_tribe_actions(pts, out_dir)
+        plot_tribe_summary_bars(summary, out_dir)
+    else:
+        print("\n  No per-tribe columns detected — skipping tribe plots.")
 
     print(f"\n  All figures saved to: {out_dir}\n")
 

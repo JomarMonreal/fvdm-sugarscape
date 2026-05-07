@@ -146,17 +146,32 @@ def parse_sugarscape_log(log_path: str, condition: str,
     Action counts (movementActions, combatActions, tradeActions,
     reproductionActions, lendingActions) are now written directly to
     the main simulation log by sugarscape.py — no agent log needed.
+
+    Per-tribe metrics (e.g. egoistPopulation, altruistMeanWealth) are
+    detected dynamically from log keys and included as extra columns.
     """
     sim_log = safe_json_load(log_path)
 
     if sim_log is None or len(sim_log) == 0:
         return None, None
 
+    # ── Detect per-tribe prefixed keys dynamically ──
+    # Any key ending with "Population" (capital P) that isn't the global
+    # "population" key reveals a tribe prefix. This works for any decision
+    # model — no hardcoded list needed.
+    detected_tribes = set()
+    for entry in sim_log[1:min(5, len(sim_log))]:
+        for key in entry:
+            if key.endswith("Population") and key != "population":
+                prefix = key[:-len("Population")]
+                if prefix:   # guard against empty string
+                    detected_tribes.add(prefix)
+    detected_tribes = sorted(detected_tribes)
+
     # ── Build per-timestep records from main sim log ──
     per_timestep = []
     total_deaths = 0
     total_born = 0
-    extinct = False
     final_pop = 0
 
     for entry in sim_log:
@@ -212,6 +227,29 @@ def parse_sugarscape_log(log_path: str, condition: str,
             "lendingActions": ln,
             "totalActions": total_actions,
         }
+
+        # ── Per-tribe metrics ──
+        for tribe in detected_tribes:
+            prefix = tribe
+            rec[f"{prefix}_population"] = int(entry.get(f"{prefix}Population", 0))
+            rec[f"{prefix}_meanWealth"] = float(entry.get(f"{prefix}MeanWealth", 0))
+            rec[f"{prefix}_meanAge"] = float(entry.get(f"{prefix}MeanAge", 0))
+            rec[f"{prefix}_meanTimeToLive"] = float(entry.get(f"{prefix}AgentMeanTimeToLive", 0))
+            rec[f"{prefix}_meanHappiness"] = float(entry.get(f"{prefix}MeanHappiness", 0))
+            rec[f"{prefix}_agentDeaths"] = int(entry.get(f"{prefix}AgentDeaths", 0))
+            rec[f"{prefix}_agentAgingDeaths"] = int(entry.get(f"{prefix}AgentAgingDeaths", 0))
+            rec[f"{prefix}_agentStarvationDeaths"] = int(entry.get(f"{prefix}AgentStarvationDeaths", 0))
+            rec[f"{prefix}_agentCombatDeaths"] = int(entry.get(f"{prefix}AgentCombatDeaths", 0))
+            rec[f"{prefix}_agentsBorn"] = int(entry.get(f"{prefix}AgentsBorn", 0))
+            rec[f"{prefix}_tradeVolume"] = float(entry.get(f"{prefix}TradeVolume", 0))
+            rec[f"{prefix}_movementActions"] = int(entry.get(f"{prefix}ActionMovements", 0))
+            rec[f"{prefix}_combatActions"] = int(entry.get(f"{prefix}ActionCombats", 0))
+            rec[f"{prefix}_tradeActions"] = int(entry.get(f"{prefix}ActionTrades", 0))
+            rec[f"{prefix}_reproductionActions"] = int(entry.get(f"{prefix}ActionReproductions", 0))
+            rec[f"{prefix}_lendingActions"] = int(entry.get(f"{prefix}ActionLendings", 0))
+            rec[f"{prefix}_societalWealth"] = float(entry.get(f"{prefix}AgentWealthTotal", 0))
+            rec[f"{prefix}_meanSelfishness"] = float(entry.get(f"{prefix}MeanSelfishness", 0))
+
         per_timestep.append(rec)
         final_pop = pop
 
@@ -235,6 +273,18 @@ def parse_sugarscape_log(log_path: str, condition: str,
         "totalReproductionActions": sum(r["reproductionActions"] for r in per_timestep),
         "totalLendingActions": sum(r["lendingActions"] for r in per_timestep),
     }
+
+    # Per-tribe summary stats
+    for tribe in detected_tribes:
+        prefix = tribe
+        last = per_timestep[-1] if per_timestep else {}
+        summary[f"{prefix}_finalPopulation"] = last.get(f"{prefix}_population", 0)
+        summary[f"{prefix}_finalMeanWealth"] = last.get(f"{prefix}_meanWealth", 0)
+        summary[f"{prefix}_finalMeanTimeToLive"] = last.get(f"{prefix}_meanTimeToLive", 0)
+        summary[f"{prefix}_totalDeaths"] = sum(r.get(f"{prefix}_agentDeaths", 0) for r in per_timestep)
+        summary[f"{prefix}_totalCombatActions"] = sum(r.get(f"{prefix}_combatActions", 0) for r in per_timestep)
+        summary[f"{prefix}_totalTradeActions"] = sum(r.get(f"{prefix}_tradeActions", 0) for r in per_timestep)
+
     return per_timestep, summary
 
 
@@ -247,8 +297,17 @@ def write_csv(rows: list, path: str):
     if not rows:
         return
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Collect all unique keys preserving insertion order from first row,
+    # then appending any extra keys from subsequent rows
+    all_keys = list(rows[0].keys())
+    seen = set(all_keys)
+    for row in rows[1:]:
+        for k in row:
+            if k not in seen:
+                all_keys.append(k)
+                seen.add(k)
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(f, fieldnames=all_keys, restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -471,7 +530,32 @@ def run_experiments(args):
         print(f"  {cname:<18} {nseeds:>6} {ext_pct:>8.1f}% {mean_fp:>13.1f} {mean_gini:>9.3f} {mean_ttl:>8.2f}")
     print(f"{'='*70}\n")
 
-    print("  Done.\n")
+    # ── Phase 7: Organize results into per-condition subdirectories ──
+
+    print("  Organizing results into per-condition directories …")
+    for cname in CONDITIONS:
+        cond_dir = os.path.join(results_dir, cname)
+        os.makedirs(cond_dir, exist_ok=True)
+
+        # Filter per-timestep
+        cond_pts = [r for r in all_per_timestep if r["condition"] == cname]
+        if cond_pts:
+            write_csv(cond_pts, os.path.join(cond_dir, "per_timestep.csv"))
+
+        # Filter per-seed summary
+        cond_sums = [r for r in all_summaries if r["condition"] == cname]
+        if cond_sums:
+            write_csv(cond_sums, os.path.join(cond_dir, "per_seed_summary.csv"))
+
+        # Filter condition aggregates
+        cond_agg = [r for r in agg_rows if r.get("condition") == cname]
+        if cond_agg:
+            write_csv(cond_agg, os.path.join(cond_dir, "condition_aggregates.csv"))
+
+        if cond_pts or cond_sums:
+            print(f"    → {cname}/ ({len(cond_pts)} ts rows, {len(cond_sums)} seeds)")
+
+    print("\n  Done.\n")
 
 
 # ─────────────────────────────────────────────────────────────────

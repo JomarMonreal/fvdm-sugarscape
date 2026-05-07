@@ -26,7 +26,7 @@ CLEAN = $(DATASET) \
 		$(TESTS)
 
 # Change to python3 (or other alias) if needed
-PYTHON = python
+PYTHON = python3
 SUGARSCAPE = sugarscape.py
 
 # Check for local Python aliases
@@ -131,5 +131,9 @@ visualize:
 		--results $(EXP_OUT)/results \
 		--output $(EXP_OUT)/results/figures
 
-.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize
+sanity-test:
+	$(MAKE) experiment SEEDS=10 TIMESTEPS=200 EXP_OUT=experiment_results_test
+	$(MAKE) visualize EXP_OUT=experiment_results_test
+
+.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test
 # vim: set noexpandtab tabstop=4:

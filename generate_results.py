@@ -91,6 +91,27 @@ def main():
     print(f"Writing {agg_path}...")
     write_csv(agg_rows, agg_path)
 
+    # Organize into per-condition subdirectories
+    print("Organizing into per-condition directories...")
+    for cname in condition_summaries:
+        cond_dir = os.path.join(out_dir, cname)
+        os.makedirs(cond_dir, exist_ok=True)
+
+        cond_pts = [r for r in all_per_timestep if r["condition"] == cname]
+        if cond_pts:
+            write_csv(cond_pts, os.path.join(cond_dir, "per_timestep.csv"))
+
+        cond_sums = [r for r in all_summaries if r["condition"] == cname]
+        if cond_sums:
+            write_csv(cond_sums, os.path.join(cond_dir, "per_seed_summary.csv"))
+
+        cond_agg = [r for r in agg_rows if r.get("condition") == cname]
+        if cond_agg:
+            write_csv(cond_agg, os.path.join(cond_dir, "condition_aggregates.csv"))
+
+        if cond_pts or cond_sums:
+            print(f"  → {cname}/ ({len(cond_pts)} ts rows, {len(cond_sums)} seeds)")
+
     print("Generation complete.")
 
 if __name__ == "__main__":

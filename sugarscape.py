@@ -938,6 +938,21 @@ class Sugarscape:
         if self.experimentalGroup != None:
             self.updateRuntimeStatsPerGroup(self.experimentalGroup)
             self.updateRuntimeStatsPerGroup(self.experimentalGroup, notInGroup=True)
+
+        # Log per-decision-model (tribe) stats for each unique model in the population
+        # Must run BEFORE the global call which clears deadAgents/bornAgents/replacedAgents
+        uniqueModels = set()
+        for a in self.agents:
+            if a.decisionModel and a.decisionModel != "none":
+                uniqueModels.add(a.decisionModel)
+        # Also check dead agents in case a model was entirely wiped out this timestep
+        for a in self.deadAgents:
+            if a.decisionModel and a.decisionModel != "none":
+                uniqueModels.add(a.decisionModel)
+        for model in sorted(uniqueModels):
+            self.updateRuntimeStatsPerGroup(model)
+
+        # Global stats (clears deadAgents/bornAgents/replacedAgents)
         self.updateRuntimeStatsPerGroup()
 
     def updateRuntimeStatsPerGroup(self, group=None, notInGroup=False):
@@ -1339,7 +1354,7 @@ class Sugarscape:
             runtimeStats = groupStats
             if notInGroup == True:
                 runtimeStats.update(controlInteractionStats)
-            else:
+            elif self.experimentalGroup != None and group == self.experimentalGroup:
                 runtimeStats.update(experimentalInteractionStats)
 
         for key in runtimeStats.keys():
