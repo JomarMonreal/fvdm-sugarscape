@@ -126,5 +126,10 @@ experiment-gui:
 experiment-clean:
 	rm -rf $(EXP_OUT)
 
-.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test
+visualize:
+	$(PYTHON) visualize_results.py \
+		--results $(EXP_OUT)/results \
+		--output $(EXP_OUT)/results/figures
+
+.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize
 # vim: set noexpandtab tabstop=4:
