@@ -310,7 +310,7 @@ class Sugarscape:
                     currStartingDiseases = minStartingDiseases
 
             if startingDiseases == [0, 0] and len(initialDiseases) > 0 and ("all" in self.debug or "sugarscape" in self.debug):
-                print(f"Could not place {len(diseases)} diseases.")
+                print(f"Could not place {len(initialDiseases)} diseases.")
         elif editCell != None and editCell.isOccupied() == True:
             selectedAgent = editCell.agent
             diseaseID = self.generateDiseaseID()
@@ -988,12 +988,13 @@ class Sugarscape:
 
         environmentWealthCreated = 0
         environmentWealthTotal = 0
-        for i in range(self.environment.width):
-            for j in range(self.environment.height):
-                environmentWealthCreated += self.environment.grid[i][j].sugarLastProduced + self.environment.grid[i][j].spiceLastProduced
-                environmentWealthTotal += self.environment.grid[i][j].sugar + self.environment.grid[i][j].spice
-                if self.timestep == 1:
-                    environmentWealthCreated += self.environment.grid[i][j].maxSugar + self.environment.grid[i][j].maxSpice
+        if group == None:
+            for i in range(self.environment.width):
+                for j in range(self.environment.height):
+                    environmentWealthCreated += self.environment.grid[i][j].sugarLastProduced + self.environment.grid[i][j].spiceLastProduced
+                    environmentWealthTotal += self.environment.grid[i][j].sugar + self.environment.grid[i][j].spice
+                    if self.timestep == 1:
+                        environmentWealthCreated += self.environment.grid[i][j].maxSugar + self.environment.grid[i][j].maxSpice
 
         agentAgingDeaths = 0
         agentCombatDeaths = 0
