@@ -75,5 +75,56 @@ clean:
 lean:
 	rm -rf $(PLOTS) || true
 
-.PHONY: all clean data lean plots run seeds setup test
+# ─────────────────────────────────────────────────────────────────
+# Experiment runner (run_experiments.py)
+#
+# Configurable flags (override on command line, e.g. make experiment SEEDS=10):
+#   CORES     — parallel CPU cores            (default: 1)
+#   SEEDS     — seeds per condition           (default: 500)
+#   AGENTS    — starting agents per run       (default: 250)
+#   TIMESTEPS — simulation timesteps per run  (default: 5000)
+#   GUI       — if set to 1, launch GUI run   (default: 0)
+#   EXP_OUT   — output directory              (default: experiment_results)
+# ─────────────────────────────────────────────────────────────────
+
+CORES     ?= 1
+SEEDS     ?= 500
+AGENTS    ?= 250
+TIMESTEPS ?= 5000
+GUI       ?= 0
+EXP_OUT   ?= experiment_results
+EXP_RUNNER = run_experiments.py
+
+ifeq ($(GUI), 1)
+GUI_FLAG = --gui
+else
+GUI_FLAG =
+endif
+
+experiment:
+	$(PYTHON) $(EXP_RUNNER) \
+		--config $(CONFIG) \
+		--output $(EXP_OUT) \
+		--seeds $(SEEDS) \
+		--agents $(AGENTS) \
+		--timesteps $(TIMESTEPS) \
+		--cores $(CORES) \
+		--python $(PYTHON) \
+		$(GUI_FLAG)
+
+experiment-gui:
+	$(PYTHON) $(EXP_RUNNER) \
+		--config $(CONFIG) \
+		--output $(EXP_OUT) \
+		--seeds 1 \
+		--agents $(AGENTS) \
+		--timesteps $(TIMESTEPS) \
+		--cores 1 \
+		--python $(PYTHON) \
+		--gui
+
+experiment-clean:
+	rm -rf $(EXP_OUT)
+
+.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test
 # vim: set noexpandtab tabstop=4:

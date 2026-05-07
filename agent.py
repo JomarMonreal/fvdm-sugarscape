@@ -81,6 +81,7 @@ class Agent:
         self.lastLoans = 0
         self.lastMates = 0
         self.lastMovedTimestep = -1
+        self.lastChangedCoordinatesTimestep = -1
         self.lastMoveOptimal = True
         self.lastMoveRank = 0
         self.lastPollution = 0
@@ -1118,6 +1119,8 @@ class Agent:
 
     def gotoCell(self, cell):
         if cell != None:
+            if self.cell != cell:
+                self.lastChangedCoordinatesTimestep = self.timestep
             self.lastMovedTimestep = self.timestep
             self.lastPollution = self.cell.pollution
         self.resetCell()
@@ -1478,6 +1481,9 @@ class Agent:
         if self.lastCombatTimestep == self.timestep:
             preyKilled = True
             preyWealth = self.lastPreyWealth
+        didMove = False
+        if self.lastChangedCoordinatesTimestep == self.timestep:
+            didMove = True
         if self.lastTradeTimestep == self.timestep:
             tradePartners = self.lastTradePartners
         if self.lastSpreadDiseaseTimestep == self.timestep:
@@ -1513,7 +1519,7 @@ class Agent:
                              "neighbors": len(self.neighbors), "validMoves": self.lastValidMoves, "moveRank": self.lastMoveRank, "lendingPartners": loans,
                              "pollutionDifference": pollutionDifference, "timeToLiveDifference": timeToLiveDifference, "neighborsInTribe": neighborsInTribe,
                              "neighborsNotInTribe": len(self.neighbors) - neighborsInTribe, "experimentalGroupNeighbors": experimentalNeighbors,
-                             "controlGroupNeighbors": controlNeighbors}
+                             "controlGroupNeighbors": controlNeighbors, "didMove": didMove}
 
         sugarscape.agentRuntimeStats.append(self.runtimeStats)
 
