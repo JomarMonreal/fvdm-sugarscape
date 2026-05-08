@@ -4,4 +4,8 @@ data/baseline_runs/
 .venv/
 log.json
 Texfiles/
-experiment_results/
+experiment_results/sim_logs/
+experiment_results/results/condition_aggregates.csv
+experiment_results/results/per_seed_summary.csv
+experiment_results/results/per_timestep.csv
+
