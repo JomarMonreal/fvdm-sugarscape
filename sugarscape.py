@@ -221,6 +221,10 @@ class Sugarscape:
             elif "HalfLookahead" in agentConfiguration["decisionModel"]:
                 a.decisionModelLookaheadFactor = 0.5
 
+            # If using a biased focal-action model, replace with BiasedFocalAction instance
+            if "biased" in agentConfiguration["decisionModel"].lower():
+                a = ethics.BiasedFocalAction(agentID, self.timestep, placementCell, agentConfiguration)
+
             # If using a deontological decision model, replace new agent with instance of child class
             if "asimov" in agentConfiguration["decisionModel"]:
                 a = ethics.Asimov(agentID, self.timestep, placementCell, agentConfiguration)

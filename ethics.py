@@ -329,3 +329,78 @@ class Temperance(agent.Agent):
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return Temperance(childID, birthday, cell, configuration)
+
+class BiasedFocalAction(agent.Agent):
+    """Biased Focal-Action agent for targeted derivation data generation.
+
+    This agent type overrides specific configuration parameters to maximize
+    the execution frequency of a single discretionary action class (Combat,
+    Trade, Reproduction, or Lending). The bias mode is determined by the
+    ``decisionModel`` string in the agent configuration:
+
+        - ``"biasedCombat"``       – heightened aggressionFactor (>=10)
+        - ``"biasedTrade"``        – extreme tradeFactor (>=10) with
+                                     unbalanced starting sugar/spice
+        - ``"biasedReproduction"`` – maximized fertilityFactor (>=10)
+        - ``"biasedLending"``      – maximized lendingFactor (>=10)
+
+    All other simulation mechanics (movement, metabolism, aging, disease,
+    tagging) remain unchanged so that the ecological structure of the
+    Digital Terrarium is preserved.
+
+    Reference: Thesis Section 3.6.2 – Targeted Focal-Action Data Generation.
+    """
+
+    # Mapping from bias keywords to the parameter overrides they apply.
+    _BIAS_PROFILES = {
+        "combat": {
+            "aggressionFactor": 10,
+        },
+        "trade": {
+            "tradeFactor": 10,
+        },
+        "reproduction": {
+            "fertilityFactor": 10,
+        },
+        "lending": {
+            "lendingFactor": 10,
+        },
+    }
+
+    def __init__(self, agentID, birthday, cell, configuration):
+        super().__init__(agentID, birthday, cell, configuration)
+
+        # Determine bias mode from the decisionModel string
+        self.biasMode = self._resolveBiasMode(configuration["decisionModel"])
+
+        # Apply the parameter overrides for the selected bias
+        profile = self._BIAS_PROFILES.get(self.biasMode, {})
+        for attr, value in profile.items():
+            setattr(self, attr, value)
+
+        # Trade bias additionally requires highly unbalanced starting
+        # endowments so that the marginal rate of substitution is extreme,
+        # ensuring agents always want to trade.
+        if self.biasMode == "trade":
+            self.sugar = max(self.sugar, 100)
+            self.spice = max(self.spice, 1)
+            self.startingSugar = self.sugar
+            self.startingSpice = self.spice
+
+        # Record the bias mode for downstream analysis / logging
+        self.runtimeStats["biasMode"] = self.biasMode
+
+    # ── Bias resolution ──────────────────────────────────────────────
+    @staticmethod
+    def _resolveBiasMode(decisionModel):
+        """Extract the bias keyword from the decisionModel string."""
+        model = decisionModel.lower()
+        for key in BiasedFocalAction._BIAS_PROFILES:
+            if key in model:
+                return key
+        # Default fallback – should not happen in normal usage
+        return "combat"
+
+    # ── Child spawning ───────────────────────────────────────────────
+    def spawnChild(self, childID, birthday, cell, configuration):
+        return BiasedFocalAction(childID, birthday, cell, configuration)
