@@ -135,5 +135,54 @@ sanity-test:
 	$(MAKE) experiment SEEDS=10 TIMESTEPS=200 EXP_OUT=experiment_results_test
 	$(MAKE) visualize EXP_OUT=experiment_results_test
 
-.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test
+# ─────────────────────────────────────────────────────────────────
+# FVDM Derivation Pipeline
+#
+# Configurable flags (override on command line):
+#   FOCAL_SEEDS     — seeds per bias condition     (default: 10)
+#   FOCAL_AGENTS    — starting agents per run      (default: 250)
+#   FOCAL_TIMESTEPS — timesteps per derivation run (default: 2500)
+#   FOCAL_OUT       — output directory             (default: focal_action_results)
+#   MODEL_OUT       — trained model directory      (default: fvdm_models)
+#   NGBoost_EST     — boosting estimators          (default: 200)
+#   NGBoost_LR      — NGBoost learning rate        (default: 0.05)
+# ─────────────────────────────────────────────────────────────────
+
+FOCAL_SEEDS     ?= 10
+FOCAL_AGENTS    ?= 250
+FOCAL_TIMESTEPS ?= 2500
+FOCAL_OUT       ?= focal_action_results
+MODEL_OUT       ?= fvdm_models
+NGBOOST_EST     ?= 200
+NGBOOST_LR      ?= 0.05
+FOCAL_RUNNER     = run_focal_action.py
+COORD_TRAINER    = train_coordinates.py
+VENV_PYTHON      = .venv/bin/python
+DERIVATION_CSV   = $(FOCAL_OUT)/results/focal_action_derivation.csv
+
+focal-action:
+	$(PYTHON) $(FOCAL_RUNNER) \
+		--config $(CONFIG) \
+		--output $(FOCAL_OUT) \
+		--seeds $(FOCAL_SEEDS) \
+		--agents $(FOCAL_AGENTS) \
+		--timesteps $(FOCAL_TIMESTEPS) \
+		--cores $(CORES) \
+		--python $(PYTHON)
+
+$(DERIVATION_CSV): focal-action
+
+train-coordinates: $(DERIVATION_CSV)
+	$(VENV_PYTHON) $(COORD_TRAINER) \
+		--input $(DERIVATION_CSV) \
+		--output $(MODEL_OUT) \
+		--estimators $(NGBOOST_EST) \
+		--lr $(NGBOOST_LR)
+
+fvdm: focal-action train-coordinates
+
+focal-clean:
+	rm -rf $(FOCAL_OUT) $(MODEL_OUT)
+
+.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test focal-action train-coordinates fvdm focal-clean
 # vim: set noexpandtab tabstop=4:
