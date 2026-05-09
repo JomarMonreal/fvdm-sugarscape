@@ -179,10 +179,31 @@ train-coordinates: $(DERIVATION_CSV)
 		--estimators $(NGBOOST_EST) \
 		--lr $(NGBOOST_LR)
 
-fvdm: focal-action train-coordinates
+# ── Prioritization Vector Derivation ──
+
+VECTOR_OUT       ?= fvdm_vectors
+VECTOR_SEEDS     ?= 10
+IRL_ITERATIONS   ?= 200
+IRL_LR           ?= 0.01
+VECTOR_DERIVER    = derive_vectors.py
+
+derive-vectors: train-coordinates
+	$(VENV_PYTHON) $(VECTOR_DERIVER) \
+		--config $(CONFIG) \
+		--models $(MODEL_OUT) \
+		--output $(VECTOR_OUT) \
+		--seeds $(VECTOR_SEEDS) \
+		--agents $(FOCAL_AGENTS) \
+		--timesteps $(FOCAL_TIMESTEPS) \
+		--cores $(CORES) \
+		--irl-iterations $(IRL_ITERATIONS) \
+		--irl-lr $(IRL_LR) \
+		--python $(PYTHON)
+
+fvdm: focal-action train-coordinates derive-vectors
 
 focal-clean:
-	rm -rf $(FOCAL_OUT) $(MODEL_OUT)
+	rm -rf $(FOCAL_OUT) $(MODEL_OUT) $(VECTOR_OUT)
 
-.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test focal-action train-coordinates fvdm focal-clean
+.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test focal-action train-coordinates derive-vectors fvdm focal-clean
 # vim: set noexpandtab tabstop=4:

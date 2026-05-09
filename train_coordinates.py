@@ -364,6 +364,34 @@ def main(args):
         print(f"          Aborting to prevent undertrained models.\n")
         return
 
+    # ── Cap to exactly MIN_DISCRETIONARY_OBS (thesis §3.4.4) ────
+    if n_discretionary > MIN_DISCRETIONARY_OBS:
+        print(f"\n  Downsampling from {n_discretionary:,} → {MIN_DISCRETIONARY_OBS:,} "
+              f"(stratified by action)")
+        df_disc = (
+            df_disc.groupby("action", group_keys=False)
+            .apply(lambda g: g.sample(
+                n=min(len(g), MIN_DISCRETIONARY_OBS // len(DISCRETIONARY_ACTIONS)),
+                random_state=42
+            ))
+        )
+        # If rounding left us short, top up from remaining rows
+        if len(df_disc) < MIN_DISCRETIONARY_OBS:
+            remaining = MIN_DISCRETIONARY_OBS - len(df_disc)
+            extras = df_disc.sample(n=remaining, random_state=42)
+            df_disc = pd.concat([df_disc, extras], ignore_index=True)
+        df_disc = df_disc.iloc[:MIN_DISCRETIONARY_OBS].reset_index(drop=True)
+        n_discretionary = len(df_disc)
+        print(f"  Using {n_discretionary:,} observations for training")
+
+        # Recompute per-action counts after downsampling
+        action_counts = df_disc["action"].value_counts()
+        per_action_counts = {}
+        for act in DISCRETIONARY_ACTIONS:
+            count = action_counts.get(act, 0)
+            per_action_counts[act] = int(count)
+            print(f"    {act:<15} {count:>6} observations")
+
     # ── 4. Save normalization constants ──────────────────────────
     norm_constants = compute_normalization_constants(df_disc)
     norm_path = os.path.join(output_dir, "normalization_constants.json")
