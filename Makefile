@@ -150,7 +150,7 @@ sanity-test:
 
 FOCAL_SEEDS     ?= 10
 FOCAL_AGENTS    ?= 250
-FOCAL_TIMESTEPS ?= 2500
+FOCAL_TIMESTEPS ?= 5000
 FOCAL_OUT       ?= focal_action_results
 MODEL_OUT       ?= fvdm_models
 NGBOOST_EST     ?= 200

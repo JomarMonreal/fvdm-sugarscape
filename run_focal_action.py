@@ -545,7 +545,7 @@ def parse_args():
     parser.add_argument(
         "-t", "--timesteps",
         type=int,
-        default=2500,
+        default=5000,
         help="Number of timesteps per simulation.",
     )
     parser.add_argument(
