@@ -275,10 +275,17 @@ def predict_effect_vector(state_features: np.ndarray, action: str,
     C_pred = 1.0 / (1.0 + I_var)
 
     # ── Extent (multinomial classifier → expected value) ──
-    extent_model = models[f"extent_{action}"]
-    proba = extent_model.predict_proba(X)[0]
-    classes = extent_model.classes_
-    X_pred = float(sum(c * p for c, p in zip(classes, proba)))
+    extent_key = f"extent_{action}"
+    if extent_key in models:
+        extent_model = models[extent_key]
+        proba = extent_model.predict_proba(X)[0]
+        classes = extent_model.classes_
+        X_pred = float(sum(c * p for c, p in zip(classes, proba)))
+    else:
+        # Single-class fallback: classifier was skipped during training
+        extent_defaults = {"combat": -1.0, "trade": 1.0,
+                           "reproduction": 1.0, "lending": 1.0}
+        X_pred = extent_defaults.get(action, 0.0)
 
     return {
         "I": round(I_pred, 6),

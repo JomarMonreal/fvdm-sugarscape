@@ -289,84 +289,97 @@ def run_focal_action(args):
     print(f"  Output:           {output_root}")
     print(f"{'='*60}\n")
 
-    # ── Phase 1: Build and run simulation configs ────────────────
+    # ── Phase 1: Iterative simulation with early stopping ────────
+    # Run simulations one seed at a time across all conditions.
+    # After each round, parse and count discretionary observations.
+    # Stop as soon as the 2,640 target is reached.
 
+    target_min = 2640  # thesis §3.4.4
     all_run_configs = []
-
-    for condition_name, decision_models in BIAS_CONDITIONS.items():
-        condition_sim_dir = os.path.join(sim_dir, condition_name)
-        os.makedirs(condition_sim_dir, exist_ok=True)
-        for seed in seeds:
-            cfg = make_bias_run_config(
-                base=base_cfg,
-                seed=seed,
-                decision_models=decision_models,
-                timesteps=timesteps,
-                num_agents=num_agents,
-                output_dir=condition_sim_dir,
-                condition_name=condition_name,
-            )
-            cfg_path = os.path.join(condition_sim_dir, f"{condition_name}_{seed}.config")
-            write_run_config(cfg, cfg_path)
-            all_run_configs.append((
-                condition_name, seed, cfg_path, cfg["logfile"], cfg["agentLogfile"]
-            ))
-
-    # Filter out already-completed runs
-    pending = []
-    for (cname, seed, cfg_path, log_path, agent_log_path) in all_run_configs:
-        if os.path.exists(agent_log_path):
-            agent_data = safe_json_load(agent_log_path)
-            if agent_data and len(agent_data) > 0:
-                continue   # already collected
-        pending.append((cname, seed, cfg_path, log_path, agent_log_path))
-
-    total_jobs = len(all_run_configs)
-    skip_count = total_jobs - len(pending)
-    print(f"  Total simulation runs:    {total_jobs}")
-    print(f"  Already completed:        {skip_count}")
-    print(f"  Queued to run:            {len(pending)}\n")
-
-    if pending:
-        start_time = time.time()
-        manager = multiprocessing.Manager()
-        counter = manager.Value('i', 0)
-        lock = manager.Lock()
-
-        worker_args = [
-            (cfg_path, python_alias, i, len(pending), counter, lock)
-            for i, (_, _, cfg_path, _, _) in enumerate(pending)
-        ]
-
-        print(f"  Running biased simulations using {num_cores} core(s) …")
-        with multiprocessing.Pool(processes=num_cores) as pool:
-            pool.map(run_one_simulation, worker_args)
-
-        elapsed = time.time() - start_time
-        print(f"\n\n  All simulations completed in {elapsed:.1f}s\n")
-
-    # ── Phase 2: Parse agent logs → derivation dataset ───────────
-
-    print("  Parsing agent logs into derivation observations …")
     all_observations = []
     condition_counts = {cname: 0 for cname in BIAS_CONDITIONS}
 
-    for (cname, seed, cfg_path, log_path, agent_log_path) in all_run_configs:
-        obs = parse_agent_log(agent_log_path, cname, seed)
-        if not obs:
-            print(f"  [warn] No agent data for {cname} seed={seed}")
-            continue
-        all_observations.extend(obs)
-        condition_counts[cname] += len(obs)
+    print(f"  Target discretionary observations: {target_min}")
+    print(f"  Strategy: run seed-by-seed, stop early when target is met\n")
 
-    # ── Phase 3: Write combined derivation CSV ───────────────────
+    for seed_idx, seed in enumerate(seeds):
+        # Check if we already have enough
+        disc_count = sum(1 for o in all_observations if o["action"] != "none")
+        if disc_count >= target_min:
+            print(f"\n  ✓ Target reached ({disc_count:,} ≥ {target_min}) "
+                  f"after {seed_idx} seed(s). Stopping early.")
+            break
+
+        round_configs = []
+        for condition_name, decision_models in BIAS_CONDITIONS.items():
+            condition_sim_dir = os.path.join(sim_dir, condition_name)
+            os.makedirs(condition_sim_dir, exist_ok=True)
+
+            cfg = make_bias_run_config(
+                base=base_cfg, seed=seed,
+                decision_models=decision_models,
+                timesteps=timesteps, num_agents=num_agents,
+                output_dir=condition_sim_dir,
+                condition_name=condition_name,
+            )
+            cfg_path = os.path.join(
+                condition_sim_dir, f"{condition_name}_{seed}.config"
+            )
+            write_run_config(cfg, cfg_path)
+            entry = (condition_name, seed, cfg_path,
+                     cfg["logfile"], cfg["agentLogfile"])
+            round_configs.append(entry)
+            all_run_configs.append(entry)
+
+        # Check which runs in this round are already completed
+        pending = []
+        for (cname, s, cfg_path, log_path, agent_log_path) in round_configs:
+            if os.path.exists(agent_log_path):
+                agent_data = safe_json_load(agent_log_path)
+                if agent_data and len(agent_data) > 0:
+                    # Already completed — parse immediately
+                    obs = parse_agent_log(agent_log_path, cname, s)
+                    if obs:
+                        all_observations.extend(obs)
+                        condition_counts[cname] += len(obs)
+                    continue
+            pending.append((cname, s, cfg_path, log_path, agent_log_path))
+
+        # Run pending simulations for this seed
+        if pending:
+            manager = multiprocessing.Manager()
+            counter = manager.Value('i', 0)
+            lock = manager.Lock()
+            worker_args = [
+                (cfg_path, python_alias, i, len(pending), counter, lock)
+                for i, (_, _, cfg_path, _, _) in enumerate(pending)
+            ]
+
+            print(f"  Seed {seed_idx+1}/{num_seeds} (seed={seed}): "
+                  f"running {len(pending)} simulation(s) …", end=" ", flush=True)
+            with multiprocessing.Pool(processes=num_cores) as pool:
+                pool.map(run_one_simulation, worker_args)
+
+            # Parse the newly completed logs
+            for (cname, s, cfg_path, log_path, agent_log_path) in pending:
+                obs = parse_agent_log(agent_log_path, cname, s)
+                if obs:
+                    all_observations.extend(obs)
+                    condition_counts[cname] += len(obs)
+
+        disc_count = sum(1 for o in all_observations if o["action"] != "none")
+        print(f"\r  Seed {seed_idx+1}/{num_seeds}: "
+              f"{len(all_observations):,} total obs, "
+              f"{disc_count:,}/{target_min} discretionary")
+
+    # ── Phase 2: Write combined derivation CSV ───────────────────
 
     combined_path = os.path.join(results_dir, "focal_action_derivation.csv")
     write_csv(all_observations, combined_path)
-    print(f"  Wrote combined derivation data → {combined_path}")
+    print(f"\n  Wrote combined derivation data → {combined_path}")
     print(f"    Total observations: {len(all_observations)}")
 
-    # ── Phase 4: Write per-condition CSVs ────────────────────────
+    # ── Phase 3: Write per-condition CSVs ────────────────────────
 
     print("\n  Per-condition breakdown:")
     for cname in BIAS_CONDITIONS:
@@ -383,7 +396,7 @@ def run_focal_action(args):
                   f"repro={dist['reproduction']:>5}  lending={dist['lending']:>5}  "
                   f"none={dist['none']:>5}")
 
-    # ── Phase 5: Action distribution summary CSV ─────────────────
+    # ── Phase 4: Action distribution summary CSV ─────────────────
 
     summary_rows = []
     for cname in BIAS_CONDITIONS:
@@ -411,104 +424,23 @@ def run_focal_action(args):
     write_csv(summary_rows, summary_path)
     print(f"\n  Wrote action distribution summary → {summary_path}")
 
-    # ── Phase 6: Sample-size enforcement ───────────────────────────
-    # Ensure ≥ 2,640 discretionary observations (thesis §3.4.4).
-    # If short, automatically run additional seeds and re-parse.
+    # ── Phase 5: Final sample-size report ──────────────────────────
 
-    target_min = 2640  # 22 vars × 10 EPV × 4 actions × 3 (boosting factor)
-    max_retries = 5
-    retry = 0
-
-    while True:
-        discretionary_total = sum(
-            1 for o in all_observations if o["action"] != "none"
-        )
-
-        print(f"\n{'='*60}")
-        print(f"  Sample Size Check (attempt {retry + 1})")
-        print(f"  Target minimum (per thesis §3.4.4): {target_min}")
-        print(f"  Discretionary action observations:  {discretionary_total}")
-
-        if discretionary_total >= target_min:
-            print(f"  ✓ Sufficient for coordinate model training")
-            print(f"{'='*60}\n")
-            break
-
+    discretionary_total = sum(
+        1 for o in all_observations if o["action"] != "none"
+    )
+    print(f"\n{'='*60}")
+    print(f"  Sample Size Report")
+    print(f"  Target minimum (per thesis §3.4.4): {target_min}")
+    print(f"  Discretionary action observations:  {discretionary_total}")
+    if discretionary_total >= target_min:
+        print(f"  ✓ Sufficient for coordinate model training")
+    else:
         deficit = target_min - discretionary_total
-        retry += 1
+        print(f"  ✗ Short by {deficit} — increase --seeds or --timesteps")
+    print(f"{'='*60}")
 
-        if retry > max_retries:
-            print(f"  ✗ Still short by {deficit} after {max_retries} retry rounds.")
-            print(f"    Increase --timesteps or --agents and re-run manually.")
-            print(f"{'='*60}\n")
-            break
-
-        # Estimate how many extra seeds to run (across all conditions)
-        obs_per_seed = len(all_observations) / max(num_seeds * len(BIAS_CONDITIONS), 1)
-        disc_rate = discretionary_total / max(len(all_observations), 1)
-        disc_per_seed = obs_per_seed * disc_rate
-        extra_seeds_needed = max(1, int(math.ceil(deficit / max(disc_per_seed, 1))))
-
-        print(f"  ✗ Short by {deficit} — auto-generating {extra_seeds_needed} extra seed(s) per condition …")
-        print(f"{'='*60}\n")
-
-        # Generate new unique seeds
-        new_seeds = []
-        existing_seeds = set(seeds)
-        while len(new_seeds) < extra_seeds_needed:
-            s = random.randint(0, sys.maxsize)
-            if s not in existing_seeds:
-                new_seeds.append(s)
-                existing_seeds.add(s)
-        seeds.extend(new_seeds)
-        num_seeds += extra_seeds_needed
-
-        # Build and run configs for new seeds only
-        new_run_configs = []
-        for condition_name, decision_models in BIAS_CONDITIONS.items():
-            condition_sim_dir = os.path.join(sim_dir, condition_name)
-            for seed in new_seeds:
-                cfg = make_bias_run_config(
-                    base=base_cfg, seed=seed,
-                    decision_models=decision_models,
-                    timesteps=timesteps, num_agents=num_agents,
-                    output_dir=condition_sim_dir,
-                    condition_name=condition_name,
-                )
-                cfg_path = os.path.join(
-                    condition_sim_dir, f"{condition_name}_{seed}.config"
-                )
-                write_run_config(cfg, cfg_path)
-                new_run_configs.append((
-                    condition_name, seed, cfg_path,
-                    cfg["logfile"], cfg["agentLogfile"]
-                ))
-
-        # Run the new simulations
-        manager = multiprocessing.Manager()
-        counter = manager.Value('i', 0)
-        lock = manager.Lock()
-        worker_args = [
-            (cfg_path, python_alias, i, len(new_run_configs), counter, lock)
-            for i, (_, _, cfg_path, _, _) in enumerate(new_run_configs)
-        ]
-        print(f"  Running {len(new_run_configs)} extra simulations …")
-        with multiprocessing.Pool(processes=num_cores) as pool:
-            pool.map(run_one_simulation, worker_args)
-        print()
-
-        # Parse new agent logs and append
-        for (cname, seed, cfg_path, log_path, agent_log_path) in new_run_configs:
-            obs = parse_agent_log(agent_log_path, cname, seed)
-            if obs:
-                all_observations.extend(obs)
-                condition_counts[cname] += len(obs)
-        all_run_configs.extend(new_run_configs)
-
-        # Re-write the combined CSV with new data included
-        write_csv(all_observations, combined_path)
-
-    print("  Done.\n")
+    print("\n  Done.\n")
 
 
 # ─────────────────────────────────────────────────────────────────
