@@ -149,7 +149,7 @@ sanity-test:
 # ─────────────────────────────────────────────────────────────────
 
 FOCAL_SEEDS     ?= 10
-FOCAL_AGENTS    ?= 250
+FOCAL_AGENTS    ?= 500
 FOCAL_TIMESTEPS ?= 5000
 FOCAL_OUT       ?= focal_action_results
 MODEL_OUT       ?= fvdm_models

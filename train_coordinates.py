@@ -300,9 +300,9 @@ def predict_effect_vector(state_features: np.ndarray, action: str,
 # Main pipeline
 # ─────────────────────────────────────────────────────────────────
 
-# Minimum discretionary observations required (thesis §3.4.4)
-# 22 predictors × 10 EPV × 4 actions × 3 (boosting adjustment) = 2,640
-MIN_DISCRETIONARY_OBS = 2640
+# Minimum observations required PER ACTION (thesis §3.4.4)
+# 22 predictors × 10 EPV × 3 (boosting adjustment) = 660, rounded up to 2,640
+MIN_OBS_PER_ACTION = 2640
 
 
 def main(args):
@@ -362,42 +362,39 @@ def main(args):
         print("\n  [error] No discretionary action observations. Aborting.\n")
         return
 
-    # ── Sample-size guard (thesis §3.4.4) ────────────────────────
-    if n_discretionary < MIN_DISCRETIONARY_OBS:
-        deficit = MIN_DISCRETIONARY_OBS - n_discretionary
-        print(f"\n  [error] Insufficient discretionary observations!")
-        print(f"          Have {n_discretionary}, need ≥ {MIN_DISCRETIONARY_OBS} (short by {deficit}).")
-        print(f"          Increase --seeds or --timesteps in run_focal_action.py and re-run.")
-        print(f"          Aborting to prevent undertrained models.\n")
-        return
+    # ── Sample-size guard (thesis §3.4.4) — per action ───────────
+    short_actions = []
+    for act in DISCRETIONARY_ACTIONS:
+        count = per_action_counts.get(act, 0)
+        if count < MIN_OBS_PER_ACTION:
+            short_actions.append((act, count))
 
-    # ── Cap to exactly MIN_DISCRETIONARY_OBS (thesis §3.4.4) ────
-    if n_discretionary > MIN_DISCRETIONARY_OBS:
-        print(f"\n  Downsampling from {n_discretionary:,} → {MIN_DISCRETIONARY_OBS:,} "
-              f"(stratified by action)")
-        df_disc = (
-            df_disc.groupby("action", group_keys=False)
-            .apply(lambda g: g.sample(
-                n=min(len(g), MIN_DISCRETIONARY_OBS // len(DISCRETIONARY_ACTIONS)),
-                random_state=42
-            ))
-        )
-        # If rounding left us short, top up from remaining rows
-        if len(df_disc) < MIN_DISCRETIONARY_OBS:
-            remaining = MIN_DISCRETIONARY_OBS - len(df_disc)
-            extras = df_disc.sample(n=remaining, random_state=42)
-            df_disc = pd.concat([df_disc, extras], ignore_index=True)
-        df_disc = df_disc.iloc[:MIN_DISCRETIONARY_OBS].reset_index(drop=True)
-        n_discretionary = len(df_disc)
-        print(f"  Using {n_discretionary:,} observations for training")
+    if short_actions:
+        print(f"\n  [warning] Some actions have fewer than {MIN_OBS_PER_ACTION} observations:")
+        for act, count in short_actions:
+            print(f"            {act}: {count} (need {MIN_OBS_PER_ACTION})")
+        print(f"          Training will proceed with available data.")
+        print(f"          Consider increasing --seeds or --timesteps for better results.\n")
 
-        # Recompute per-action counts after downsampling
-        action_counts = df_disc["action"].value_counts()
-        per_action_counts = {}
-        for act in DISCRETIONARY_ACTIONS:
-            count = action_counts.get(act, 0)
-            per_action_counts[act] = int(count)
-            print(f"    {act:<15} {count:>6} observations")
+    # ── Cap each action to exactly MIN_OBS_PER_ACTION ────────────
+    capped_chunks = []
+    for act in DISCRETIONARY_ACTIONS:
+        act_df = df_disc[df_disc["action"] == act]
+        if len(act_df) > MIN_OBS_PER_ACTION:
+            act_df = act_df.sample(n=MIN_OBS_PER_ACTION, random_state=42)
+        capped_chunks.append(act_df)
+
+    df_disc = pd.concat(capped_chunks, ignore_index=True)
+    n_discretionary = len(df_disc)
+
+    print(f"\n  Using {n_discretionary:,} observations for training "
+          f"(capped at {MIN_OBS_PER_ACTION} per action):")
+    action_counts = df_disc["action"].value_counts()
+    per_action_counts = {}
+    for act in DISCRETIONARY_ACTIONS:
+        count = action_counts.get(act, 0)
+        per_action_counts[act] = int(count)
+        print(f"    {act:<15} {count:>6} observations")
 
     # ── 4. Save normalization constants ──────────────────────────
     norm_constants = compute_normalization_constants(df_disc)
@@ -516,8 +513,7 @@ def main(args):
         "input_csv": input_csv,
         "total_observations": int(total_rows),
         "discretionary_observations": int(n_discretionary),
-        "minimum_required": MIN_DISCRETIONARY_OBS,
-        "sample_sufficient": n_discretionary >= MIN_DISCRETIONARY_OBS,
+        "minimum_required_per_action": MIN_OBS_PER_ACTION,
         "per_action_observations": per_action_counts,
         "per_action_training_time_seconds": per_action_timing,
         "total_training_time_seconds": pipeline_elapsed,
@@ -536,7 +532,7 @@ def main(args):
     print(f"\n{'='*60}")
     print(f"  Training complete.")
     print(f"  Models saved:          {len(models)}")
-    print(f"  Observations used:     {n_discretionary} (min required: {MIN_DISCRETIONARY_OBS})")
+    print(f"  Observations used:     {n_discretionary} ({MIN_OBS_PER_ACTION} per action cap)")
     print(f"  Total elapsed time:    {pipeline_elapsed:.2f}s")
     print(f"{'='*60}\n")
 

@@ -291,23 +291,35 @@ def run_focal_action(args):
 
     # ── Phase 1: Iterative simulation with early stopping ────────
     # Run simulations one seed at a time across all conditions.
-    # After each round, parse and count discretionary observations.
-    # Stop as soon as the 2,640 target is reached.
+    # After each round, parse and count per-action observations.
+    # Stop as soon as EVERY action has ≥ 2,640 observations.
 
-    target_min = 2640  # thesis §3.4.4
+    DISC_ACTIONS = ["combat", "trade", "reproduction", "lending"]
+    target_per_action = 2640  # thesis §3.4.4
     all_run_configs = []
     all_observations = []
     condition_counts = {cname: 0 for cname in BIAS_CONDITIONS}
+    action_tallies = {a: 0 for a in DISC_ACTIONS}
 
-    print(f"  Target discretionary observations: {target_min}")
-    print(f"  Strategy: run seed-by-seed, stop early when target is met\n")
+    print(f"  Target per-action observations: {target_per_action}")
+    print(f"  Actions: {DISC_ACTIONS}")
+    print(f"  Strategy: run seed-by-seed, stop when ALL actions ≥ {target_per_action}\n")
+
+    def all_actions_satisfied():
+        return all(action_tallies[a] >= target_per_action for a in DISC_ACTIONS)
+
+    def action_status_str():
+        parts = []
+        for a in DISC_ACTIONS:
+            count = action_tallies[a]
+            mark = "✓" if count >= target_per_action else " "
+            parts.append(f"{a}={count:,}{mark}")
+        return "  ".join(parts)
 
     for seed_idx, seed in enumerate(seeds):
-        # Check if we already have enough
-        disc_count = sum(1 for o in all_observations if o["action"] != "none")
-        if disc_count >= target_min:
-            print(f"\n  ✓ Target reached ({disc_count:,} ≥ {target_min}) "
-                  f"after {seed_idx} seed(s). Stopping early.")
+        # Check if we already have enough for every action
+        if all_actions_satisfied():
+            print(f"\n  ✓ All actions satisfied after {seed_idx} seed(s). Stopping early.")
             break
 
         round_configs = []
@@ -342,6 +354,9 @@ def run_focal_action(args):
                     if obs:
                         all_observations.extend(obs)
                         condition_counts[cname] += len(obs)
+                        for o in obs:
+                            if o["action"] in action_tallies:
+                                action_tallies[o["action"]] += 1
                     continue
             pending.append((cname, s, cfg_path, log_path, agent_log_path))
 
@@ -366,11 +381,11 @@ def run_focal_action(args):
                 if obs:
                     all_observations.extend(obs)
                     condition_counts[cname] += len(obs)
+                    for o in obs:
+                        if o["action"] in action_tallies:
+                            action_tallies[o["action"]] += 1
 
-        disc_count = sum(1 for o in all_observations if o["action"] != "none")
-        print(f"\r  Seed {seed_idx+1}/{num_seeds}: "
-              f"{len(all_observations):,} total obs, "
-              f"{disc_count:,}/{target_min} discretionary")
+        print(f"\r  Seed {seed_idx+1}/{num_seeds}: {action_status_str()}")
 
     # ── Phase 2: Write combined derivation CSV ───────────────────
 
@@ -426,18 +441,24 @@ def run_focal_action(args):
 
     # ── Phase 5: Final sample-size report ──────────────────────────
 
-    discretionary_total = sum(
-        1 for o in all_observations if o["action"] != "none"
-    )
     print(f"\n{'='*60}")
-    print(f"  Sample Size Report")
-    print(f"  Target minimum (per thesis §3.4.4): {target_min}")
-    print(f"  Discretionary action observations:  {discretionary_total}")
-    if discretionary_total >= target_min:
-        print(f"  ✓ Sufficient for coordinate model training")
+    print(f"  Sample Size Report (target: {target_per_action} per action)")
+    print(f"  {'-'*56}")
+    all_met = True
+    for a in DISC_ACTIONS:
+        count = action_tallies[a]
+        met = count >= target_per_action
+        mark = "✓" if met else "✗"
+        if not met:
+            all_met = False
+        print(f"    {mark} {a:<15} {count:>6} / {target_per_action}")
+    print(f"  {'-'*56}")
+    total_disc = sum(action_tallies.values())
+    print(f"  Total discretionary: {total_disc:,}")
+    if all_met:
+        print(f"  ✓ All actions satisfied — ready for model training")
     else:
-        deficit = target_min - discretionary_total
-        print(f"  ✗ Short by {deficit} — increase --seeds or --timesteps")
+        print(f"  ✗ Some actions short — increase --seeds or --timesteps")
     print(f"{'='*60}")
 
     print("\n  Done.\n")
@@ -471,7 +492,7 @@ def parse_args():
     parser.add_argument(
         "-a", "--agents",
         type=int,
-        default=250,
+        default=500,
         help="Starting number of agents per simulation.",
     )
     parser.add_argument(

@@ -364,6 +364,11 @@ class BiasedFocalAction(agent.Agent):
         },
         "lending": {
             "lendingFactor": 10,
+            # Low starting thresholds so agents frequently cross the
+            # lender/borrower boundary (lender when sugar > startingSugar,
+            # borrower when sugar < startingSugar and not fertile).
+            "startingSugar": 10,
+            "startingSpice": 10,
         },
     }
 
