@@ -268,6 +268,7 @@ def parse_sugarscape_log(log_path: str, condition: str,
         "finalGini": per_timestep[-1]["giniCoefficient"] if per_timestep else 0,
         "finalMeanTimeToLive": per_timestep[-1]["meanTimeToLive"] if per_timestep else 0,
         "totalTradeVolume": sum(r["tradeVolume"] for r in per_timestep),
+        "totalMovementActions": sum(r["movementActions"] for r in per_timestep),
         "totalCombatActions": sum(r["combatActions"] for r in per_timestep),
         "totalTradeActions": sum(r["tradeActions"] for r in per_timestep),
         "totalReproductionActions": sum(r["reproductionActions"] for r in per_timestep),
@@ -282,10 +283,14 @@ def parse_sugarscape_log(log_path: str, condition: str,
         summary[f"{prefix}_finalMeanWealth"] = last.get(f"{prefix}_meanWealth", 0)
         summary[f"{prefix}_finalMeanTimeToLive"] = last.get(f"{prefix}_meanTimeToLive", 0)
         summary[f"{prefix}_totalDeaths"] = sum(r.get(f"{prefix}_agentDeaths", 0) for r in per_timestep)
+        summary[f"{prefix}_totalMovementActions"] = sum(r.get(f"{prefix}_movementActions", 0) for r in per_timestep)
         summary[f"{prefix}_totalCombatActions"] = sum(r.get(f"{prefix}_combatActions", 0) for r in per_timestep)
         summary[f"{prefix}_totalTradeActions"] = sum(r.get(f"{prefix}_tradeActions", 0) for r in per_timestep)
+        summary[f"{prefix}_totalReproductionActions"] = sum(r.get(f"{prefix}_reproductionActions", 0) for r in per_timestep)
+        summary[f"{prefix}_totalLendingActions"] = sum(r.get(f"{prefix}_lendingActions", 0) for r in per_timestep)
 
     return per_timestep, summary
+
 
 
 # ─────────────────────────────────────────────────────────────────

@@ -384,8 +384,8 @@ def plot_bar_total_actions(agg, out_dir):
     for offset, (col, (lbl, color)) in zip(offsets, available.items()):
         vals = data[col].values
         ax.bar(x + offset, vals, width, label=lbl, color=color, edgecolor="white")
-    ax.set_title("Mean Total Action Counts by Condition")
-    ax.set_ylabel("Total Actions (across all timesteps)")
+    ax.set_title("Mean Total Discretionary Action Counts by Condition")
+    ax.set_ylabel("Total Discretionary Actions (across all timesteps)")
     ax.set_xticks(x)
     ax.set_xticklabels(cond_labels, rotation=20)
     ax.legend()
@@ -409,8 +409,8 @@ def plot_bar_action_breakdown(summary, out_dir):
     fig, ax = plt.subplots(figsize=(8, 5))
     proportions.plot(kind="bar", stacked=True, ax=ax,
                      color=action_colors, edgecolor="white", width=0.6)
-    ax.set_title("Action-Selection Proportions by Condition")
-    ax.set_ylabel("Proportion of All Actions")
+    ax.set_title("Discretionary Action-Selection Proportions by Condition")
+    ax.set_ylabel("Proportion of Discretionary Actions")
     ax.set_xlabel("")
     ax.set_ylim(0, 1.05)
     ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
