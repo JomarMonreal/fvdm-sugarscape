@@ -148,7 +148,7 @@ sanity-test:
 #   NGBoost_LR      — NGBoost learning rate        (default: 0.05)
 # ─────────────────────────────────────────────────────────────────
 
-FOCAL_SEEDS     ?= 10
+FOCAL_SEEDS     ?= 50
 FOCAL_AGENTS    ?= 500
 FOCAL_TIMESTEPS ?= 5000
 FOCAL_OUT       ?= focal_action_results

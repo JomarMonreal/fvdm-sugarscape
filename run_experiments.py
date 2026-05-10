@@ -46,11 +46,27 @@ import time
 # ─────────────────────────────────────────────────────────────────
 
 CONDITIONS = {
+    # ── Homogeneous Baseline Rule-Based Conditions ──
     "rawSugarscape":  ["rawSugarscape"],
     "egoist":         ["egoist"],
     "altruist":       ["altruist"],
     "bentham":        ["bentham"],
-    "heterogeneous":  ["egoist", "altruist", "bentham"],
+    
+    # ── Homogeneous Biased Focal-Action Conditions ──
+    "biasedCombat":       ["biasedCombat"],
+    "biasedTrade":        ["biasedTrade"],
+    "biasedReproduction": ["biasedReproduction"],
+    "biasedLending":      ["biasedLending"],
+
+    # ── Homogeneous FVDM-Derived Conditions ──
+    "fvdmRawDerived":          ["fvdmRawDerived"],
+    "fvdmEgoistDerived":       ["fvdmEgoistDerived"],
+    "fvdmAltruistDerived":     ["fvdmAltruistDerived"],
+    "fvdmBenthamDerived":      ["fvdmBenthamDerived"],
+    "fvdmCombatDerived":       ["fvdmCombatDerived"],
+    "fvdmTradeDerived":        ["fvdmTradeDerived"],
+    "fvdmReproductionDerived": ["fvdmReproductionDerived"],
+    "fvdmLendingDerived":      ["fvdmLendingDerived"],
 }
 
 # ─────────────────────────────────────────────────────────────────

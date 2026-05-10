@@ -385,10 +385,22 @@ class BiasedFocalAction(agent.Agent):
 
         # Trade bias additionally requires highly unbalanced starting
         # endowments so that the marginal rate of substitution is extreme,
-        # ensuring agents always want to trade.
+        # ensuring agents always want to trade. We split the population into
+        # sugar-rich and spice-rich so they have different MRS.
         if self.biasMode == "trade":
-            self.sugar = max(self.sugar, 100)
-            self.spice = max(self.spice, 1)
+            # Extract an integer from the UUID string to determine parity
+            try:
+                parity = int(self.ID[-1], 16) % 2
+            except:
+                parity = random.randint(0, 1)
+                
+            if parity == 0:
+                self.sugar = max(self.sugar, 100)
+                self.spice = max(self.spice, 1)
+            else:
+                self.sugar = max(self.sugar, 1)
+                self.spice = max(self.spice, 100)
+                
             self.startingSugar = self.sugar
             self.startingSpice = self.spice
 
