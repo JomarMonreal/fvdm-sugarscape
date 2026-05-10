@@ -197,7 +197,12 @@ class Sugarscape:
                 self.agentLeader = a
 
             # If using a different decision model, replace new agent with instance of child class
-            if "altruist" in agentConfiguration["decisionModel"]:
+            dm_lower = agentConfiguration["decisionModel"].lower()
+            if "fvdm" in dm_lower:
+                a = ethics.FVDMAgent(agentID, self.timestep, placementCell, agentConfiguration)
+            elif "biased" in dm_lower:
+                a = ethics.BiasedFocalAction(agentID, self.timestep, placementCell, agentConfiguration)
+            elif "altruist" in agentConfiguration["decisionModel"]:
                 a = ethics.Bentham(agentID, self.timestep, placementCell, agentConfiguration)
                 a.selfishnessFactor = 0
             elif "bentham" in agentConfiguration["decisionModel"]:
