@@ -430,41 +430,41 @@ def main(args):
         baseline_logs = {}  # cond_name -> list of agent_log_paths
 
         for cond_name, decision_models in active_baseline.items():
-        cond_dir = os.path.join(sim_dir, cond_name)
-        os.makedirs(cond_dir, exist_ok=True)
-        baseline_logs[cond_name] = []
-
-        for seed in seeds:
-            cfg = dict(base_cfg)
-            cfg["seed"] = seed
-            cfg["agentDecisionModels"] = decision_models
-            cfg["timesteps"] = timesteps
-            cfg["startingAgents"] = num_agents
-            cfg["startingDiseases"] = 0
-            cfg["headlessMode"] = True
-            cfg["debugMode"] = ["none"]
-            cfg["keepAlivePostExtinction"] = False
-            cfg["keepAliveAtEnd"] = False
-            cfg["screenshots"] = False
-            cfg["profileMode"] = False
-            log_path = os.path.join(cond_dir, f"{cond_name}_{seed}.json")
-            agent_log = os.path.join(cond_dir, f"{cond_name}_{seed}_agents.json")
-            cfg["logfile"] = log_path
-            cfg["agentLogfile"] = agent_log
-            cfg["logfileFormat"] = "json"
-
-            cfg_path = os.path.join(cond_dir, f"{cond_name}_{seed}.config")
-            with open(cfg_path, "w") as f:
-                json.dump(cfg, f)
-
-            baseline_logs[cond_name].append(agent_log)
-
-            # Skip if already completed
-            if os.path.exists(agent_log):
-                existing = safe_json_load(agent_log)
-                if existing and len(existing) > 0:
-                    continue
-            pending.append(cfg_path)
+            cond_dir = os.path.join(sim_dir, cond_name)
+            os.makedirs(cond_dir, exist_ok=True)
+            baseline_logs[cond_name] = []
+    
+            for seed in seeds:
+                cfg = dict(base_cfg)
+                cfg["seed"] = seed
+                cfg["agentDecisionModels"] = decision_models
+                cfg["timesteps"] = timesteps
+                cfg["startingAgents"] = num_agents
+                cfg["startingDiseases"] = 0
+                cfg["headlessMode"] = True
+                cfg["debugMode"] = ["none"]
+                cfg["keepAlivePostExtinction"] = False
+                cfg["keepAliveAtEnd"] = False
+                cfg["screenshots"] = False
+                cfg["profileMode"] = False
+                log_path = os.path.join(cond_dir, f"{cond_name}_{seed}.json")
+                agent_log = os.path.join(cond_dir, f"{cond_name}_{seed}_agents.json")
+                cfg["logfile"] = log_path
+                cfg["agentLogfile"] = agent_log
+                cfg["logfileFormat"] = "json"
+    
+                cfg_path = os.path.join(cond_dir, f"{cond_name}_{seed}.config")
+                with open(cfg_path, "w") as f:
+                    json.dump(cfg, f)
+    
+                baseline_logs[cond_name].append(agent_log)
+    
+                # Skip if already completed
+                if os.path.exists(agent_log):
+                    existing = safe_json_load(agent_log)
+                    if existing and len(existing) > 0:
+                        continue
+                pending.append(cfg_path)
 
     print(f"    Baseline sims: {len(seeds) * len(BASELINE_CONDITIONS)} total, "
           f"{len(pending)} need to run")
