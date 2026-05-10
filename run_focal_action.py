@@ -163,6 +163,10 @@ def parse_agent_log(agent_log_path: str, condition: str, seed: int) -> list:
     observations = []
     for record in data:
         action = classify_action(record)
+        
+        # EARLY FILTER: We only care about discretionary actions for FVDM!
+        if action not in ["combat", "trade", "reproduction", "lending"]:
+            continue
 
         obs = {
             # ── Metadata ──
