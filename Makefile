@@ -182,9 +182,9 @@ train-coordinates: $(DERIVATION_CSV)
 # ── Prioritization Vector Derivation ──
 
 VECTOR_OUT       ?= fvdm_vectors
-VECTOR_SEEDS     ?= 10
-IRL_ITERATIONS   ?= 200
-IRL_LR           ?= 0.01
+VECTOR_SEEDS     ?= 3
+IRL_ITERATIONS   ?= 100
+IRL_LR           ?= 0.02
 VECTOR_DERIVER    = derive_vectors.py
 
 derive-vectors: train-coordinates
@@ -192,9 +192,10 @@ derive-vectors: train-coordinates
 		--config $(CONFIG) \
 		--models $(MODEL_OUT) \
 		--output $(VECTOR_OUT) \
+		--focal-csv $(FOCAL_OUT)/results/focal_action_derivation.csv \
 		--seeds $(VECTOR_SEEDS) \
 		--agents $(FOCAL_AGENTS) \
-		--timesteps $(FOCAL_TIMESTEPS) \
+		--timesteps 1000 \
 		--cores $(CORES) \
 		--irl-iterations $(IRL_ITERATIONS) \
 		--irl-lr $(IRL_LR) \

@@ -4,30 +4,17 @@ derive_vectors.py
 -----------------
 Prioritization Vector Derivation via Maximum Entropy IRL.
 
-Derives the prioritization vectors P_i = (p_I, p_D, p_C, p_P, p_X) for
-each baseline ethical condition by applying MaxEnt IRL to behavioral
-trajectories.  The learned weight vector θ from R(s,a) = θᵀ E(a|s)
-becomes the prioritization vector for that condition.
+Derives 8 prioritization vectors P_i = (p_I, p_D, p_C, p_P, p_X):
+  1-4. rawDerived, egoistDerived, altruistDerived, benthamDerived
+       — from short baseline derivation sims (3 seeds × 1000 timesteps)
+  5-8. combatDerived, tradeDerived, reproductionDerived, lendingDerived
+       — REUSED from the existing focal-action derivation CSV (no new sims)
 
-Vectors derived (per thesis §3.4.5 and §3.5):
-  1. Raw Derived       — from rawSugarscape baseline trajectories
-  2. Egoist Derived     — from egoist baseline trajectories
-  3. Altruist Derived   — from altruist baseline trajectories
-  4. Bentham Derived    — from bentham baseline trajectories
-  5. Focus Derived      — from pooled biased focal-action trajectories
-  6. Combat Derived     — from biasedCombat trajectories only
-  7. Trade Derived      — from biasedTrade trajectories only
-  8. Reproduction Derived — from biasedReproduction trajectories only
-
-Pipeline:
-  1. Run short derivation simulations WITH agent logs for each condition
-  2. Load trained coordinate models from train_coordinates.py
-  3. Compute felicific effect vectors for each (state, action) observation
-  4. Apply MaxEnt IRL to learn θ per condition
-  5. Normalize θ → prioritization vector P_i
-  6. Save all vectors to JSON
-
-Reference: Thesis Section 3.4.5 — Derivation of Prioritization Vectors.
+Speed optimizations vs. original:
+  • Biased vectors: zero simulation time (reads existing CSV)
+  • Baseline vectors: 3 seeds × 1000 ts instead of 10 × 5000
+  • MaxEnt IRL: vectorized numpy, 100 iterations default
+  • Total: ~5-10 minutes instead of hours
 
 Usage:
   .venv/bin/python derive_vectors.py [options]
@@ -35,7 +22,6 @@ Usage:
 
 import argparse
 import json
-import math
 import multiprocessing
 import os
 import random
@@ -59,86 +45,204 @@ STATE_FEATURES = [
 
 DISCRETIONARY_ACTIONS = ["combat", "trade", "reproduction", "lending"]
 
-# Conditions to derive vectors for.
-# Key = vector name, Value = list of decisionModel strings for simulation.
-DERIVATION_CONDITIONS = {
-    "rawDerived":           ["rawSugarscape"],
-    "egoistDerived":        ["egoist"],
-    "altruistDerived":      ["altruist"],
-    "benthamDerived":       ["bentham"],
-    "combatDerived":        ["biasedCombat"],
-    "tradeDerived":         ["biasedTrade"],
-    "reproductionDerived":  ["biasedReproduction"],
-    "lendingDerived":       ["biasedLending"],
+# Baseline conditions require new sims (no existing agent logs)
+BASELINE_CONDITIONS = {
+    "rawDerived":     ["rawSugarscape"],
+    "egoistDerived":  ["egoist"],
+    "altruistDerived": ["altruist"],
+    "benthamDerived": ["bentham"],
+}
+
+# Biased conditions reuse the focal-action derivation CSV
+BIASED_CONDITIONS = {
+    "combatDerived":       "biasedCombat",
+    "tradeDerived":        "biasedTrade",
+    "reproductionDerived": "biasedReproduction",
+    "lendingDerived":      "biasedLending",
 }
 
 
 # ─────────────────────────────────────────────────────────────────
-# Simulation helpers (reused from run_focal_action.py)
+# Model loading & effect vector computation
 # ─────────────────────────────────────────────────────────────────
 
-def load_base_config(config_path: str) -> dict:
-    with open(config_path, "r") as f:
+def load_coordinate_models(model_dir: str):
+    models = {}
+    for fname in os.listdir(model_dir):
+        if fname.endswith(".pkl"):
+            models[fname[:-4]] = joblib.load(os.path.join(model_dir, fname))
+    with open(os.path.join(model_dir, "normalization_constants.json")) as f:
+        norm = json.load(f)
+    return models, norm
+
+
+def compute_effect_vector(state: np.ndarray, action: str,
+                          models: dict, norm: dict) -> np.ndarray:
+    """Predict E(a|s) = (I, D, C, P, X). Returns None if no model."""
+    if f"intensity_{action}" not in models:
+        return None
+    X = state.reshape(1, -1)
+
+    i_dist = models[f"intensity_{action}"].pred_dist(X)
+    I = float(i_dist.loc[0])
+    I_var = float(i_dist.scale[0] ** 2)
+
+    D = float(np.clip(models[f"duration_{action}"].predict(X)[0], 0, 1))
+    C = 1.0 / (1.0 + I_var)
+    P = float(np.clip(models[f"propinquity_{action}"].predict(X)[0], 0, 1))
+
+    ext_key = f"extent_{action}"
+    if ext_key in models:
+        proba = models[ext_key].predict_proba(X)[0]
+        classes = models[ext_key].classes_
+        Xc = float(sum(c * p for c, p in zip(classes, proba)))
+    else:
+        defaults = {"combat": -1.0, "trade": 1.0,
+                    "reproduction": 1.0, "lending": 1.0}
+        Xc = defaults.get(action, 0.0)
+
+    return np.array([I, D, C, P, Xc])
+
+
+# ─────────────────────────────────────────────────────────────────
+# MaxEnt IRL (vectorized)
+# ─────────────────────────────────────────────────────────────────
+
+def maxent_irl_from_observations(chosen_vecs: np.ndarray,
+                                 all_action_vecs: np.ndarray,
+                                 n_iterations: int = 100,
+                                 learning_rate: float = 0.02) -> np.ndarray:
+    """Vectorized MaxEnt IRL.
+
+    Args:
+        chosen_vecs: (N, 5) — effect vectors of the chosen actions
+        all_action_vecs: (N, K, 5) — effect vectors of ALL feasible
+                         actions at each decision point (K = 4 usually)
+        n_iterations: gradient ascent iterations
+        learning_rate: step size
+
+    Returns:
+        theta: (5,) learned weight vector
+    """
+    N = chosen_vecs.shape[0]
+    if N == 0:
+        return np.zeros(5)
+
+    # Empirical feature expectations (mean of chosen action vectors)
+    emp = chosen_vecs.mean(axis=0)  # (5,)
+
+    theta = np.zeros(5)
+    for _ in range(n_iterations):
+        # Rewards: (N, K)
+        rewards = np.einsum('ij,nkj->nk', theta.reshape(1, -1),
+                            all_action_vecs).squeeze(0)
+        if rewards.ndim == 1:
+            rewards = rewards.reshape(N, -1)
+        # Actually: rewards[n, k] = theta . all_action_vecs[n, k]
+        rewards = all_action_vecs @ theta  # (N, K)
+
+        # Softmax (numerically stable)
+        rewards -= rewards.max(axis=1, keepdims=True)
+        exp_r = np.exp(rewards)
+        probs = exp_r / (exp_r.sum(axis=1, keepdims=True) + 1e-10)  # (N, K)
+
+        # Expected features: Σ_k P(a_k|s) · E(a_k|s), averaged over N
+        expected = np.einsum('nk,nkj->nj', probs, all_action_vecs).mean(axis=0)
+
+        gradient = emp - expected
+        theta += learning_rate * gradient
+
+    return theta
+
+
+def normalize_vector(theta: np.ndarray) -> np.ndarray:
+    m = np.abs(theta).max()
+    return theta / m if m > 1e-10 else theta
+
+
+# ─────────────────────────────────────────────────────────────────
+# Build observation matrices from a DataFrame of agent records
+# ─────────────────────────────────────────────────────────────────
+
+def build_irl_matrices(df: pd.DataFrame, models: dict, norm: dict,
+                       max_obs: int = 2000):
+    """Convert DataFrame rows into vectorized IRL inputs.
+
+    Returns (chosen_vecs, all_action_vecs) numpy arrays, or (None, None)
+    if no discretionary actions found.
+    """
+    # Filter to discretionary actions only
+    disc = df[df["action"].isin(DISCRETIONARY_ACTIONS)]
+    if len(disc) == 0:
+        return None, None
+
+    # Subsample if too many (speed)
+    if len(disc) > max_obs:
+        disc = disc.sample(n=max_obs, random_state=42)
+
+    chosen_list = []
+    all_vecs_list = []
+
+    for _, row in disc.iterrows():
+        state = np.array([row.get(f, 0) for f in STATE_FEATURES], dtype=float)
+        action = row["action"]
+
+        chosen = compute_effect_vector(state, action, models, norm)
+        if chosen is None:
+            continue
+
+        # Compute all 4 action vectors for this state
+        action_vecs = []
+        for a in DISCRETIONARY_ACTIONS:
+            v = compute_effect_vector(state, a, models, norm)
+            if v is not None:
+                action_vecs.append(v)
+
+        if len(action_vecs) == 0:
+            continue
+
+        # Pad to fixed width (4 actions) with zeros
+        while len(action_vecs) < 4:
+            action_vecs.append(np.zeros(5))
+
+        chosen_list.append(chosen)
+        all_vecs_list.append(np.stack(action_vecs))
+
+    if not chosen_list:
+        return None, None
+
+    return np.array(chosen_list), np.array(all_vecs_list)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Simulation helpers (for baseline conditions only)
+# ─────────────────────────────────────────────────────────────────
+
+def load_base_config(path: str) -> dict:
+    with open(path) as f:
         full = json.load(f)
     return full.get("sugarscapeOptions", full)
 
 
-def make_derivation_config(base: dict, seed: int, decision_models: list,
-                           timesteps: int, num_agents: int, output_dir: str,
-                           condition_name: str) -> dict:
-    cfg = dict(base)
-    cfg["seed"] = seed
-    cfg["agentDecisionModels"] = decision_models
-    cfg["timesteps"] = timesteps
-    cfg["startingAgents"] = num_agents
-    cfg["startingDiseases"] = 0
-    cfg["headlessMode"] = True
-    cfg["debugMode"] = ["none"]
-    cfg["keepAlivePostExtinction"] = False
-    cfg["keepAliveAtEnd"] = False
-    cfg["screenshots"] = False
-    cfg["profileMode"] = False
-    cfg["logfile"] = os.path.join(output_dir, f"{condition_name}_{seed}.json")
-    cfg["agentLogfile"] = os.path.join(
-        output_dir, f"{condition_name}_{seed}_agents.json"
-    )
-    cfg["logfileFormat"] = "json"
-    return cfg
-
-
-def write_run_config(cfg: dict, path: str):
-    with open(path, "w") as f:
-        json.dump(cfg, f)
-
-
-def run_one_simulation(args):
-    config_path, python_alias, job_idx, total_jobs, counter, lock = args
-    cmd = [python_alias, "sugarscape.py", "--conf", config_path]
-    start = time.time()
+def run_one_sim(args):
+    cfg_path, python_alias, job_idx, total, counter, lock = args
+    cmd = [python_alias, "sugarscape.py", "--conf", cfg_path]
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    duration = time.time() - start
     with lock:
         counter.value += 1
-        pct = (counter.value / total_jobs) * 100
-        print(f"\r  [{counter.value:>4}/{total_jobs}]  {pct:5.1f}%  "
-              f"last: {os.path.basename(config_path):<50}",
-              end="", flush=True)
-    return config_path, duration
+        pct = counter.value / total * 100
+        print(f"\r  [{counter.value:>3}/{total}] {pct:5.1f}%", end="", flush=True)
 
 
-def safe_json_load(path: str):
+def safe_json_load(path):
     if not os.path.exists(path):
         return None
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
     except Exception:
         return None
 
-
-# ─────────────────────────────────────────────────────────────────
-# Action classification (same as run_focal_action.py)
-# ─────────────────────────────────────────────────────────────────
 
 def classify_action(record: dict) -> str:
     if record.get("preyKilled", False):
@@ -152,232 +256,32 @@ def classify_action(record: dict) -> str:
     return "none"
 
 
-# ─────────────────────────────────────────────────────────────────
-# Felicific effect vector computation using trained models
-# ─────────────────────────────────────────────────────────────────
-
-def load_coordinate_models(model_dir: str) -> dict:
-    """Load all trained .pkl models and normalization constants."""
-    models = {}
-    for fname in os.listdir(model_dir):
-        if fname.endswith(".pkl"):
-            name = fname[:-4]  # strip .pkl
-            models[name] = joblib.load(os.path.join(model_dir, fname))
-
-    norm_path = os.path.join(model_dir, "normalization_constants.json")
-    with open(norm_path, "r") as f:
-        norm_constants = json.load(f)
-
-    return models, norm_constants
-
-
-def compute_effect_vector(state_features: np.ndarray, action: str,
-                          models: dict, norm_constants: dict) -> np.ndarray:
-    """Predict E(a|s_i) = (I, D, C, P, X) for one state-action pair.
-
-    Returns a 5-element numpy array, or None if the action has no model.
-    """
-    if f"intensity_{action}" not in models:
-        return None
-
-    X = state_features.reshape(1, -1)
-
-    # Intensity
-    i_dist = models[f"intensity_{action}"].pred_dist(X)
-    I_pred = float(i_dist.loc[0])
-    I_var = float(i_dist.scale[0] ** 2)
-
-    # Duration
-    D_pred = float(models[f"duration_{action}"].predict(X)[0])
-    D_pred = max(0.0, min(1.0, D_pred))
-
-    # Certainty (from Intensity variance)
-    C_pred = 1.0 / (1.0 + I_var)
-
-    # Propinquity
-    P_pred = float(models[f"propinquity_{action}"].predict(X)[0])
-    P_pred = max(0.0, min(1.0, P_pred))
-
-    # Extent
-    if f"extent_{action}" in models:
-        ext_model = models[f"extent_{action}"]
-        proba = ext_model.predict_proba(X)[0]
-        classes = ext_model.classes_
-        X_pred = float(sum(c * p for c, p in zip(classes, proba)))
-    else:
-        # Default extent by action type
-        extent_defaults = {"combat": -1.0, "trade": 1.0,
-                           "reproduction": 1.0, "lending": 1.0}
-        X_pred = extent_defaults.get(action, 0.0)
-
-    return np.array([I_pred, D_pred, C_pred, P_pred, X_pred])
-
-
-# ─────────────────────────────────────────────────────────────────
-# MaxEnt IRL
-# ─────────────────────────────────────────────────────────────────
-
-def maxent_irl(trajectories: list, n_features: int = 5,
-               learning_rate: float = 0.01, n_iterations: int = 200,
-               verbose: bool = False) -> np.ndarray:
-    """Maximum Entropy Inverse Reinforcement Learning.
-
-    Given a set of expert trajectories, each containing (state_features,
-    action, effect_vector) tuples, learn the weight vector θ such that
-    R(s,a) = θᵀ E(a|s) best explains the expert's behavior.
-
-    Algorithm (Ziebart et al., 2008):
-      1. Compute empirical feature expectations from expert trajectories
-      2. Iteratively update θ to maximize the likelihood of observed
-         actions under the MaxEnt policy
-
-    Args:
-        trajectories: list of lists, each inner list contains dicts with
-                      'effect_vector' (np.array of length 5) and
-                      'all_effect_vectors' (list of np.arrays for all
-                      feasible actions)
-        n_features: dimensionality of the effect vector (5 for FVDM)
-        learning_rate: gradient ascent step size
-        n_iterations: number of optimization iterations
-
-    Returns:
-        theta: learned weight vector (length n_features)
-    """
-    # ── Step 1: Empirical feature expectations ──
-    # Average effect vector of the CHOSEN actions across all timesteps
-    feature_sum = np.zeros(n_features)
-    n_steps = 0
-    for traj in trajectories:
-        for step in traj:
-            if step["effect_vector"] is not None:
-                feature_sum += step["effect_vector"]
-                n_steps += 1
-
-    if n_steps == 0:
-        return np.zeros(n_features)
-
-    empirical_expectations = feature_sum / n_steps
-
-    # ── Step 2: Gradient ascent on θ ──
-    theta = np.zeros(n_features)
-
-    for iteration in range(n_iterations):
-        # Compute expected feature counts under current θ
-        expected_features = np.zeros(n_features)
-        n_decisions = 0
-
-        for traj in trajectories:
-            for step in traj:
-                all_vecs = step.get("all_effect_vectors", [])
-                if len(all_vecs) == 0:
-                    continue
-
-                # Compute softmax policy: P(a|s) ∝ exp(θᵀ E(a|s))
-                rewards = np.array([theta.dot(v) for v in all_vecs])
-                # Numerical stability
-                rewards -= rewards.max()
-                exp_rewards = np.exp(rewards)
-                probs = exp_rewards / (exp_rewards.sum() + 1e-10)
-
-                # Expected feature = Σ P(a|s) · E(a|s)
-                for prob, vec in zip(probs, all_vecs):
-                    expected_features += prob * vec
-                n_decisions += 1
-
-        if n_decisions > 0:
-            expected_features /= n_decisions
-
-        # Gradient = empirical - expected
-        gradient = empirical_expectations - expected_features
-        theta += learning_rate * gradient
-
-        if verbose and (iteration + 1) % 50 == 0:
-            grad_norm = np.linalg.norm(gradient)
-            print(f"      Iteration {iteration+1}/{n_iterations}: "
-                  f"||gradient|| = {grad_norm:.6f}")
-
-    return theta
-
-
-def normalize_to_prioritization_vector(theta: np.ndarray) -> np.ndarray:
-    """Normalize θ to produce a prioritization vector on [-1, 1]^5.
-
-    Each component is divided by the maximum absolute value so the
-    strongest preference dimension has magnitude 1.
-    """
-    max_abs = np.abs(theta).max()
-    if max_abs < 1e-10:
-        return theta  # all zeros — no meaningful preference
-    return theta / max_abs
-
-
-# ─────────────────────────────────────────────────────────────────
-# Trajectory construction
-# ─────────────────────────────────────────────────────────────────
-
-def build_trajectories_from_agent_log(agent_log_path: str,
-                                      models: dict,
-                                      norm_constants: dict) -> list:
-    """Build MaxEnt IRL trajectories from an agent-level simulation log.
-
-    Each trajectory corresponds to one agent's lifetime. Each step
-    contains the effect vector of the chosen action and the effect
-    vectors of ALL feasible discretionary actions (for the MaxEnt
-    softmax denominator).
-    """
+def agent_log_to_dataframe(agent_log_path: str) -> pd.DataFrame:
+    """Convert a raw agent JSON log into a DataFrame matching focal-action CSV columns."""
     data = safe_json_load(agent_log_path)
-    if data is None or len(data) == 0:
-        return []
+    if not data:
+        return pd.DataFrame()
 
-    # Group records by agent ID to form per-agent trajectories
-    agent_records = {}
-    for record in data:
-        agent_id = record.get("ID", -1)
-        if agent_id not in agent_records:
-            agent_records[agent_id] = []
-        agent_records[agent_id].append(record)
-
-    trajectories = []
-    for agent_id, records in agent_records.items():
-        traj = []
-        for record in records:
-            action = classify_action(record)
-            state = np.array([
-                record.get(f, 0) for f in STATE_FEATURES
-            ], dtype=float)
-
-            # Compute effect vector for chosen action
-            if action in DISCRETIONARY_ACTIONS:
-                chosen_vec = compute_effect_vector(
-                    state, action, models, norm_constants
-                )
-            else:
-                chosen_vec = None
-
-            # Compute effect vectors for ALL feasible discretionary actions
-            # Feasibility heuristic from the log data:
-            #   combat: preyKilled or aggressionFactor > 0 means it was feasible
-            #   trade:  tradePartners >= 0 means trade was attempted
-            #   reproduction: mates >= 0
-            #   lending: lendingPartners >= 0
-            # Since we can't know exact feasibility from logs, we compute
-            # vectors for all 4 discretionary actions as candidates.
-            all_vecs = []
-            for a in DISCRETIONARY_ACTIONS:
-                vec = compute_effect_vector(state, a, models, norm_constants)
-                if vec is not None:
-                    all_vecs.append(vec)
-
-            traj.append({
-                "action": action,
-                "effect_vector": chosen_vec,
-                "all_effect_vectors": all_vecs,
-            })
-
-        if len(traj) > 0:
-            trajectories.append(traj)
-
-    return trajectories
+    rows = []
+    for r in data:
+        rows.append({
+            "agentID": r.get("ID", -1),
+            "timestep": r.get("timestep", 0),
+            "age": r.get("age", 0),
+            "wealth": r.get("wealth", 0),
+            "sugar": r.get("sugar", 0),
+            "spice": r.get("spice", 0),
+            "timeToLive": r.get("timeToLive", 0),
+            "movement": r.get("movement", 0),
+            "neighbors": r.get("neighbors", 0),
+            "neighborsInTribe": r.get("neighborsInTribe", 0),
+            "neighborsNotInTribe": r.get("neighborsNotInTribe", 0),
+            "validMoves": r.get("validMoves", 0),
+            "compositeHappiness": r.get("compositeHappiness", 0),
+            "depression": int(r.get("depression", False)),
+            "action": classify_action(r),
+        })
+    return pd.DataFrame(rows)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -385,184 +289,192 @@ def build_trajectories_from_agent_log(agent_log_path: str,
 # ─────────────────────────────────────────────────────────────────
 
 def main(args):
-    config_path = args.config
+    pipeline_start = time.time()
+
     model_dir = args.models
     output_dir = args.output
+    focal_csv = args.focal_csv
+    config_path = args.config
     num_seeds = args.seeds
-    num_agents = args.agents
     timesteps = args.timesteps
+    num_agents = args.agents
     num_cores = args.cores
     python_alias = args.python
-    irl_iterations = args.irl_iterations
+    irl_iters = args.irl_iterations
     irl_lr = args.irl_lr
 
     os.makedirs(output_dir, exist_ok=True)
-
     max_cores = os.cpu_count() or 1
     if num_cores > max_cores:
         num_cores = max_cores
 
-    pipeline_start = time.time()
-
     print(f"\n{'='*60}")
     print(f"  Prioritization Vector Derivation (MaxEnt IRL)")
     print(f"{'='*60}")
-    print(f"  Conditions:       {list(DERIVATION_CONDITIONS.keys())}")
-    print(f"  Seeds:            {num_seeds}")
-    print(f"  Timesteps:        {timesteps}")
-    print(f"  Agents:           {num_agents}")
-    print(f"  Model dir:        {model_dir}")
-    print(f"  IRL iterations:   {irl_iterations}")
-    print(f"  IRL learning rate: {irl_lr}")
+    print(f"  Focal-action CSV:  {focal_csv}")
+    print(f"  Baseline seeds:    {num_seeds}")
+    print(f"  Baseline timesteps: {timesteps}")
+    print(f"  IRL iterations:    {irl_iters}")
     print(f"{'='*60}\n")
 
-    # ── 1. Load trained coordinate models ────────────────────────
-    print("  Loading trained coordinate models …")
-    models, norm_constants = load_coordinate_models(model_dir)
-    print(f"    Loaded {len(models)} models + normalization constants\n")
-
-    # ── 2. Run derivation simulations ────────────────────────────
-    base_cfg = load_base_config(config_path)
-    base_cfg["timesteps"] = timesteps
-    base_cfg["startingAgents"] = num_agents
-
-    sim_dir = os.path.join(output_dir, "sim_logs")
-    os.makedirs(sim_dir, exist_ok=True)
-
-    random.seed(42)
-    seeds = []
-    while len(seeds) < num_seeds:
-        s = random.randint(0, sys.maxsize)
-        if s not in seeds:
-            seeds.append(s)
-
-    all_configs = {}  # condition -> list of (seed, cfg_path, agent_log_path)
-
-    for cond_name, decision_models in DERIVATION_CONDITIONS.items():
-        cond_dir = os.path.join(sim_dir, cond_name)
-        os.makedirs(cond_dir, exist_ok=True)
-        all_configs[cond_name] = []
-
-        for seed in seeds:
-            cfg = make_derivation_config(
-                base=base_cfg, seed=seed,
-                decision_models=decision_models,
-                timesteps=timesteps, num_agents=num_agents,
-                output_dir=cond_dir, condition_name=cond_name,
-            )
-            cfg_path = os.path.join(cond_dir, f"{cond_name}_{seed}.config")
-            write_run_config(cfg, cfg_path)
-            all_configs[cond_name].append((
-                seed, cfg_path, cfg["agentLogfile"]
-            ))
-
-    # Filter already-completed runs
-    pending = []
-    for cond_name, configs in all_configs.items():
-        for (seed, cfg_path, agent_log_path) in configs:
-            if os.path.exists(agent_log_path):
-                data = safe_json_load(agent_log_path)
-                if data and len(data) > 0:
-                    continue
-            pending.append((cond_name, seed, cfg_path, agent_log_path))
-
-    total_jobs = sum(len(v) for v in all_configs.values())
-    skip_count = total_jobs - len(pending)
-    print(f"  Total derivation runs:    {total_jobs}")
-    print(f"  Already completed:        {skip_count}")
-    print(f"  Queued to run:            {len(pending)}\n")
-
-    if pending:
-        start_time = time.time()
-        manager = multiprocessing.Manager()
-        counter = manager.Value('i', 0)
-        lock = manager.Lock()
-
-        worker_args = [
-            (cfg_path, python_alias, i, len(pending), counter, lock)
-            for i, (_, _, cfg_path, _) in enumerate(pending)
-        ]
-
-        print(f"  Running derivation simulations using {num_cores} core(s) …")
-        with multiprocessing.Pool(processes=num_cores) as pool:
-            pool.map(run_one_simulation, worker_args)
-        elapsed = time.time() - start_time
-        print(f"\n\n  Simulations completed in {elapsed:.1f}s\n")
-
-    # ── 3. Build trajectories and derive vectors ─────────────────
-    print("  Building trajectories and deriving prioritization vectors …\n")
+    # ── 1. Load models ───────────────────────────────────────────
+    print("  Loading coordinate models …")
+    models, norm = load_coordinate_models(model_dir)
+    print(f"    {len(models)} models loaded\n")
 
     all_vectors = {}
     all_thetas = {}
 
-    for cond_name, configs in all_configs.items():
-        print(f"  ── {cond_name} ──")
-        cond_start = time.time()
+    # ── 2. Biased vectors from existing focal-action CSV ─────────
+    print("  ── Deriving biased vectors from focal-action CSV ──\n")
 
-        # Build trajectories from all seeds
-        all_trajectories = []
-        total_steps = 0
-        for (seed, cfg_path, agent_log_path) in configs:
-            trajs = build_trajectories_from_agent_log(
-                agent_log_path, models, norm_constants
+    if os.path.exists(focal_csv):
+        focal_df = pd.read_csv(focal_csv)
+        print(f"    Loaded {len(focal_df):,} rows from {focal_csv}")
+
+        for vec_name, condition_key in BIASED_CONDITIONS.items():
+            cond_df = focal_df[focal_df["condition"] == condition_key]
+            disc_count = len(cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)])
+            print(f"\n    {vec_name}: {len(cond_df):,} rows, "
+                  f"{disc_count} discretionary")
+
+            if disc_count == 0:
+                print(f"      [skip] No discretionary actions")
+                continue
+
+            t0 = time.time()
+            chosen, all_vecs = build_irl_matrices(cond_df, models, norm)
+            if chosen is None:
+                print(f"      [skip] Could not build matrices")
+                continue
+
+            print(f"      IRL input: {chosen.shape[0]} observations × "
+                  f"{all_vecs.shape[1]} actions", end=" … ", flush=True)
+
+            theta = maxent_irl_from_observations(
+                chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr
             )
-            all_trajectories.extend(trajs)
-            for t in trajs:
-                total_steps += len(t)
+            p_vec = normalize_vector(theta)
+            elapsed = time.time() - t0
 
-        print(f"    Trajectories: {len(all_trajectories)} agents, "
-              f"{total_steps} total steps")
+            all_thetas[vec_name] = theta.tolist()
+            all_vectors[vec_name] = p_vec.tolist()
 
-        if len(all_trajectories) == 0:
-            print(f"    [skip] No trajectory data available")
+            labels = ["I", "D", "C", "P", "X"]
+            print(f"done ({elapsed:.1f}s)")
+            print(f"      θ: {dict(zip(labels, [round(v, 4) for v in theta]))}")
+            print(f"      P: {dict(zip(labels, [round(v, 4) for v in p_vec]))}")
+    else:
+        print(f"    [warn] Focal-action CSV not found: {focal_csv}")
+        print(f"           Run 'make focal-action' first.")
+
+    # ── 3. Baseline vectors from short derivation sims ───────────
+    print(f"\n  ── Deriving baseline vectors ({num_seeds} seeds × "
+          f"{timesteps} timesteps) ──\n")
+
+    base_cfg = load_base_config(config_path)
+    sim_dir = os.path.join(output_dir, "sim_logs")
+    os.makedirs(sim_dir, exist_ok=True)
+
+    random.seed(42)
+    seeds = list(set(random.randint(0, sys.maxsize) for _ in range(num_seeds * 2)))[:num_seeds]
+
+    # Build configs for all baseline conditions
+    pending = []
+    baseline_logs = {}  # cond_name -> list of agent_log_paths
+
+    for cond_name, decision_models in BASELINE_CONDITIONS.items():
+        cond_dir = os.path.join(sim_dir, cond_name)
+        os.makedirs(cond_dir, exist_ok=True)
+        baseline_logs[cond_name] = []
+
+        for seed in seeds:
+            cfg = dict(base_cfg)
+            cfg["seed"] = seed
+            cfg["agentDecisionModels"] = decision_models
+            cfg["timesteps"] = timesteps
+            cfg["startingAgents"] = num_agents
+            cfg["startingDiseases"] = 0
+            cfg["headlessMode"] = True
+            cfg["debugMode"] = ["none"]
+            cfg["keepAlivePostExtinction"] = False
+            cfg["keepAliveAtEnd"] = False
+            cfg["screenshots"] = False
+            cfg["profileMode"] = False
+            log_path = os.path.join(cond_dir, f"{cond_name}_{seed}.json")
+            agent_log = os.path.join(cond_dir, f"{cond_name}_{seed}_agents.json")
+            cfg["logfile"] = log_path
+            cfg["agentLogfile"] = agent_log
+            cfg["logfileFormat"] = "json"
+
+            cfg_path = os.path.join(cond_dir, f"{cond_name}_{seed}.config")
+            with open(cfg_path, "w") as f:
+                json.dump(cfg, f)
+
+            baseline_logs[cond_name].append(agent_log)
+
+            # Skip if already completed
+            if os.path.exists(agent_log):
+                existing = safe_json_load(agent_log)
+                if existing and len(existing) > 0:
+                    continue
+            pending.append(cfg_path)
+
+    print(f"    Baseline sims: {len(seeds) * len(BASELINE_CONDITIONS)} total, "
+          f"{len(pending)} need to run")
+
+    if pending:
+        manager = multiprocessing.Manager()
+        counter = manager.Value('i', 0)
+        lock = manager.Lock()
+        worker_args = [
+            (p, python_alias, i, len(pending), counter, lock)
+            for i, p in enumerate(pending)
+        ]
+        print(f"    Running {len(pending)} simulations ({num_cores} cores) …")
+        with multiprocessing.Pool(processes=num_cores) as pool:
+            pool.map(run_one_sim, worker_args)
+        print()
+
+    # Derive baseline vectors
+    for cond_name in BASELINE_CONDITIONS:
+        print(f"\n    {cond_name}:")
+        frames = []
+        for agent_log in baseline_logs[cond_name]:
+            df = agent_log_to_dataframe(agent_log)
+            if len(df) > 0:
+                frames.append(df)
+
+        if not frames:
+            print(f"      [skip] No data")
             continue
 
-        # Filter to trajectories that have at least one discretionary action
-        meaningful_trajs = []
-        for traj in all_trajectories:
-            has_action = any(
-                step["effect_vector"] is not None for step in traj
-            )
-            if has_action:
-                meaningful_trajs.append(traj)
+        cond_df = pd.concat(frames, ignore_index=True)
+        disc_count = len(cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)])
+        print(f"      {len(cond_df):,} rows, {disc_count} discretionary")
 
-        print(f"    With discretionary actions: {len(meaningful_trajs)} agents")
-
-        if len(meaningful_trajs) == 0:
-            print(f"    [skip] No discretionary actions in trajectories")
+        t0 = time.time()
+        chosen, all_vecs = build_irl_matrices(cond_df, models, norm)
+        if chosen is None:
+            print(f"      [skip] No discretionary actions")
             continue
 
-        # Run MaxEnt IRL
-        print(f"    Running MaxEnt IRL ({irl_iterations} iterations) …",
-              end=" ", flush=True)
-        theta = maxent_irl(
-            meaningful_trajs,
-            n_features=5,
-            learning_rate=irl_lr,
-            n_iterations=irl_iterations,
-            verbose=False,
+        print(f"      IRL: {chosen.shape[0]} obs", end=" … ", flush=True)
+        theta = maxent_irl_from_observations(
+            chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr
         )
-        print("✓")
+        p_vec = normalize_vector(theta)
+        elapsed = time.time() - t0
 
-        # Normalize to prioritization vector
-        p_vec = normalize_to_prioritization_vector(theta)
-
-        cond_elapsed = round(time.time() - cond_start, 2)
         all_thetas[cond_name] = theta.tolist()
         all_vectors[cond_name] = p_vec.tolist()
 
         labels = ["I", "D", "C", "P", "X"]
-        print(f"    θ (raw):  {dict(zip(labels, [round(v, 4) for v in theta]))}")
-        print(f"    P (norm): {dict(zip(labels, [round(v, 4) for v in p_vec]))}")
-        print(f"    Elapsed:  {cond_elapsed:.2f}s\n")
+        print(f"done ({elapsed:.1f}s)")
+        print(f"      θ: {dict(zip(labels, [round(v, 4) for v in theta]))}")
+        print(f"      P: {dict(zip(labels, [round(v, 4) for v in p_vec]))}")
 
-    # ── 4. Handle Focus Derived (pooled from all biased conditions) ──
-    # The focusDerived vector was already handled above since we
-    # configured it to run all 4 biased decision models together.
-    # If it ran from separate agent logs (one per bias), the
-    # trajectories are already pooled in the loop above.
-
-    # ── 5. Save vectors ──────────────────────────────────────────
+    # ── 4. Save ──────────────────────────────────────────────────
     vectors_path = os.path.join(output_dir, "prioritization_vectors.json")
     output_data = {
         "description": "Prioritization vectors derived via MaxEnt IRL",
@@ -571,29 +483,29 @@ def main(args):
         "vectors": all_vectors,
         "raw_thetas": all_thetas,
         "derivation_config": {
-            "seeds": num_seeds,
-            "timesteps": timesteps,
-            "agents": num_agents,
-            "irl_iterations": irl_iterations,
+            "baseline_seeds": num_seeds,
+            "baseline_timesteps": timesteps,
+            "baseline_agents": num_agents,
+            "irl_iterations": irl_iters,
             "irl_learning_rate": irl_lr,
+            "focal_csv": focal_csv,
         },
     }
     with open(vectors_path, "w") as f:
         json.dump(output_data, f, indent=2)
-    print(f"  Saved vectors → {vectors_path}")
 
-    # ── 6. Print summary table ───────────────────────────────────
-    pipeline_elapsed = round(time.time() - pipeline_start, 2)
+    # ── 5. Summary ───────────────────────────────────────────────
+    elapsed = round(time.time() - pipeline_start, 2)
 
     print(f"\n{'='*60}")
     print(f"  {'Condition':<25} {'I':>8} {'D':>8} {'C':>8} {'P':>8} {'X':>8}")
     print(f"  {'-'*57}")
-    for cond_name, vec in all_vectors.items():
+    for name, vec in all_vectors.items():
         vals = [f"{v:>8.4f}" for v in vec]
-        print(f"  {cond_name:<25} {''.join(vals)}")
+        print(f"  {name:<25} {''.join(vals)}")
     print(f"{'='*60}")
-    print(f"  Total elapsed time: {pipeline_elapsed:.2f}s")
-    print(f"  {len(all_vectors)} vectors derived.\n")
+    print(f"  Saved → {vectors_path}")
+    print(f"  {len(all_vectors)} vectors derived in {elapsed:.1f}s\n")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -601,53 +513,27 @@ def main(args):
 # ─────────────────────────────────────────────────────────────────
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Derive prioritization vectors via MaxEnt IRL for FVDM",
+    p = argparse.ArgumentParser(
+        description="Derive prioritization vectors via MaxEnt IRL",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "-c", "--config", default="config.json",
-        help="Path to master simulation config.",
-    )
-    parser.add_argument(
-        "-m", "--models", default="fvdm_models",
-        help="Directory containing trained coordinate models (.pkl).",
-    )
-    parser.add_argument(
-        "-o", "--output", default="fvdm_vectors",
-        help="Directory to save derivation outputs.",
-    )
-    parser.add_argument(
-        "-s", "--seeds", type=int, default=10,
-        help="Number of seeds per derivation condition.",
-    )
-    parser.add_argument(
-        "-a", "--agents", type=int, default=250,
-        help="Starting agents per derivation run.",
-    )
-    parser.add_argument(
-        "-t", "--timesteps", type=int, default=5000,
-        help="Timesteps per derivation run.",
-    )
-    parser.add_argument(
-        "-j", "--cores", type=int, default=1,
-        help="Parallel CPU cores for simulations.",
-    )
-    parser.add_argument(
-        "--irl-iterations", type=int, default=200,
-        help="Number of MaxEnt IRL gradient ascent iterations.",
-    )
-    parser.add_argument(
-        "--irl-lr", type=float, default=0.01,
-        help="MaxEnt IRL learning rate.",
-    )
-    parser.add_argument(
-        "--python", default="python3",
-        help="Python interpreter alias.",
-    )
-    return parser.parse_args()
+    p.add_argument("-c", "--config", default="config.json")
+    p.add_argument("-m", "--models", default="fvdm_models")
+    p.add_argument("-o", "--output", default="fvdm_vectors")
+    p.add_argument("-f", "--focal-csv",
+                   default="focal_action_results/results/focal_action_derivation.csv",
+                   help="Path to existing focal-action derivation CSV.")
+    p.add_argument("-s", "--seeds", type=int, default=3,
+                   help="Seeds for baseline derivation sims.")
+    p.add_argument("-a", "--agents", type=int, default=500)
+    p.add_argument("-t", "--timesteps", type=int, default=1000,
+                   help="Timesteps for baseline derivation sims.")
+    p.add_argument("-j", "--cores", type=int, default=1)
+    p.add_argument("--irl-iterations", type=int, default=100)
+    p.add_argument("--irl-lr", type=float, default=0.02)
+    p.add_argument("--python", default="python3")
+    return p.parse_args()
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    main(parse_args())
