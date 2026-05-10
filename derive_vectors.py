@@ -69,19 +69,27 @@ BIASED_CONDITIONS = {
 def load_coordinate_models(model_dir: str):
     models = {}
     for fname in os.listdir(model_dir):
-        if fname.endswith(".pkl"):
+        if fname.endswith(".pkl") and not fname.startswith("feature_scaler"):
             models[fname[:-4]] = joblib.load(os.path.join(model_dir, fname))
+            
+    scaler_path = os.path.join(model_dir, "feature_scaler.pkl")
+    scaler = None
+    if os.path.exists(scaler_path):
+        scaler = joblib.load(scaler_path)
+        
     with open(os.path.join(model_dir, "normalization_constants.json")) as f:
         norm = json.load(f)
-    return models, norm
+    return models, norm, scaler
 
 
 def compute_effect_vector(state: np.ndarray, action: str,
-                          models: dict, norm: dict) -> np.ndarray:
+                          models: dict, norm: dict, scaler=None) -> np.ndarray:
     """Predict E(a|s) = (I, D, C, P, X). Returns None if no model."""
     if f"intensity_{action}" not in models:
         return None
     X = state.reshape(1, -1)
+    if scaler:
+        X = scaler.transform(X)
 
     i_dist = models[f"intensity_{action}"].pred_dist(X)
     I = float(i_dist.loc[0])
@@ -163,7 +171,7 @@ def normalize_vector(theta: np.ndarray) -> np.ndarray:
 # ─────────────────────────────────────────────────────────────────
 
 def build_irl_matrices(df: pd.DataFrame, models: dict, norm: dict,
-                       max_obs: int = 2000):
+                       scaler=None, max_obs: int = 2000):
     """Convert DataFrame rows into vectorized IRL inputs.
 
     Returns (chosen_vecs, all_action_vecs) numpy arrays, or (None, None)
@@ -185,14 +193,14 @@ def build_irl_matrices(df: pd.DataFrame, models: dict, norm: dict,
         state = np.array([row.get(f, 0) for f in STATE_FEATURES], dtype=float)
         action = row["action"]
 
-        chosen = compute_effect_vector(state, action, models, norm)
+        chosen = compute_effect_vector(state, action, models, norm, scaler)
         if chosen is None:
             continue
 
         # Compute all 4 action vectors for this state
         action_vecs = []
         for a in DISCRETIONARY_ACTIONS:
-            v = compute_effect_vector(state, a, models, norm)
+            v = compute_effect_vector(state, a, models, norm, scaler)
             if v is not None:
                 action_vecs.append(v)
 
@@ -317,8 +325,11 @@ def main(args):
 
     # ── 1. Load models ───────────────────────────────────────────
     print("  Loading coordinate models …")
-    models, norm = load_coordinate_models(model_dir)
-    print(f"    {len(models)} models loaded\n")
+    models, norm, scaler = load_coordinate_models(model_dir)
+    print(f"    {len(models)} models loaded")
+    if scaler:
+        print("    Feature scaler loaded")
+    print()
 
     all_vectors = {}
     all_thetas = {}
@@ -368,7 +379,7 @@ def main(args):
                     continue
 
                 t0 = time.time()
-                chosen, all_vecs = build_irl_matrices(disc_df, models, norm)
+                chosen, all_vecs = build_irl_matrices(disc_df, models, norm, scaler)
                 if chosen is None:
                     print(f"      [skip] Could not build matrices")
                     continue
@@ -495,7 +506,7 @@ def main(args):
         print(f"      {len(cond_df):,} total rows, {disc_count} discretionary used (capped at 2640)")
 
         t0 = time.time()
-        chosen, all_vecs = build_irl_matrices(disc_df, models, norm)
+        chosen, all_vecs = build_irl_matrices(disc_df, models, norm, scaler)
         if chosen is None:
             print(f"      [skip] No discretionary actions")
             continue

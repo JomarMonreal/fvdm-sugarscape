@@ -40,10 +40,12 @@ import pandas as pd
 from ngboost import NGBRegressor
 from ngboost.distns import Normal
 from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score, KFold
 from sklearn.metrics import make_scorer, log_loss
 
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # ─────────────────────────────────────────────────────────────────
 # Feature columns (local state s_i)
@@ -165,15 +167,19 @@ def crps_normal(y_true, y_pred_dist_params):
 
 def train_ngboost_model(X: np.ndarray, y: np.ndarray,
                         n_estimators: int = 200,
-                        learning_rate: float = 0.05,
+                        learning_rate: float = 0.02,
                         verbose: bool = False) -> NGBRegressor:
     """Train an NGBoost regressor for a continuous felicific coordinate."""
+    # Ensure targets are clipped to a reasonable range to prevent numerical instability
+    y = np.clip(y, -1e6, 1e6)
+    
     model = NGBRegressor(
         Dist=Normal,
         n_estimators=n_estimators,
         learning_rate=learning_rate,
         verbose=verbose,
         random_state=42,
+        base_learner=None, # Defaults to DecisionTreeRegressor(max_depth=3)
     )
     model.fit(X, y)
     return model
@@ -243,7 +249,8 @@ def evaluate_learning_curve(X: np.ndarray, y: np.ndarray,
 # ─────────────────────────────────────────────────────────────────
 
 def predict_effect_vector(state_features: np.ndarray, action: str,
-                          models: dict, norm_constants: dict) -> dict:
+                          models: dict, norm_constants: dict,
+                          scaler: StandardScaler = None) -> dict:
     """Predict the full felicific effect vector E(a|s_i) = (I, D, C, P, X).
 
     Args:
@@ -256,6 +263,8 @@ def predict_effect_vector(state_features: np.ndarray, action: str,
         dict with keys I, D, C, P, X (all floats).
     """
     X = state_features.reshape(1, -1)
+    if scaler:
+        X = scaler.transform(X)
 
     # ── Intensity (NGBoost) ──
     intensity_model = models[f"intensity_{action}"]
@@ -310,6 +319,7 @@ def main(args):
     output_dir = args.output
     n_estimators = args.estimators
     learning_rate = args.lr
+    use_scaling = not args.no_scale
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -405,6 +415,18 @@ def main(args):
     for act, val in norm_constants.items():
         print(f"    {act:<15} {val:.4f}")
 
+    # ── 4. Scale features ────────────────────────────────────────
+    scaler = None
+    if use_scaling:
+        print(f"\n  Scaling features using StandardScaler …")
+        scaler = StandardScaler()
+        # Fit on all discretionary data
+        df_disc[STATE_FEATURES] = scaler.fit_transform(df_disc[STATE_FEATURES])
+        # Save scaler
+        scaler_path = os.path.join(output_dir, "feature_scaler.pkl")
+        joblib.dump(scaler, scaler_path)
+        print(f"    Saved feature_scaler.pkl")
+
     # ── 5. Train per-action models ───────────────────────────────
     models = {}
     learning_curves = {}
@@ -497,7 +519,9 @@ def main(args):
             continue
         sample = subset.iloc[0]
         X_sample = sample[STATE_FEATURES].values.astype(float)
-        vec = predict_effect_vector(X_sample, action, models, norm_constants)
+        # Note: sample is already scaled if scaler was used, so we don't pass it again to avoid double scaling
+        # Actually, let's be careful. The subset rows were modified in-place.
+        vec = predict_effect_vector(X_sample, action, models, norm_constants, scaler=None)
         gt = {
             "I": round(float(sample["gt_intensity"]), 4),
             "D": round(float(sample["gt_duration"]), 4),
@@ -565,8 +589,13 @@ def parse_args():
     parser.add_argument(
         "--lr",
         type=float,
-        default=0.05,
+        default=0.02,
         help="Learning rate for NGBoost models.",
+    )
+    parser.add_argument(
+        "--no-scale",
+        action="store_true",
+        help="Disable feature scaling (StandardScaler).",
     )
     return parser.parse_args()
 
