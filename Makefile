@@ -193,9 +193,9 @@ derive-vectors: train-coordinates
 		--models $(MODEL_OUT) \
 		--output $(VECTOR_OUT) \
 		--focal-csv $(FOCAL_OUT)/results/focal_action_derivation.csv \
-		--seeds $(VECTOR_SEEDS) \
+		--seeds 1 \
 		--agents $(FOCAL_AGENTS) \
-		--timesteps 1000 \
+		--timesteps 100 \
 		--cores $(CORES) \
 		--irl-iterations $(IRL_ITERATIONS) \
 		--irl-lr $(IRL_LR) \
