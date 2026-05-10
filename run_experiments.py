@@ -2,11 +2,17 @@
 """
 run_experiments.py
 ------------------
-Baseline replication experiment runner for the Digital Terrarium / Sugarscape simulation.
+Full experiment runner for the FVDM Sugarscape study.
 
-Runs homogeneous conditions (egoist, altruist, rawSugarscape, bentham) and one
-heterogeneous (mixed) condition across N seeds, collecting per-timestep and
-aggregated metrics for replication of the original Digital Terrarium study.
+Runs all 16 homogeneous conditions across N matched seeds:
+  Baseline rule-based (4):  rawSugarscape, egoist, altruist, bentham
+  Biased focal-action (4):  biasedCombat, biasedTrade, biasedReproduction, biasedLending
+  FVDM-derived (8):         fvdmRawDerived, fvdmEgoistDerived, fvdmAltruistDerived,
+                            fvdmBenthamDerived, fvdmCombatDerived, fvdmTradeDerived,
+                            fvdmReproductionDerived, fvdmLendingDerived
+
+Requires fvdm_models/ and fvdm_vectors/ to be present before running FVDM conditions
+(run `make fvdm` first, or `make full-experiment` to chain the full pipeline).
 
 Recorded metrics per timestep:
   - population
@@ -152,7 +158,7 @@ def safe_json_load(path: str):
 
 
 def parse_sugarscape_log(log_path: str, condition: str,
-                          seed: int, timesteps: int, duration: float = 0.0):
+                          seed: int, duration: float = 0.0):
     """
     Parse a completed simulation log and return:
       - per_timestep: list of dicts (one per recorded timestep)
@@ -503,7 +509,7 @@ def run_experiments(args):
     for (cname, seed, cfg_path, log_path) in all_run_configs:
         duration = session_durations.get(cfg_path, 0.0)
         pts, summary = parse_sugarscape_log(
-            log_path, cname, seed, timesteps, duration=duration
+            log_path, cname, seed, duration=duration
         )
         if pts is None:
             print(f"  [warn] Could not parse log for {cname} seed={seed}")

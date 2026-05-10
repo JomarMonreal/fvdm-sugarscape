@@ -42,7 +42,14 @@ def main():
                         help="Path to master config.json (for baseline simulations).")
     parser.add_argument("-j", "--cores", type=int, default=1,
                         help="Number of CPU cores for parallel tasks.")
-    parser.add_argument("--python", default="python3",
+    # Detect default python (prefer .venv if it exists)
+    default_python = "python3"
+    if os.path.exists(".venv/bin/python"):
+        default_python = ".venv/bin/python"
+    elif os.path.exists("venv/bin/python"):
+        default_python = "venv/bin/python"
+
+    parser.add_argument("--python", default=default_python,
                         help="Python interpreter alias.")
     parser.add_argument("--skip-baseline", action="store_true",
                         help="Skip baseline condition derivation (derives biased vectors only).")

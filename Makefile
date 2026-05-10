@@ -181,11 +181,12 @@ train-coordinates: $(DERIVATION_CSV)
 
 # ── Prioritization Vector Derivation ──
 
-VECTOR_OUT       ?= fvdm_vectors
-VECTOR_SEEDS     ?= 3
-IRL_ITERATIONS   ?= 100
-IRL_LR           ?= 0.02
-VECTOR_DERIVER    = derive_vectors.py
+VECTOR_OUT        ?= fvdm_vectors
+VECTOR_SEEDS      ?= 3
+VECTOR_TIMESTEPS  ?= 1000
+IRL_ITERATIONS    ?= 100
+IRL_LR            ?= 0.02
+VECTOR_DERIVER     = derive_vectors.py
 
 derive-vectors: train-coordinates
 	$(VENV_PYTHON) $(VECTOR_DERIVER) \
@@ -193,9 +194,9 @@ derive-vectors: train-coordinates
 		--models $(MODEL_OUT) \
 		--output $(VECTOR_OUT) \
 		--focal-csv $(FOCAL_OUT)/results/focal_action_derivation.csv \
-		--seeds 1 \
+		--seeds $(VECTOR_SEEDS) \
 		--agents $(FOCAL_AGENTS) \
-		--timesteps 100 \
+		--timesteps $(VECTOR_TIMESTEPS) \
 		--cores $(CORES) \
 		--irl-iterations $(IRL_ITERATIONS) \
 		--irl-lr $(IRL_LR) \
@@ -207,9 +208,9 @@ derive-vectors-combat-trade: train-coordinates
 		--models $(MODEL_OUT) \
 		--output $(VECTOR_OUT) \
 		--focal-csv $(FOCAL_OUT)/results/focal_action_derivation.csv \
-		--seeds 1 \
+		--seeds $(VECTOR_SEEDS) \
 		--agents $(FOCAL_AGENTS) \
-		--timesteps 100 \
+		--timesteps $(VECTOR_TIMESTEPS) \
 		--cores $(CORES) \
 		--irl-iterations $(IRL_ITERATIONS) \
 		--irl-lr $(IRL_LR) \
@@ -218,8 +219,30 @@ derive-vectors-combat-trade: train-coordinates
 
 fvdm: focal-action train-coordinates derive-vectors
 
+# ─────────────────────────────────────────────────────────────────
+# Full experiment pipeline: derive vectors → run all 16 conditions → visualize
+# ─────────────────────────────────────────────────────────────────
+
+FULL_EXP_OUT ?= experiment_results
+
+full-experiment: fvdm
+	$(PYTHON) $(EXP_RUNNER) \
+		--config $(CONFIG) \
+		--output $(FULL_EXP_OUT) \
+		--seeds $(SEEDS) \
+		--agents $(AGENTS) \
+		--timesteps $(TIMESTEPS) \
+		--cores $(CORES) \
+		--python $(PYTHON)
+	$(PYTHON) visualize_results.py \
+		--results $(FULL_EXP_OUT)/results \
+		--output $(FULL_EXP_OUT)/results/figures
+
+full-experiment-clean:
+	rm -rf $(FULL_EXP_OUT) $(FOCAL_OUT) $(MODEL_OUT) $(VECTOR_OUT)
+
 focal-clean:
 	rm -rf $(FOCAL_OUT) $(MODEL_OUT) $(VECTOR_OUT)
 
-.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test focal-action train-coordinates derive-vectors fvdm focal-clean
+.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test focal-action train-coordinates derive-vectors derive-vectors-combat-trade fvdm focal-clean full-experiment full-experiment-clean
 # vim: set noexpandtab tabstop=4:
