@@ -372,6 +372,7 @@ def run_experiments(args):
     timesteps = args.timesteps
     num_cores = args.cores
     gui_mode = args.gui
+    force = args.force
 
     # Cap cores to available CPUs
     max_cores = os.cpu_count() or 1
@@ -441,10 +442,10 @@ def run_experiments(args):
                 condition_name, seed, cfg_path, cfg["logfile"]
             ))
 
-    # Filter out already-completed runs
+    # Filter out already-completed runs (skipped when --force is given)
     pending = []
     for (cname, seed, cfg_path, log_path) in all_run_configs:
-        if os.path.exists(log_path):
+        if not force and os.path.exists(log_path):
             log_data = safe_json_load(log_path)
             if log_data and len(log_data) > 0:
                 last_ts = log_data[-1].get("timestep", 0)
@@ -639,6 +640,15 @@ def parse_args():
         "--python",
         default="python",
         help="Python interpreter alias (e.g. python3).",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help=(
+            "Re-run all simulations even if output logs already exist. "
+            "Use this after fixing a bug to discard old results."
+        ),
     )
     return parser.parse_args()
 

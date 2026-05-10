@@ -123,6 +123,18 @@ experiment-gui:
 		--python $(PYTHON) \
 		--gui
 
+experiment-force:
+	$(PYTHON) $(EXP_RUNNER) \
+		--config $(CONFIG) \
+		--output $(EXP_OUT) \
+		--seeds $(SEEDS) \
+		--agents $(AGENTS) \
+		--timesteps $(TIMESTEPS) \
+		--cores $(CORES) \
+		--python $(PYTHON) \
+		--force \
+		$(GUI_FLAG)
+
 experiment-clean:
 	rm -rf $(EXP_OUT)
 
@@ -244,5 +256,5 @@ full-experiment-clean:
 focal-clean:
 	rm -rf $(FOCAL_OUT) $(MODEL_OUT) $(VECTOR_OUT)
 
-.PHONY: all clean data experiment experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test focal-action train-coordinates derive-vectors derive-vectors-combat-trade fvdm focal-clean full-experiment full-experiment-clean
+.PHONY: all clean data experiment experiment-force experiment-clean experiment-gui lean plots run seeds setup test visualize sanity-test focal-action train-coordinates derive-vectors derive-vectors-combat-trade fvdm focal-clean full-experiment full-experiment-clean
 # vim: set noexpandtab tabstop=4:
