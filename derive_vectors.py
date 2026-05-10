@@ -334,16 +334,22 @@ def main(args):
 
         for vec_name, condition_key in BIASED_CONDITIONS.items():
             cond_df = focal_df[focal_df["condition"] == condition_key]
-            disc_count = len(cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)])
-            print(f"\n    {vec_name}: {len(cond_df):,} rows, "
-                  f"{disc_count} discretionary")
+            disc_df = cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)]
+            
+            # Cap at 2640 to match coordinate training
+            if len(disc_df) > 2640:
+                disc_df = disc_df.sample(n=2640, random_state=42)
+                
+            disc_count = len(disc_df)
+            print(f"\n    {vec_name}: {len(cond_df):,} total rows, "
+                  f"{disc_count} discretionary used (capped at 2640)")
 
             if disc_count == 0:
                 print(f"      [skip] No discretionary actions")
                 continue
 
             t0 = time.time()
-            chosen, all_vecs = build_irl_matrices(cond_df, models, norm)
+            chosen, all_vecs = build_irl_matrices(disc_df, models, norm)
             if chosen is None:
                 print(f"      [skip] Could not build matrices")
                 continue
@@ -450,11 +456,17 @@ def main(args):
             continue
 
         cond_df = pd.concat(frames, ignore_index=True)
-        disc_count = len(cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)])
-        print(f"      {len(cond_df):,} rows, {disc_count} discretionary")
+        disc_df = cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)]
+        
+        # Cap at 2640 to match coordinate training
+        if len(disc_df) > 2640:
+            disc_df = disc_df.sample(n=2640, random_state=42)
+            
+        disc_count = len(disc_df)
+        print(f"      {len(cond_df):,} total rows, {disc_count} discretionary used (capped at 2640)")
 
         t0 = time.time()
-        chosen, all_vecs = build_irl_matrices(cond_df, models, norm)
+        chosen, all_vecs = build_irl_matrices(disc_df, models, norm)
         if chosen is None:
             print(f"      [skip] No discretionary actions")
             continue
