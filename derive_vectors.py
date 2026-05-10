@@ -582,6 +582,7 @@ def parse_args():
                    help="Timesteps for baseline derivation sims.")
     p.add_argument("-j", "--cores", type=int, default=1)
     p.add_argument("--irl-iterations", type=int, default=100)
+    p.add_argument("--irl-lr", type=float, default=0.02)
     p.add_argument("-v", "--vectors", nargs="+",
                    help="List of specific prioritization vectors to derive (e.g. combatDerived tradeDerived).")
     p.add_argument("--python", default="python3")
