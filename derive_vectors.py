@@ -87,9 +87,12 @@ def compute_effect_vector(state: np.ndarray, action: str,
     """Predict E(a|s) = (I, D, C, P, X). Returns None if no model."""
     if f"intensity_{action}" not in models:
         return None
-    X = state.reshape(1, -1)
+    X_df = pd.DataFrame([state], columns=STATE_FEATURES)
+
     if scaler:
-        X = scaler.transform(X)
+        X = scaler.transform(X_df)
+    else:
+        X = X_df.values
 
     i_dist = models[f"intensity_{action}"].pred_dist(X)
     I = float(i_dist.loc[0])
