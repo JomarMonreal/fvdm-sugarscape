@@ -201,6 +201,21 @@ derive-vectors: train-coordinates
 		--irl-lr $(IRL_LR) \
 		--python $(PYTHON)
 
+derive-vectors-combat-trade: train-coordinates
+	$(VENV_PYTHON) $(VECTOR_DERIVER) \
+		--config $(CONFIG) \
+		--models $(MODEL_OUT) \
+		--output $(VECTOR_OUT) \
+		--focal-csv $(FOCAL_OUT)/results/focal_action_derivation.csv \
+		--seeds 1 \
+		--agents $(FOCAL_AGENTS) \
+		--timesteps 100 \
+		--cores $(CORES) \
+		--irl-iterations $(IRL_ITERATIONS) \
+		--irl-lr $(IRL_LR) \
+		--vectors combatDerived tradeDerived \
+		--python $(PYTHON)
+
 fvdm: focal-action train-coordinates derive-vectors
 
 focal-clean:

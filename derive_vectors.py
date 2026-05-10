@@ -327,82 +327,98 @@ def main(args):
     print("  ── Deriving biased vectors from focal-action CSV ──\n")
 
     if os.path.exists(focal_csv):
-        print(f"    Loading {focal_csv} in chunks (capping at 2640 discretionary per condition)...")
-        chunks = []
-        counts = {k: 0 for k in BIASED_CONDITIONS.values()}
-        
-        for chunk in pd.read_csv(focal_csv, chunksize=100000):
-            for cond_key in counts.keys():
-                cond_chunk = chunk[(chunk["condition"] == cond_key) & (chunk["action"].isin(DISCRETIONARY_ACTIONS))]
-                needed = 2640 - counts[cond_key]
-                if needed > 0 and len(cond_chunk) > 0:
-                    keep = cond_chunk.head(needed)
-                    chunks.append(keep)
-                    counts[cond_key] += len(keep)
-            if all(c >= 2640 for c in counts.values()):
-                break
-                
-        focal_df = pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()
-        print(f"    Loaded {len(focal_df):,} discretionary rows (chunked cap)")
+        # Filter biased conditions if requested
+        active_biased = BIASED_CONDITIONS
+        if args.vectors:
+            active_biased = {k: v for k, v in BIASED_CONDITIONS.items() if k in args.vectors}
 
-        for vec_name, condition_key in BIASED_CONDITIONS.items():
-            cond_df = focal_df[focal_df["condition"] == condition_key]
-            disc_df = cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)]
+        if active_biased:
+            print(f"    Loading {focal_csv} in chunks (capping at 2640 discretionary per condition)...")
+            chunks = []
+            counts = {k: 0 for k in active_biased.values()}
             
-            # Cap at 2640 to match coordinate training
-            if len(disc_df) > 2640:
-                disc_df = disc_df.sample(n=2640, random_state=42)
+            for chunk in pd.read_csv(focal_csv, chunksize=100000):
+                for cond_key in counts.keys():
+                    cond_chunk = chunk[(chunk["condition"] == cond_key) & (chunk["action"].isin(DISCRETIONARY_ACTIONS))]
+                    needed = 2640 - counts[cond_key]
+                    if needed > 0 and len(cond_chunk) > 0:
+                        keep = cond_chunk.head(needed)
+                        chunks.append(keep)
+                        counts[cond_key] += len(keep)
+                if all(c >= 2640 for c in counts.values()):
+                    break
+                    
+            focal_df = pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()
+            print(f"    Loaded {len(focal_df):,} discretionary rows (chunked cap)")
+
+            for vec_name, condition_key in active_biased.items():
+                cond_df = focal_df[focal_df["condition"] == condition_key]
+                disc_df = cond_df[cond_df["action"].isin(DISCRETIONARY_ACTIONS)]
                 
-            disc_count = len(disc_df)
-            print(f"\n    {vec_name}: {len(cond_df):,} total rows, "
-                  f"{disc_count} discretionary used (capped at 2640)")
+                # Cap at 2640 to match coordinate training
+                if len(disc_df) > 2640:
+                    disc_df = disc_df.sample(n=2640, random_state=42)
+                    
+                disc_count = len(disc_df)
+                print(f"\n    {vec_name}: {len(cond_df):,} total rows, "
+                      f"{disc_count} discretionary used (capped at 2640)")
 
-            if disc_count == 0:
-                print(f"      [skip] No discretionary actions")
-                continue
+                if disc_count == 0:
+                    print(f"      [skip] No discretionary actions")
+                    continue
 
-            t0 = time.time()
-            chosen, all_vecs = build_irl_matrices(disc_df, models, norm)
-            if chosen is None:
-                print(f"      [skip] Could not build matrices")
-                continue
+                t0 = time.time()
+                chosen, all_vecs = build_irl_matrices(disc_df, models, norm)
+                if chosen is None:
+                    print(f"      [skip] Could not build matrices")
+                    continue
 
-            print(f"      IRL input: {chosen.shape[0]} observations × "
-                  f"{all_vecs.shape[1]} actions\n")
+                print(f"      IRL input: {chosen.shape[0]} observations × "
+                      f"{all_vecs.shape[1]} actions\n")
 
-            theta = maxent_irl_from_observations(
-                chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr, print_progress=True
-            )
-            p_vec = normalize_vector(theta)
-            elapsed = time.time() - t0
+                theta = maxent_irl_from_observations(
+                    chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr, print_progress=True
+                )
+                p_vec = normalize_vector(theta)
+                elapsed = time.time() - t0
 
-            all_thetas[vec_name] = theta.tolist()
-            all_vectors[vec_name] = p_vec.tolist()
+                all_thetas[vec_name] = theta.tolist()
+                all_vectors[vec_name] = p_vec.tolist()
 
-            labels = ["I", "D", "C", "P", "X"]
-            print(f"done ({elapsed:.1f}s)")
-            print(f"      θ: {dict(zip(labels, [round(v, 4) for v in theta]))}")
-            print(f"      P: {dict(zip(labels, [round(v, 4) for v in p_vec]))}")
+                labels = ["I", "D", "C", "P", "X"]
+                print(f"done ({elapsed:.1f}s)")
+                print(f"      θ: {dict(zip(labels, [round(v, 4) for v in theta]))}")
+                print(f"      P: {dict(zip(labels, [round(v, 4) for v in p_vec]))}")
+        else:
+            print("    [skip] No biased vectors requested")
     else:
         print(f"    [warn] Focal-action CSV not found: {focal_csv}")
         print(f"           Run 'make focal-action' first.")
 
     # ── 3. Baseline vectors from short derivation sims ───────────
-    print(f"\n  ── Deriving baseline vectors ({num_seeds} seeds × "
-          f"{timesteps} timesteps) ──\n")
+    # Filter baseline conditions if requested
+    active_baseline = BASELINE_CONDITIONS
+    if args.vectors:
+        active_baseline = {k: v for k, v in BASELINE_CONDITIONS.items() if k in args.vectors}
 
-    base_cfg = load_base_config(config_path)
-    sim_dir = os.path.join(output_dir, "sim_logs")
-    os.makedirs(sim_dir, exist_ok=True)
+    if not active_baseline:
+        print("\n  [skip] No baseline vectors requested")
+    else:
+        print(f"\n  ── Deriving baseline vectors ({num_seeds} seeds × "
+              f"{timesteps} timesteps) ──\n")
 
-    random.seed(42)
-    seeds = list(set(random.randint(0, sys.maxsize) for _ in range(num_seeds * 2)))[:num_seeds]
+        base_cfg = load_base_config(config_path)
+        sim_dir = os.path.join(output_dir, "sim_logs")
+        os.makedirs(sim_dir, exist_ok=True)
 
-    # Build configs for all baseline conditions
-    pending = []
-    baseline_logs = {}  # cond_name -> list of agent_log_paths
+        random.seed(42)
+        seeds = list(set(random.randint(0, sys.maxsize) for _ in range(num_seeds * 2)))[:num_seeds]
 
-    for cond_name, decision_models in BASELINE_CONDITIONS.items():
+        # Build configs for all baseline conditions
+        pending = []
+        baseline_logs = {}  # cond_name -> list of agent_log_paths
+
+        for cond_name, decision_models in active_baseline.items():
         cond_dir = os.path.join(sim_dir, cond_name)
         os.makedirs(cond_dir, exist_ok=True)
         baseline_logs[cond_name] = []
@@ -555,7 +571,8 @@ def parse_args():
                    help="Timesteps for baseline derivation sims.")
     p.add_argument("-j", "--cores", type=int, default=1)
     p.add_argument("--irl-iterations", type=int, default=100)
-    p.add_argument("--irl-lr", type=float, default=0.02)
+    p.add_argument("-v", "--vectors", nargs="+",
+                   help="List of specific prioritization vectors to derive (e.g. combatDerived tradeDerived).")
     p.add_argument("--python", default="python3")
     return p.parse_args()
 
