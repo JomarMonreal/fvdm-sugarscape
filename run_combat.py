@@ -48,7 +48,6 @@ import time
 
 BIAS_CONDITIONS = {
     "biasedCombat":       ["biasedCombat"],
-    "biasedTrade":        ["biasedTrade"],
 }
 
 
@@ -299,7 +298,7 @@ def run_focal_action(args):
     # After each round, parse and count per-action observations.
     # Stop as soon as EVERY action has ≥ 2,640 observations.
 
-    DISC_ACTIONS = ["combat", "trade"]
+    DISC_ACTIONS = ["combat"]
     target_per_action = 2640  # thesis §3.4.4
     all_run_configs = []
     all_observations = []
