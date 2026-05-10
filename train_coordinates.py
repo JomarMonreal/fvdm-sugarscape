@@ -419,8 +419,8 @@ def main(args):
     if use_scaling:
         print(f"\n  Scaling features using StandardScaler …")
         scaler = StandardScaler()
-        # Fit on all discretionary data
-        df_disc[STATE_FEATURES] = scaler.fit_transform(df_disc[STATE_FEATURES])
+        # Fit on all discretionary data (using .values to avoid feature name warnings later)
+        df_disc[STATE_FEATURES] = scaler.fit_transform(df_disc[STATE_FEATURES].values)
         # Save scaler
         scaler_path = os.path.join(output_dir, "feature_scaler.pkl")
         joblib.dump(scaler, scaler_path)
