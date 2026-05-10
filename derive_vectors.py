@@ -111,7 +111,8 @@ def compute_effect_vector(state: np.ndarray, action: str,
 def maxent_irl_from_observations(chosen_vecs: np.ndarray,
                                  all_action_vecs: np.ndarray,
                                  n_iterations: int = 100,
-                                 learning_rate: float = 0.02) -> np.ndarray:
+                                 learning_rate: float = 0.02,
+                                 print_progress: bool = False) -> np.ndarray:
     """Vectorized MaxEnt IRL.
 
     Args:
@@ -146,11 +147,13 @@ def maxent_irl_from_observations(chosen_vecs: np.ndarray,
         exp_r = np.exp(rewards)
         probs = exp_r / (exp_r.sum(axis=1, keepdims=True) + 1e-10)  # (N, K)
 
-        # Expected features: Σ_k P(a_k|s) · E(a_k|s), averaged over N
         expected = np.einsum('nk,nkj->nj', probs, all_action_vecs).mean(axis=0)
 
         gradient = emp - expected
         theta += learning_rate * gradient
+        
+        if print_progress and (i + 1) % 20 == 0:
+            print(f"        [IRL Iteration {i+1:3d}/{n_iterations}] Grad Norm: {np.linalg.norm(gradient):.6f}")
 
     return theta
 
@@ -329,8 +332,23 @@ def main(args):
     print("  ── Deriving biased vectors from focal-action CSV ──\n")
 
     if os.path.exists(focal_csv):
-        focal_df = pd.read_csv(focal_csv)
-        print(f"    Loaded {len(focal_df):,} rows from {focal_csv}")
+        print(f"    Loading {focal_csv} in chunks (capping at 2640 discretionary per condition)...")
+        chunks = []
+        counts = {k: 0 for k in BIASED_CONDITIONS.values()}
+        
+        for chunk in pd.read_csv(focal_csv, chunksize=100000):
+            for cond_key in counts.keys():
+                cond_chunk = chunk[(chunk["condition"] == cond_key) & (chunk["action"].isin(DISCRETIONARY_ACTIONS))]
+                needed = 2640 - counts[cond_key]
+                if needed > 0 and len(cond_chunk) > 0:
+                    keep = cond_chunk.head(needed)
+                    chunks.append(keep)
+                    counts[cond_key] += len(keep)
+            if all(c >= 2640 for c in counts.values()):
+                break
+                
+        focal_df = pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()
+        print(f"    Loaded {len(focal_df):,} discretionary rows (chunked cap)")
 
         for vec_name, condition_key in BIASED_CONDITIONS.items():
             cond_df = focal_df[focal_df["condition"] == condition_key]
@@ -355,10 +373,10 @@ def main(args):
                 continue
 
             print(f"      IRL input: {chosen.shape[0]} observations × "
-                  f"{all_vecs.shape[1]} actions", end=" … ", flush=True)
+                  f"{all_vecs.shape[1]} actions\n")
 
             theta = maxent_irl_from_observations(
-                chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr
+                chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr, print_progress=True
             )
             p_vec = normalize_vector(theta)
             elapsed = time.time() - t0
@@ -471,9 +489,9 @@ def main(args):
             print(f"      [skip] No discretionary actions")
             continue
 
-        print(f"      IRL: {chosen.shape[0]} obs", end=" … ", flush=True)
+        print(f"      IRL: {chosen.shape[0]} obs\n")
         theta = maxent_irl_from_observations(
-            chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr
+            chosen, all_vecs, n_iterations=irl_iters, learning_rate=irl_lr, print_progress=True
         )
         p_vec = normalize_vector(theta)
         elapsed = time.time() - t0
