@@ -71,6 +71,7 @@ def make_bias_run_config(base: dict, seed: int, decision_models: list,
 
     cfg["seed"] = seed
     cfg["agentDecisionModels"] = decision_models
+    cfg["agentDecisionModel"] = None
     cfg["timesteps"] = timesteps
     cfg["startingAgents"] = num_agents
     cfg["startingDiseases"] = 0
@@ -82,6 +83,19 @@ def make_bias_run_config(base: dict, seed: int, decision_models: list,
     cfg["keepAliveAtEnd"] = False
     cfg["screenshots"] = False
     cfg["profileMode"] = False
+
+    cfg["agentTradeFactor"] = [10, 10]
+    cfg["agentStartingSugar"] = [50, 50]
+    cfg["agentStartingSpice"] = [50, 50]
+
+    cfg["agentSugarMetabolism"] = [1, 4]
+    cfg["agentSpiceMetabolism"] = [1, 4]
+
+    cfg["environmentMaxSugar"] = max(cfg.get("environmentMaxSugar", 4), 4)
+    cfg["environmentMaxSpice"] = max(cfg.get("environmentMaxSpice", 4), 4)
+
+    cfg["environmentSugarRegrowRate"] = max(cfg.get("environmentSugarRegrowRate", 1), 1)
+    cfg["environmentSpiceRegrowRate"] = max(cfg.get("environmentSpiceRegrowRate", 1), 1)
 
     # Log paths — ENABLE agent log for per-agent state-action-outcome data
     cfg["logfile"] = os.path.join(output_dir, f"{condition_name}_{seed}.json")

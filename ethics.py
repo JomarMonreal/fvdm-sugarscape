@@ -395,14 +395,15 @@ class BiasedFocalAction(agent.Agent):
                 parity = random.randint(0, 1)
                 
             if parity == 0:
-                self.sugar = max(self.sugar, 100)
-                self.spice = max(self.spice, 1)
+                self.sugar = 100
+                self.spice = 10
             else:
-                self.sugar = max(self.sugar, 1)
-                self.spice = max(self.spice, 100)
-                
+                self.sugar = 10
+                self.spice = 100
+
             self.startingSugar = self.sugar
             self.startingSpice = self.spice
+            self.tradeFactor = 10
 
         # Record the bias mode for downstream analysis / logging
         self.runtimeStats["biasMode"] = self.biasMode
