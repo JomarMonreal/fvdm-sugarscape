@@ -2,6 +2,7 @@ import agent
 
 import random
 import sys
+import numpy as np
 
 class Asimov(agent.Agent):
     def __init__(self, agentID, birthday, cell, configuration):
@@ -438,12 +439,14 @@ class FVDMAgent(agent.Agent):
     
     # Class-level caching to prevent loading models 500x per run
     _FVDM_MODELS = None
-    _FVDM_NORM = None
+    _FVDM_SCALER_MEAN = None   # cached from feature_scaler.mean_ for fast per-step transform
+    _FVDM_SCALER_SCALE = None  # cached from feature_scaler.scale_
     _PRIORITIZATION_VECTORS = None
     _VECTOR_KEYS = [
         "rawDerived", "egoistDerived", "altruistDerived", "benthamDerived",
         "combatDerived", "tradeDerived", "reproductionDerived", "lendingDerived"
     ]
+    _EXTENT_DEFAULTS = {"combat": -1.0, "trade": 1.0, "reproduction": 1.0, "lending": 1.0}
 
     def __init__(self, agentID, birthday, cell, configuration):
         super().__init__(agentID, birthday, cell, configuration)
@@ -467,35 +470,28 @@ class FVDMAgent(agent.Agent):
     def _initialize_fvdm(cls):
         if cls._FVDM_MODELS is not None:
             return
-        
+
         import os
         import json
         import joblib
-        import numpy as np
-        
-        # We must load pandas/numpy locally to avoid circular imports if sugarscape isn't ready
-        global np
-        import numpy as np
 
         model_dir = "fvdm_models"
         vector_path = "fvdm_vectors/prioritization_vectors.json"
-        
+
         cls._FVDM_MODELS = {}
-        cls._FVDM_NORM = {}
         cls._PRIORITIZATION_VECTORS = {}
 
-        # Load models if they exist
         if os.path.exists(model_dir):
             for fname in os.listdir(model_dir):
                 if fname.endswith(".pkl"):
                     name = fname[:-4]
                     cls._FVDM_MODELS[name] = joblib.load(os.path.join(model_dir, fname))
-            norm_path = os.path.join(model_dir, "normalization_constants.json")
-            if os.path.exists(norm_path):
-                with open(norm_path, "r") as f:
-                    cls._FVDM_NORM = json.load(f)
 
-        # Load prioritization vectors
+            scaler = cls._FVDM_MODELS.get("feature_scaler")
+            if scaler is not None:
+                cls._FVDM_SCALER_MEAN = scaler.mean_
+                cls._FVDM_SCALER_SCALE = scaler.scale_
+
         if os.path.exists(vector_path):
             with open(vector_path, "r") as f:
                 data = json.load(f)
@@ -534,10 +530,8 @@ class FVDMAgent(agent.Agent):
 
         X = state.reshape(1, -1)
 
-        # Apply feature scaling — models were trained on StandardScaler-transformed data
-        scaler = models.get("feature_scaler")
-        if scaler is not None:
-            X = scaler.transform(X)
+        if self._FVDM_SCALER_MEAN is not None:
+            X = (X - self._FVDM_SCALER_MEAN) / self._FVDM_SCALER_SCALE
 
         i_dist = models[f"intensity_{action}"].pred_dist(X)
         I = float(i_dist.loc[0])
@@ -547,15 +541,13 @@ class FVDMAgent(agent.Agent):
         C = 1.0 / (1.0 + I_var)
         P = float(np.clip(models[f"propinquity_{action}"].predict(X)[0], 0, 1))
 
-        # Use state-conditional extent classifier (expected value over ternary {-1,0,+1})
         ext_key = f"extent_{action}"
-        ext_defaults = {"combat": -1.0, "trade": 1.0, "reproduction": 1.0, "lending": 1.0}
         if ext_key in models:
             classes = models[ext_key].classes_
             probs = models[ext_key].predict_proba(X)[0]
             Xc = float(sum(float(c) * p for c, p in zip(classes, probs)))
         else:
-            Xc = ext_defaults.get(action, 0.0)
+            Xc = self._EXTENT_DEFAULTS.get(action, 0.0)
 
         return np.array([I, D, C, P, Xc])
 
@@ -615,15 +607,19 @@ class FVDMAgent(agent.Agent):
                     break
 
         # ── 2. FVDM Vector Distance Matching ──
+        # Only rank real discretionary actions; "none" is a fallback, not a candidate.
+        # Including "none" (zero vector) as a candidate would always win when P_i has
+        # near-zero Certainty weight, because C≈1.0 for all real actions.
+        real_actions = [a for a in feasible_actions if a != "none"]
         best_action = "none"
-        min_dist = float('inf')
-        
-        for action in feasible_actions:
-            eff_vec = self._predict_effect_vector(state, action)
-            dist = np.linalg.norm(self.prioritization_vector - eff_vec)
-            if dist < min_dist:
-                min_dist = dist
-                best_action = action
+        if real_actions:
+            min_dist = float('inf')
+            for action in real_actions:
+                eff_vec = self._predict_effect_vector(state, action)
+                dist = np.linalg.norm(self.prioritization_vector - eff_vec)
+                if dist < min_dist:
+                    min_dist = dist
+                    best_action = action
 
         # ── 3. Unified Movement and Execution ──
         if best_action == "combat":
@@ -651,7 +647,6 @@ class FVDMAgent(agent.Agent):
                 self.doReproduction()
             elif best_action == "lending":
                 self.doLending()
-            # if "none", do nothing.
 
         # ── 4. Mandatory Updates ──
         self.doMetabolism()

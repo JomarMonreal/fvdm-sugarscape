@@ -252,25 +252,24 @@ def parse_sugarscape_log(log_path: str, condition: str,
 
         # ── Per-tribe metrics ──
         for tribe in detected_tribes:
-            prefix = tribe
-            rec[f"{prefix}_population"] = int(entry.get(f"{prefix}Population", 0))
-            rec[f"{prefix}_meanWealth"] = float(entry.get(f"{prefix}MeanWealth", 0))
-            rec[f"{prefix}_meanAge"] = float(entry.get(f"{prefix}MeanAge", 0))
-            rec[f"{prefix}_meanTimeToLive"] = float(entry.get(f"{prefix}AgentMeanTimeToLive", 0))
-            rec[f"{prefix}_meanHappiness"] = float(entry.get(f"{prefix}MeanHappiness", 0))
-            rec[f"{prefix}_agentDeaths"] = int(entry.get(f"{prefix}AgentDeaths", 0))
-            rec[f"{prefix}_agentAgingDeaths"] = int(entry.get(f"{prefix}AgentAgingDeaths", 0))
-            rec[f"{prefix}_agentStarvationDeaths"] = int(entry.get(f"{prefix}AgentStarvationDeaths", 0))
-            rec[f"{prefix}_agentCombatDeaths"] = int(entry.get(f"{prefix}AgentCombatDeaths", 0))
-            rec[f"{prefix}_agentsBorn"] = int(entry.get(f"{prefix}AgentsBorn", 0))
-            rec[f"{prefix}_tradeVolume"] = float(entry.get(f"{prefix}TradeVolume", 0))
-            rec[f"{prefix}_movementActions"] = int(entry.get(f"{prefix}ActionMovements", 0))
-            rec[f"{prefix}_combatActions"] = int(entry.get(f"{prefix}ActionCombats", 0))
-            rec[f"{prefix}_tradeActions"] = int(entry.get(f"{prefix}ActionTrades", 0))
-            rec[f"{prefix}_reproductionActions"] = int(entry.get(f"{prefix}ActionReproductions", 0))
-            rec[f"{prefix}_lendingActions"] = int(entry.get(f"{prefix}ActionLendings", 0))
-            rec[f"{prefix}_societalWealth"] = float(entry.get(f"{prefix}AgentWealthTotal", 0))
-            rec[f"{prefix}_meanSelfishness"] = float(entry.get(f"{prefix}MeanSelfishness", 0))
+            rec[f"{tribe}_population"] = int(entry.get(f"{tribe}Population", 0))
+            rec[f"{tribe}_meanWealth"] = float(entry.get(f"{tribe}MeanWealth", 0))
+            rec[f"{tribe}_meanAge"] = float(entry.get(f"{tribe}MeanAge", 0))
+            rec[f"{tribe}_meanTimeToLive"] = float(entry.get(f"{tribe}AgentMeanTimeToLive", 0))
+            rec[f"{tribe}_meanHappiness"] = float(entry.get(f"{tribe}MeanHappiness", 0))
+            rec[f"{tribe}_agentDeaths"] = int(entry.get(f"{tribe}AgentDeaths", 0))
+            rec[f"{tribe}_agentAgingDeaths"] = int(entry.get(f"{tribe}AgentAgingDeaths", 0))
+            rec[f"{tribe}_agentStarvationDeaths"] = int(entry.get(f"{tribe}AgentStarvationDeaths", 0))
+            rec[f"{tribe}_agentCombatDeaths"] = int(entry.get(f"{tribe}AgentCombatDeaths", 0))
+            rec[f"{tribe}_agentsBorn"] = int(entry.get(f"{tribe}AgentsBorn", 0))
+            rec[f"{tribe}_tradeVolume"] = float(entry.get(f"{tribe}TradeVolume", 0))
+            rec[f"{tribe}_movementActions"] = int(entry.get(f"{tribe}ActionMovements", 0))
+            rec[f"{tribe}_combatActions"] = int(entry.get(f"{tribe}ActionCombats", 0))
+            rec[f"{tribe}_tradeActions"] = int(entry.get(f"{tribe}ActionTrades", 0))
+            rec[f"{tribe}_reproductionActions"] = int(entry.get(f"{tribe}ActionReproductions", 0))
+            rec[f"{tribe}_lendingActions"] = int(entry.get(f"{tribe}ActionLendings", 0))
+            rec[f"{tribe}_societalWealth"] = float(entry.get(f"{tribe}AgentWealthTotal", 0))
+            rec[f"{tribe}_meanSelfishness"] = float(entry.get(f"{tribe}MeanSelfishness", 0))
 
         per_timestep.append(rec)
         final_pop = pop
@@ -299,17 +298,16 @@ def parse_sugarscape_log(log_path: str, condition: str,
 
     # Per-tribe summary stats
     for tribe in detected_tribes:
-        prefix = tribe
         last = per_timestep[-1] if per_timestep else {}
-        summary[f"{prefix}_finalPopulation"] = last.get(f"{prefix}_population", 0)
-        summary[f"{prefix}_finalMeanWealth"] = last.get(f"{prefix}_meanWealth", 0)
-        summary[f"{prefix}_finalMeanTimeToLive"] = last.get(f"{prefix}_meanTimeToLive", 0)
-        summary[f"{prefix}_totalDeaths"] = sum(r.get(f"{prefix}_agentDeaths", 0) for r in per_timestep)
-        summary[f"{prefix}_totalMovementActions"] = sum(r.get(f"{prefix}_movementActions", 0) for r in per_timestep)
-        summary[f"{prefix}_totalCombatActions"] = sum(r.get(f"{prefix}_combatActions", 0) for r in per_timestep)
-        summary[f"{prefix}_totalTradeActions"] = sum(r.get(f"{prefix}_tradeActions", 0) for r in per_timestep)
-        summary[f"{prefix}_totalReproductionActions"] = sum(r.get(f"{prefix}_reproductionActions", 0) for r in per_timestep)
-        summary[f"{prefix}_totalLendingActions"] = sum(r.get(f"{prefix}_lendingActions", 0) for r in per_timestep)
+        summary[f"{tribe}_finalPopulation"] = last.get(f"{tribe}_population", 0)
+        summary[f"{tribe}_finalMeanWealth"] = last.get(f"{tribe}_meanWealth", 0)
+        summary[f"{tribe}_finalMeanTimeToLive"] = last.get(f"{tribe}_meanTimeToLive", 0)
+        summary[f"{tribe}_totalDeaths"] = sum(r.get(f"{tribe}_agentDeaths", 0) for r in per_timestep)
+        summary[f"{tribe}_totalMovementActions"] = sum(r.get(f"{tribe}_movementActions", 0) for r in per_timestep)
+        summary[f"{tribe}_totalCombatActions"] = sum(r.get(f"{tribe}_combatActions", 0) for r in per_timestep)
+        summary[f"{tribe}_totalTradeActions"] = sum(r.get(f"{tribe}_tradeActions", 0) for r in per_timestep)
+        summary[f"{tribe}_totalReproductionActions"] = sum(r.get(f"{tribe}_reproductionActions", 0) for r in per_timestep)
+        summary[f"{tribe}_totalLendingActions"] = sum(r.get(f"{tribe}_lendingActions", 0) for r in per_timestep)
 
     return per_timestep, summary
 
