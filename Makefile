@@ -160,7 +160,9 @@ COORD_TRAINER    = train_coordinates.py
 VENV_PYTHON      = .venv/bin/python
 DERIVATION_CSV   = $(FOCAL_OUT)/results/focal_action_derivation.csv
 
-focal-action:
+focal-action: $(DERIVATION_CSV)
+
+$(DERIVATION_CSV):
 	$(PYTHON) $(FOCAL_RUNNER) \
 		--config $(CONFIG) \
 		--output $(FOCAL_OUT) \
@@ -169,8 +171,6 @@ focal-action:
 		--timesteps $(FOCAL_TIMESTEPS) \
 		--cores $(CORES) \
 		--python $(PYTHON)
-
-$(DERIVATION_CSV): focal-action
 
 train-coordinates: $(DERIVATION_CSV)
 	$(VENV_PYTHON) $(COORD_TRAINER) \
