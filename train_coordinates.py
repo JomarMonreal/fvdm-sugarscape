@@ -309,7 +309,7 @@ def predict_effect_vector(state_features: np.ndarray, action: str,
 # ─────────────────────────────────────────────────────────────────
 
 # Minimum observations required PER ACTION (thesis §3.4.4)
-# 22 predictors × 10 EPV × 3 (boosting adjustment) = 660, rounded up to 2,640
+# 22 predictors × 10 EPV = 220 base; × 3 boosting adjustment × 4 actions = 2,640
 MIN_OBS_PER_ACTION = 2640
 
 

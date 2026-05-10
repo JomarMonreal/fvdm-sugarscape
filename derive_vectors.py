@@ -174,7 +174,7 @@ def normalize_vector(theta: np.ndarray) -> np.ndarray:
 # ─────────────────────────────────────────────────────────────────
 
 def build_irl_matrices(df: pd.DataFrame, models: dict, norm: dict,
-                       scaler=None, max_obs: int = 2000):
+                       scaler=None, max_obs: int = 2640):
     """Convert DataFrame rows into vectorized IRL inputs.
 
     Returns (chosen_vecs, all_action_vecs) numpy arrays, or (None, None)
@@ -469,7 +469,7 @@ def main(args):
                         continue
                 pending.append(cfg_path)
 
-    print(f"    Baseline sims: {len(seeds) * len(BASELINE_CONDITIONS)} total, "
+    print(f"    Baseline sims: {len(seeds) * len(active_baseline)} total, "
           f"{len(pending)} need to run")
 
     if pending:
@@ -486,7 +486,7 @@ def main(args):
         print()
 
     # Derive baseline vectors
-    for cond_name in BASELINE_CONDITIONS:
+    for cond_name in active_baseline:
         print(f"\n    {cond_name}:")
         frames = []
         for agent_log in baseline_logs[cond_name]:
