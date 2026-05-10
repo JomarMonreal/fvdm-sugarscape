@@ -1,0 +1,152 @@
+{
+  "input_csv": "focal_action_results/results/focal_action_derivation.csv",
+  "total_observations": 11883177,
+  "discretionary_observations": 10560,
+  "minimum_required_per_action": 2640,
+  "per_action_observations": {
+    "combat": 2640,
+    "trade": 2640,
+    "reproduction": 2640,
+    "lending": 2640
+  },
+  "per_action_training_time_seconds": {
+    "combat": 31.62,
+    "trade": 29.88,
+    "reproduction": 29.58,
+    "lending": 30.36
+  },
+  "total_training_time_seconds": 152.16,
+  "models_trained": 12,
+  "n_estimators": 200,
+  "learning_rate": 0.05,
+  "state_features": [
+    "age",
+    "wealth",
+    "sugar",
+    "spice",
+    "timeToLive",
+    "movement",
+    "neighbors",
+    "neighborsInTribe",
+    "neighborsNotInTribe",
+    "validMoves",
+    "compositeHappiness",
+    "depression"
+  ],
+  "normalization_constants": {
+    "combat": 18.66,
+    "trade": 11.0,
+    "reproduction": 20.0,
+    "lending": 5.51
+  },
+  "learning_curves": {
+    "combat": [
+      {
+        "n": 528,
+        "crps_mean": 0.065631,
+        "crps_std": 0.008244
+      },
+      {
+        "n": 1056,
+        "crps_mean": 0.061462,
+        "crps_std": 0.003341
+      },
+      {
+        "n": 1584,
+        "crps_mean": 0.059177,
+        "crps_std": 0.003091
+      },
+      {
+        "n": 2112,
+        "crps_mean": 0.059202,
+        "crps_std": 0.00441
+      },
+      {
+        "n": 2640,
+        "crps_mean": 0.060321,
+        "crps_std": 0.004305
+      }
+    ],
+    "trade": [
+      {
+        "n": 528,
+        "crps_mean": 0.012267,
+        "crps_std": 0.001806
+      },
+      {
+        "n": 1056,
+        "crps_mean": 0.013216,
+        "crps_std": 0.002181
+      },
+      {
+        "n": 1584,
+        "crps_mean": 0.011752,
+        "crps_std": 0.001918
+      },
+      {
+        "n": 2112,
+        "crps_mean": 0.011304,
+        "crps_std": 0.001645
+      },
+      {
+        "n": 2640,
+        "crps_mean": 0.010051,
+        "crps_std": 0.000747
+      }
+    ],
+    "reproduction": [
+      {
+        "n": 528,
+        "crps_mean": 0.022306,
+        "crps_std": 0.004534
+      },
+      {
+        "n": 1056,
+        "crps_mean": 0.017704,
+        "crps_std": 0.001819
+      },
+      {
+        "n": 1584,
+        "crps_mean": 0.016515,
+        "crps_std": 0.001537
+      },
+      {
+        "n": 2112,
+        "crps_mean": 0.015664,
+        "crps_std": 0.00171
+      },
+      {
+        "n": 2640,
+        "crps_mean": 0.014952,
+        "crps_std": 0.001804
+      }
+    ],
+    "lending": [
+      {
+        "n": 528,
+        "crps_mean": 0.056276,
+        "crps_std": 0.008659
+      },
+      {
+        "n": 1056,
+        "crps_mean": 0.055557,
+        "crps_std": 0.00356
+      },
+      {
+        "n": 1584,
+        "crps_mean": 0.053629,
+        "crps_std": 0.0021
+      },
+      {
+        "n": 2112,
+        "crps_mean": 0.054132,
+        "crps_std": 0.000586
+      },
+      {
+        "n": 2640,
+        "crps_mean": 0.05373,
+        "crps_std": 0.001911
+      }
+    ]
+  }
+}
