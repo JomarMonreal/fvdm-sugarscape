@@ -388,9 +388,9 @@ class BiasedFocalAction(agent.Agent):
         # ensuring agents always want to trade. We split the population into
         # sugar-rich and spice-rich so they have different MRS.
         if self.biasMode == "trade":
-            # Extract an integer from the UUID string to determine parity
+            # Extract parity from the integer agent ID
             try:
-                parity = int(self.ID[-1], 16) % 2
+                parity = self.ID % 2
             except:
                 parity = random.randint(0, 1)
                 
