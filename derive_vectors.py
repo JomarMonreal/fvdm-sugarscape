@@ -133,13 +133,8 @@ def maxent_irl_from_observations(chosen_vecs: np.ndarray,
     emp = chosen_vecs.mean(axis=0)  # (5,)
 
     theta = np.zeros(5)
-    for _ in range(n_iterations):
+    for i in range(n_iterations):
         # Rewards: (N, K)
-        rewards = np.einsum('ij,nkj->nk', theta.reshape(1, -1),
-                            all_action_vecs).squeeze(0)
-        if rewards.ndim == 1:
-            rewards = rewards.reshape(N, -1)
-        # Actually: rewards[n, k] = theta . all_action_vecs[n, k]
         rewards = all_action_vecs @ theta  # (N, K)
 
         # Softmax (numerically stable)
