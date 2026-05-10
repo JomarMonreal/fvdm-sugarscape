@@ -179,7 +179,6 @@ def train_ngboost_model(X: np.ndarray, y: np.ndarray,
         learning_rate=learning_rate,
         verbose=verbose,
         random_state=42,
-        base_learner=None, # Defaults to DecisionTreeRegressor(max_depth=3)
     )
     model.fit(X, y)
     return model
