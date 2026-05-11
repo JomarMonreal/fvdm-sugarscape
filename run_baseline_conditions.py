@@ -247,12 +247,19 @@ def compute_felicific_vectors(ag, chosen_cell):
 
     # Certainty: chosen cell is always reachable (it was selected from cellsInRange)
     C = 1.0
-    # Propinquity: immediate effects are maximally near in time
-    P = 1.0
 
     # Intensity I = 1 / ((1+H_i)(1+pollution_c))
     denom_I = (1.0 + H_i) * (1.0 + chosen_cell.pollution)
     I = 1.0 / denom_I if denom_I > 0.0 else 0.0
+
+    # Future intensity I_f = cellNeighborWealth / (W_max * |adj(ag.cell)|)
+    adj_count = len(ag.cell.neighbors)
+    I_f = cell_neighbor_wealth / (W_max * adj_count) if W_max > 0.0 and adj_count > 0 else 0.0
+
+    # Propinquity: normalized intensity ratio — share of combined intensity that is immediate/future
+    denom_P = I + I_f
+    P   = I   / denom_P if denom_P > 0.0 else 0.0
+    P_f = I_f / denom_P if denom_P > 0.0 else 0.0
 
     # Duration D = W_c / (m_i * W_c_max)
     D = W_c / (m_i * W_c_max) if m_i > 0.0 and W_c_max > 0.0 else 0.0
@@ -266,21 +273,15 @@ def compute_felicific_vectors(ag, chosen_cell):
         "I": round(I, 6),
         "D": round(D, 6),
         "C": C,
-        "P": P,
+        "P": round(P, 6),
         "X": round(X, 6),
     }
-
-    # Future intensity I_f = cellNeighborWealth / (W_max * |adj(ag.cell)|)
-    adj_count = len(ag.cell.neighbors)
-    I_f = cell_neighbor_wealth / (W_max * adj_count) if W_max > 0.0 and adj_count > 0 else 0.0
 
     # Future duration D_f = (W_c - m_i) / (m_i * W_c_max)
     D_f = (W_c - m_i) / (m_i * W_c_max) if m_i > 0.0 and W_c_max > 0.0 else 0.0
 
     # Lookahead discount γ — only when lookahead is enabled
     gamma = ag.decisionModelLookaheadDiscount if ag.decisionModelLookaheadFactor != 0 else 0.0
-    # Propinquity in the future layer is 0: future effects are definitionally deferred
-    P_f = 0.0
 
     # Future extent X_f = |N_i(c*)| / |V_i| from chosen cell's vantage
     if ag.decisionModelLookaheadFactor != 0:
