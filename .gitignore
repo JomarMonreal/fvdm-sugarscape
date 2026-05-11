@@ -1,0 +1,4 @@
+.venv/
+Texfiles/
+log.json
+__pycache__/
