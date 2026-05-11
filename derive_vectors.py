@@ -3,34 +3,38 @@
 derive_vectors.py
 
 Derives FVDM prioritization vectors for conditions 5–8 (Raw Sugarscape Derived,
-Egoist Derived, Altruist Derived, Bentham Derived) via Maximum Entropy Inverse
-Reinforcement Learning (MaxEnt IRL) applied to behavioral trajectories from the
-four homogeneous baseline conditions.
+Egoist Derived, Altruist Derived, Bentham Derived) via Behavioral Feature
+Expectation (BFE) applied to observed decision trajectories from the four
+homogeneous baseline conditions.
 
-Algorithm (thesis §3.5.3):
+Algorithm (Abbeel & Ng, 2004):
   1. Run homogeneous derivation simulations for each baseline model.
-  2. At every agent decision step, compute the combined feature vector
-         f(c) = E^imm(c) + γ · E^fut(c)
-     for the chosen cell AND every other candidate cell in the agent's vision.
-  3. Apply online stochastic gradient ascent (Adagrad) on the MaxEnt IRL objective:
-         ∇L(θ) = f(c_t) − E_θ[f(c')]   where c' ~ softmax(θ·f)
-  4. After all derivation runs, normalize θ to unit length → P_i.
+  2. At every agent decision step, record the combined feature vector of the
+     chosen cell:
+         f(c*) = E^imm(c*) + γ · E^fut(c*)
+  3. After all derivation runs, compute the mean feature vector across all
+     recorded decisions:
+         μ = (1/N) Σ f(c*_t)
+  4. Normalize μ to unit length → P_i.
 
-Minimum sample size:
-  The reward function has d=5 parameters. MLE needs N >> d; practically, reliable
-  estimates require ~1000+ gradient steps (one per agent per timestep). With 250
-  agents, even a single 10-timestep run (~2500 steps) is statistically sufficient.
-  Adagrad adapts its per-coordinate learning rate after the first few hundred steps.
-  The default 30 seeds × 5000 timesteps (≈37.5M steps) ensures ecological diversity
-  across population states, not statistical necessity. For a quick test, 5 seeds ×
-  200 timesteps gives stable vectors in practice.
+Justification:
+  Under feature expectation matching (Abbeel & Ng, 2004), an agent's policy is
+  characterized by the expected feature vector of its observed decisions. The
+  mean feature vector μ(π) = E_π[f(c*)] is the simplest estimator of this
+  quantity. Normalization to unit length places P_i on the same hypersphere as
+  the felicific effect vectors, making Euclidean distance a consistent metric.
+
+  This approach does not control for feature availability across the candidate
+  set (unlike MaxEnt IRL). However, given the stochastic resource distribution
+  and dynamic population of the Digital Terrarium, feature availability varies
+  substantially across timesteps and seeds, reducing this confound in practice.
 
 Output:
   data/baseline/prioritization_vectors.json   — 4 derived vectors + metadata
 
 Usage:
     python derive_vectors.py [--seeds N] [--timesteps N] [--outdir PATH]
-                             [--lr LR] [--log-interval N] [--force]
+                             [--parallel N] [--log-interval N] [--force]
 """
 
 import argparse
@@ -56,15 +60,10 @@ from run_baseline_conditions import BASE_CONFIG, compute_felicific_vectors
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_OUT                 = os.path.join(_SCRIPT_DIR, "data", "baseline")
-DEFAULT_N_SEEDS             = 30
-DEFAULT_TIMESTEPS           = 5000
-DEFAULT_LR                  = 0.1
-DEFAULT_LOG_INTERVAL        = 500
-DEFAULT_DIRECTION_THRESHOLD = 0.9999  # cosine similarity threshold for direction stability
-DEFAULT_DIRECTION_PATIENCE  = 3       # consecutive intervals above threshold → stop seed early
-ADAGRAD_EPS                 = 1e-8
-GRAD_WINDOW                 = 500     # rolling window size for mean gradient norm display
+DEFAULT_OUT          = os.path.join(_SCRIPT_DIR, "data", "baseline")
+DEFAULT_N_SEEDS      = 15
+DEFAULT_TIMESTEPS    = 2000
+DEFAULT_LOG_INTERVAL = 500
 
 # Baseline conditions to derive vectors from (same as conditions 1–4)
 DERIVE_CONDITIONS = {
@@ -79,12 +78,7 @@ DERIVE_CONDITIONS = {
 # ---------------------------------------------------------------------------
 
 def _feature_vector(ag, cell):
-    """
-    f(c) = E^imm(c) + γ · E^fut(c),  shape (5,)
-
-    Combines both temporal layers into the single 5-D feature vector used by
-    the reward function R(c) = θᵀ f(c).
-    """
+    """f(c*) = E^imm(c*) + γ · E^fut(c*),  shape (5,)"""
     gamma = ag.decisionModelLookaheadDiscount if ag.decisionModelLookaheadFactor != 0 else 0.0
     E_imm, E_fut = compute_felicific_vectors(ag, cell)
     return np.array([
@@ -96,93 +90,41 @@ def _feature_vector(ag, cell):
     ])
 
 # ---------------------------------------------------------------------------
-# Per-process IRL + progress state
+# Per-process BFE state
 # ---------------------------------------------------------------------------
 
-_theta             = None   # np.ndarray (5,): current parameter vector
-_grad_sq           = None   # np.ndarray (5,): Adagrad accumulated squared gradients
-_base_lr           = DEFAULT_LR
-_step              = 0      # total gradient steps so far
-_recent_grad_norms = []     # rolling window of per-step |∇| for display
+_feature_accumulator = []   # list of f(c*) arrays, one per agent decision
 
 # Progress tracking (set before each seed run)
-_condition_name      = ""
-_seed_idx            = 0
-_n_seeds             = 0
-_timesteps_total     = 0
-_log_interval        = DEFAULT_LOG_INTERVAL
-_direction_threshold = DEFAULT_DIRECTION_THRESHOLD
-_direction_patience  = DEFAULT_DIRECTION_PATIENCE
-_direction_stale     = 0     # consecutive intervals with cosine similarity above threshold
-_theta_snapshot      = None  # θ copy taken at previous log interval for direction comparison
-_t0_seed             = 0.0
-_t0_condition        = 0.0
+_condition_name  = ""
+_seed_idx        = 0
+_n_seeds         = 0
+_timesteps_total = 0
+_log_interval    = DEFAULT_LOG_INTERVAL
+_t0_seed         = 0.0
+_t0_condition    = 0.0
 
 _orig_findBestCell = None
 _orig_doTimestep   = None
 
 
 def _patched_findBestCell(self):
-    """
-    Intercepts every agent cell selection.
-    Computes feature vectors for all candidate cells and performs one
-    Adagrad gradient-ascent step on the MaxEnt IRL log-likelihood.
-    """
-    global _theta, _grad_sq, _step, _recent_grad_norms
+    """Intercepts every agent cell selection and records f(c*)."""
+    global _feature_accumulator
 
     chosen_cell = _orig_findBestCell(self)
 
-    if chosen_cell is None or not self.cellsInRange:
-        return chosen_cell
-
-    try:
-        # Candidate set: all cells in vision range, plus current cell
-        candidate_cells = list(self.cellsInRange.keys())
-        if self.cell not in candidate_cells:
-            candidate_cells.insert(0, self.cell)
-
-        # Feature matrix F: shape (n_candidates, 5)
-        F = np.array([_feature_vector(self, c) for c in candidate_cells])
-
-        # Locate chosen cell
+    if chosen_cell is not None:
         try:
-            chosen_idx = candidate_cells.index(chosen_cell)
-        except ValueError:
-            return chosen_cell
-
-        # Softmax probabilities under current θ
-        r = F @ _theta
-        r -= r.max()          # log-sum-exp numerical stability
-        exp_r = np.exp(r)
-        probs = exp_r / exp_r.sum()
-
-        # MaxEnt IRL gradient: ∇L = f(c_t) − E_θ[f(c')]
-        g = F[chosen_idx] - probs @ F
-
-        # Track gradient norm for progress display (rolling window)
-        _recent_grad_norms.append(float(np.linalg.norm(g)))
-        if len(_recent_grad_norms) > GRAD_WINDOW:
-            _recent_grad_norms.pop(0)
-
-        # Adagrad update
-        _grad_sq += g * g
-        alpha = _base_lr / np.sqrt(_grad_sq + ADAGRAD_EPS)
-        _theta += alpha * g
-        _step += 1
-
-    except Exception:
-        pass  # never let gradient errors crash the simulation
+            _feature_accumulator.append(_feature_vector(self, chosen_cell))
+        except Exception:
+            pass
 
     return chosen_cell
 
 
 def _patched_doTimestep(self):
-    """
-    Wraps Sugarscape.doTimestep to print a progress line every
-    _log_interval timesteps and stop early when θ direction stabilizes.
-    """
-    global _direction_stale, _theta_snapshot
-
+    """Wraps Sugarscape.doTimestep to print a progress line every _log_interval timesteps."""
     _orig_doTimestep(self)
 
     t = self.timestep
@@ -190,62 +132,36 @@ def _patched_doTimestep(self):
         return
 
     # --- timing ---
-    now        = time.time()
-    elapsed    = now - _t0_seed
-    frac_seed  = t / _timesteps_total if _timesteps_total > 0 else 1.0
-    eta_seed   = (elapsed / frac_seed - elapsed) if frac_seed > 0 else 0.0
-
+    now             = time.time()
+    elapsed         = now - _t0_seed
+    frac_seed       = t / _timesteps_total if _timesteps_total > 0 else 1.0
+    eta_seed        = (elapsed / frac_seed - elapsed) if frac_seed > 0 else 0.0
     seeds_done_frac = (_seed_idx + frac_seed) / _n_seeds if _n_seeds > 0 else 1.0
     total_elapsed   = now - _t0_condition
     eta_condition   = (total_elapsed / seeds_done_frac - total_elapsed) if seeds_done_frac > 0 else 0.0
 
-    # --- stats ---
-    pop       = self.runtimeStats.get("population", "?")
-    mean_grad = (sum(_recent_grad_norms) / len(_recent_grad_norms)
-                 if _recent_grad_norms else 0.0)
-    theta_str = " ".join(f"{v:+.3f}" for v in _theta)
+    # --- running mean feature vector ---
+    pop = self.runtimeStats.get("population", "?")
+    n   = len(_feature_accumulator)
+    if n > 0:
+        mu = np.mean(_feature_accumulator, axis=0)
+        mu_str = " ".join(f"{v:+.3f}" for v in mu)
+    else:
+        mu_str = "no data"
 
-    # --- direction stability (cosine similarity vs previous snapshot) ---
-    cos_sim = 0.0
-    if _theta_snapshot is not None:
-        n_curr = np.linalg.norm(_theta)
-        n_prev = np.linalg.norm(_theta_snapshot)
-        if n_curr > 1e-10 and n_prev > 1e-10:
-            cos_sim = float(np.dot(_theta, _theta_snapshot) / (n_curr * n_prev))
-
-    # --- formatted line ---
     print(
         f"  [{_condition_name}]"
         f"  seed {_seed_idx + 1}/{_n_seeds}"
         f"  t={t:>{len(str(_timesteps_total))}}/{_timesteps_total}"
         f"  pop={pop:>4}"
-        f"  steps={_step:>9,}"
-        f"  |∇|={mean_grad:.4f}"
-        f"  cos={cos_sim:.6f}"
-        f"  θ=[{theta_str}]"
+        f"  n={n:>9,}"
+        f"  μ=[{mu_str}]"
         f"  seed_eta={_fmt_time(eta_seed)}"
         f"  cond_eta={_fmt_time(eta_condition)}"
     )
 
-    # --- direction stability convergence check (Bottou, 2012) ---
-    if _theta_snapshot is not None and cos_sim >= _direction_threshold:
-        _direction_stale += 1
-        if _direction_stale >= _direction_patience:
-            print(
-                f"  [{_condition_name}]  seed {_seed_idx + 1}/{_n_seeds}"
-                f"  CONVERGED at t={t}"
-                f"  (cos={cos_sim:.6f} >= {_direction_threshold}"
-                f" for {_direction_patience} intervals) — stopping seed early"
-            )
-            self.endSimulation()
-    else:
-        _direction_stale = 0
-
-    _theta_snapshot = _theta.copy()
-
 
 def _fmt_time(seconds):
-    """Format seconds into a human-readable string."""
     seconds = max(0.0, seconds)
     if seconds < 60:
         return f"{seconds:.0f}s"
@@ -254,15 +170,15 @@ def _fmt_time(seconds):
     return f"{seconds/3600:.1f}h"
 
 
-def _apply_irl_patches():
+def _apply_patches():
     global _orig_findBestCell, _orig_doTimestep
     _orig_findBestCell = agent_module.Agent.findBestCell
     _orig_doTimestep   = sugarscape_module.Sugarscape.doTimestep
-    agent_module.Agent.findBestCell    = _patched_findBestCell
-    sugarscape_module.Sugarscape.doTimestep = _patched_doTimestep
+    agent_module.Agent.findBestCell          = _patched_findBestCell
+    sugarscape_module.Sugarscape.doTimestep  = _patched_doTimestep
 
 
-def _remove_irl_patches():
+def _remove_patches():
     if _orig_findBestCell is not None:
         agent_module.Agent.findBestCell = _orig_findBestCell
     if _orig_doTimestep is not None:
@@ -272,18 +188,15 @@ def _remove_irl_patches():
 # Derivation runner
 # ---------------------------------------------------------------------------
 
-def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
-                     direction_threshold, direction_patience, out_dir, force):
+def derive_condition(condition_name, models, seeds, timesteps, log_interval,
+                     out_dir, force):
     """
-    Runs all derivation seeds for one baseline condition sequentially,
-    accumulating Adagrad gradient updates into a single θ across seeds.
-    Returns the final normalized prioritization vector Pi.
+    Runs all derivation seeds for one baseline condition, collecting f(c*)
+    for every agent decision. Returns (Pi, n_decisions).
     """
-    global _theta, _grad_sq, _base_lr, _step, _recent_grad_norms
+    global _feature_accumulator
     global _condition_name, _seed_idx, _n_seeds, _timesteps_total
-    global _log_interval, _direction_threshold, _direction_patience
-    global _direction_stale, _theta_snapshot
-    global _t0_seed, _t0_condition
+    global _log_interval, _t0_seed, _t0_condition
 
     vectors_path = os.path.join(out_dir, "prioritization_vectors.json")
 
@@ -296,24 +209,16 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
                 vec = saved[condition_name]["vector"]
                 print(f"  [{condition_name}] already derived — skipping")
                 print(f"    Pi = {[round(v, 4) for v in vec]}")
-                return np.array(vec)
+                return np.array(vec), 0
         except Exception:
             pass
 
-    # Initialize IRL state
-    _theta             = np.zeros(5)
-    _grad_sq           = np.zeros(5)
-    _base_lr           = lr
-    _step              = 0
-    _recent_grad_norms = []
-
-    # Progress state
+    # Reset accumulator and progress state
+    _feature_accumulator = []
     _condition_name      = condition_name
     _n_seeds             = len(seeds)
     _timesteps_total     = timesteps
     _log_interval        = log_interval
-    _direction_threshold = direction_threshold
-    _direction_patience  = direction_patience
     _t0_condition        = time.time()
 
     config = dict(BASE_CONFIG)
@@ -325,13 +230,11 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     config["agentLogfile"]        = None
     config["logfileFormat"]       = "csv"
 
-    _apply_irl_patches()
+    _apply_patches()
     try:
         for seed_idx, seed in enumerate(seeds):
-            _seed_idx        = seed_idx
-            _direction_stale = 0
-            _theta_snapshot  = None
-            _t0_seed         = time.time()
+            _seed_idx = seed_idx
+            _t0_seed  = time.time()
 
             config["seed"] = seed
             random.seed(seed)
@@ -344,38 +247,36 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
             elapsed = time.time() - _t0_seed
             print(
                 f"  [{condition_name}] seed {seed_idx + 1}/{len(seeds)} complete"
-                f"  total_steps={_step:,}"
-                f"  θ_norm={np.linalg.norm(_theta):.4f}"
+                f"  n={len(_feature_accumulator):,}"
                 f"  ({_fmt_time(elapsed)})"
             )
     finally:
-        _remove_irl_patches()
+        _remove_patches()
 
-    # Normalize θ → Pi
-    norm = np.linalg.norm(_theta)
-    if norm < 1e-10:
-        print(f"  [{condition_name}] WARNING: θ near zero — defaulting to uniform")
+    n = len(_feature_accumulator)
+    if n == 0:
+        print(f"  [{condition_name}] WARNING: no decisions recorded — defaulting to uniform")
         pi = np.full(5, 1.0 / math.sqrt(5))
     else:
-        pi = _theta / norm
+        mu   = np.mean(_feature_accumulator, axis=0)
+        norm = np.linalg.norm(mu)
+        pi   = mu / norm if norm > 1e-10 else np.full(5, 1.0 / math.sqrt(5))
 
     total_time = time.time() - _t0_condition
     print(f"\n  [{condition_name}] DONE  Pi = {[round(v, 4) for v in pi.tolist()]}"
-          f"  ({_fmt_time(total_time)} total)\n")
-    return pi, _step
+          f"  n={n:,}  ({_fmt_time(total_time)} total)\n")
+    return pi, n
 
 # ---------------------------------------------------------------------------
 # Multiprocessing worker (must be top-level to be picklable)
 # ---------------------------------------------------------------------------
 
 def _derive_worker(args):
-    (condition_name, models, seeds, timesteps, lr, log_interval,
-     direction_threshold, direction_patience, out_dir, force) = args
-    pi, steps = derive_condition(
-        condition_name, models, seeds, timesteps, lr, log_interval,
-        direction_threshold, direction_patience, out_dir, force,
+    condition_name, models, seeds, timesteps, log_interval, out_dir, force = args
+    pi, n = derive_condition(
+        condition_name, models, seeds, timesteps, log_interval, out_dir, force,
     )
-    return condition_name, pi.tolist(), steps
+    return condition_name, pi.tolist(), n
 
 # ---------------------------------------------------------------------------
 # Seed management
@@ -402,7 +303,7 @@ def _load_or_generate_seeds(seeds_path, n_seeds):
 # Save / merge results
 # ---------------------------------------------------------------------------
 
-def _save_vectors(vectors_path, results, step_counts, seeds, timesteps, lr):
+def _save_vectors(vectors_path, results, decision_counts, seeds, timesteps):
     existing = {}
     if os.path.exists(vectors_path):
         try:
@@ -413,11 +314,11 @@ def _save_vectors(vectors_path, results, step_counts, seeds, timesteps, lr):
 
     for condition_name, pi in results.items():
         existing[condition_name] = {
-            "vector": [round(float(v), 6) for v in pi],
-            "seeds_used": len(seeds),
-            "timesteps": timesteps,
-            "learning_rate": lr,
-            "total_gradient_steps": step_counts.get(condition_name, 0),
+            "vector":          [round(float(v), 6) for v in pi],
+            "method":          "behavioral_feature_expectation",
+            "seeds_used":      len(seeds),
+            "timesteps":       timesteps,
+            "total_decisions": decision_counts.get(condition_name, 0),
         }
 
     with open(vectors_path, "w") as f:
@@ -431,24 +332,16 @@ def _save_vectors(vectors_path, results, step_counts, seeds, timesteps, lr):
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--seeds",        type=int,   default=DEFAULT_N_SEEDS,
+    p.add_argument("--seeds",        type=int, default=DEFAULT_N_SEEDS,
                    help="Derivation seeds per condition (default: %(default)s)")
-    p.add_argument("--timesteps",    type=int,   default=DEFAULT_TIMESTEPS,
+    p.add_argument("--timesteps",    type=int, default=DEFAULT_TIMESTEPS,
                    help="Timesteps per derivation run (default: %(default)s)")
     p.add_argument("--outdir",       default=DEFAULT_OUT,
                    help="Output directory (default: %(default)s)")
-    p.add_argument("--lr",           type=float, default=DEFAULT_LR,
-                   help="Adagrad base learning rate (default: %(default)s)")
-    p.add_argument("--log-interval", type=int,   default=DEFAULT_LOG_INTERVAL,
+    p.add_argument("--log-interval", type=int, default=DEFAULT_LOG_INTERVAL,
                    dest="log_interval",
                    help="Print progress every N timesteps (default: %(default)s)")
-    p.add_argument("--direction-threshold", type=float, default=DEFAULT_DIRECTION_THRESHOLD,
-                   dest="direction_threshold",
-                   help="Early-stop when cosine similarity between consecutive θ snapshots exceeds this (default: %(default)s)")
-    p.add_argument("--direction-patience", type=int, default=DEFAULT_DIRECTION_PATIENCE,
-                   dest="direction_patience",
-                   help="Consecutive intervals above threshold before stopping seed (default: %(default)s)")
-    p.add_argument("--parallel",     type=int,   default=1,
+    p.add_argument("--parallel",     type=int, default=1,
                    help="Conditions to derive in parallel (default: %(default)s)")
     p.add_argument("--force",        action="store_true",
                    help="Re-derive even if vectors already exist")
@@ -461,52 +354,44 @@ def main():
 
     seeds_path   = os.path.join(args.outdir, "seeds.json")
     vectors_path = os.path.join(args.outdir, "prioritization_vectors.json")
-    seeds = _load_or_generate_seeds(seeds_path, args.seeds)
-
-    n_workers = min(args.parallel, len(DERIVE_CONDITIONS))
+    seeds        = _load_or_generate_seeds(seeds_path, args.seeds)
+    n_workers    = min(args.parallel, len(DERIVE_CONDITIONS))
 
     print(
-        f"\nDerivation settings:"
-        f"\n  conditions        : {list(DERIVE_CONDITIONS.keys())}"
-        f"\n  seeds             : {args.seeds}"
-        f"\n  timesteps         : {args.timesteps} (max per seed)"
-        f"\n  lr (Adagrad)      : {args.lr}"
-        f"\n  log_interval       : every {args.log_interval} timesteps"
-        f"\n  direction_threshold: {args.direction_threshold}  (cosine similarity early-stop threshold)"
-        f"\n  direction_patience : {args.direction_patience}   (consecutive stable intervals before stop)"
-        f"\n  parallel          : {n_workers} condition(s) at a time"
-        f"\n  output            : {vectors_path}"
-        f"\n"
-        f"\nMinimum viable: 5 seeds × 200 timesteps (~250k gradient steps per condition)."
-        f"\nDefault (15 × 2000) captures ecological diversity across population states.\n"
+        f"\nDerivation settings (Behavioral Feature Expectation):"
+        f"\n  method      : mean f(c*) normalized to unit length (Abbeel & Ng, 2004)"
+        f"\n  conditions  : {list(DERIVE_CONDITIONS.keys())}"
+        f"\n  seeds       : {args.seeds}"
+        f"\n  timesteps   : {args.timesteps} (per seed)"
+        f"\n  log_interval: every {args.log_interval} timesteps"
+        f"\n  parallel    : {n_workers} condition(s) at a time"
+        f"\n  output      : {vectors_path}\n"
     )
 
     worker_args = [
-        (name, models, seeds, args.timesteps, args.lr, args.log_interval,
-         args.direction_threshold, args.direction_patience, args.outdir, args.force)
+        (name, models, seeds, args.timesteps, args.log_interval, args.outdir, args.force)
         for name, models in DERIVE_CONDITIONS.items()
     ]
 
-    results     = {}
-    step_counts = {}
-    t0_total    = time.time()
+    results         = {}
+    decision_counts = {}
+    t0_total        = time.time()
 
     if n_workers > 1:
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
             futures = {executor.submit(_derive_worker, a): a[0] for a in worker_args}
             for future in as_completed(futures):
-                condition_name, pi_list, steps = future.result()
-                results[condition_name]     = np.array(pi_list)
-                step_counts[condition_name] = steps
+                condition_name, pi_list, n = future.result()
+                results[condition_name]         = np.array(pi_list)
+                decision_counts[condition_name] = n
     else:
         for worker_arg in worker_args:
-            condition_name, pi_list, steps = _derive_worker(worker_arg)
-            results[condition_name]     = np.array(pi_list)
-            step_counts[condition_name] = steps
+            condition_name, pi_list, n = _derive_worker(worker_arg)
+            results[condition_name]         = np.array(pi_list)
+            decision_counts[condition_name] = n
 
-    _save_vectors(vectors_path, results, step_counts, seeds, args.timesteps, args.lr)
+    _save_vectors(vectors_path, results, decision_counts, seeds, args.timesteps)
 
-    # Summary table
     total_time = time.time() - t0_total
     print(f"\n{'═'*68}")
     print(f"  {'Condition':<24}  {'p_I':>7}  {'p_D':>7}  {'p_C':>7}  {'p_P':>7}  {'p_X':>7}")
