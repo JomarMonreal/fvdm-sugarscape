@@ -246,7 +246,10 @@ def compute_felicific_vectors(ag, chosen_cell):
     m_i = ag.sugarMetabolism + ag.spiceMetabolism
     H_i = ag.findTimeToLive()
 
-    # Distance from agent's current cell to chosen cell
+    # Certainty: chosen cell is always reachable (it was selected from cellsInRange)
+    C = 1.0
+
+    # Distance from agent's current cell to chosen cell (for Propinquity)
     dx = abs(chosen_cell.x - ag.cell.x)
     dy = abs(chosen_cell.y - ag.cell.y)
     if env.wraparound:
@@ -254,9 +257,7 @@ def compute_felicific_vectors(ag, chosen_cell):
         dy = min(dy, env.height - dy)
     d = math.sqrt(dx * dx + dy * dy)
 
-    # Certainty: decreases with distance (further = more competition risk)
-    C = 1.0 / (1.0 + d)
-    # Proximity: spatial nearness in Bentham's sense — closer cells are more proximate
+    # Propinquity: spatial nearness as proxy for temporal delay
     P = 1.0 / (1.0 + d)
 
     # Intensity I = 1 / ((1+H_i)(1+pollution_c))
