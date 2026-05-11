@@ -56,15 +56,15 @@ from run_baseline_conditions import BASE_CONFIG, compute_felicific_vectors
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_OUT                = os.path.join(_SCRIPT_DIR, "data", "baseline")
-DEFAULT_N_SEEDS            = 30
-DEFAULT_TIMESTEPS          = 5000
-DEFAULT_LR                 = 0.1
-DEFAULT_LOG_INTERVAL       = 500
-DEFAULT_CONVERGE_THRESHOLD = 1e-3
-DEFAULT_CONVERGE_PATIENCE  = 3      # consecutive intervals below threshold → stop seed early
-ADAGRAD_EPS                = 1e-8
-GRAD_WINDOW                = 500    # rolling window size for mean gradient norm display
+DEFAULT_OUT                 = os.path.join(_SCRIPT_DIR, "data", "baseline")
+DEFAULT_N_SEEDS             = 30
+DEFAULT_TIMESTEPS           = 5000
+DEFAULT_LR                  = 0.1
+DEFAULT_LOG_INTERVAL        = 500
+DEFAULT_DIRECTION_THRESHOLD = 0.9999  # cosine similarity threshold for direction stability
+DEFAULT_DIRECTION_PATIENCE  = 3       # consecutive intervals above threshold → stop seed early
+ADAGRAD_EPS                 = 1e-8
+GRAD_WINDOW                 = 500     # rolling window size for mean gradient norm display
 
 # Baseline conditions to derive vectors from (same as conditions 1–4)
 DERIVE_CONDITIONS = {
@@ -106,16 +106,17 @@ _step              = 0      # total gradient steps so far
 _recent_grad_norms = []     # rolling window of per-step |∇| for display
 
 # Progress tracking (set before each seed run)
-_condition_name     = ""
-_seed_idx           = 0
-_n_seeds            = 0
-_timesteps_total    = 0
-_log_interval       = DEFAULT_LOG_INTERVAL
-_converge_threshold = DEFAULT_CONVERGE_THRESHOLD
-_converge_patience  = DEFAULT_CONVERGE_PATIENCE
-_converge_stale     = 0   # consecutive log intervals with |∇| below threshold
-_t0_seed            = 0.0   # wall-clock start of current seed
-_t0_condition       = 0.0   # wall-clock start of current condition
+_condition_name      = ""
+_seed_idx            = 0
+_n_seeds             = 0
+_timesteps_total     = 0
+_log_interval        = DEFAULT_LOG_INTERVAL
+_direction_threshold = DEFAULT_DIRECTION_THRESHOLD
+_direction_patience  = DEFAULT_DIRECTION_PATIENCE
+_direction_stale     = 0     # consecutive intervals with cosine similarity above threshold
+_theta_snapshot      = None  # θ copy taken at previous log interval for direction comparison
+_t0_seed             = 0.0
+_t0_condition        = 0.0
 
 _orig_findBestCell = None
 _orig_doTimestep   = None
@@ -178,9 +179,9 @@ def _patched_findBestCell(self):
 def _patched_doTimestep(self):
     """
     Wraps Sugarscape.doTimestep to print a progress line every
-    _log_interval timesteps and stop early on gradient convergence.
+    _log_interval timesteps and stop early when θ direction stabilizes.
     """
-    global _converge_stale
+    global _direction_stale, _theta_snapshot
 
     _orig_doTimestep(self)
 
@@ -204,6 +205,14 @@ def _patched_doTimestep(self):
                  if _recent_grad_norms else 0.0)
     theta_str = " ".join(f"{v:+.3f}" for v in _theta)
 
+    # --- direction stability (cosine similarity vs previous snapshot) ---
+    cos_sim = 0.0
+    if _theta_snapshot is not None:
+        n_curr = np.linalg.norm(_theta)
+        n_prev = np.linalg.norm(_theta_snapshot)
+        if n_curr > 1e-10 and n_prev > 1e-10:
+            cos_sim = float(np.dot(_theta, _theta_snapshot) / (n_curr * n_prev))
+
     # --- formatted line ---
     print(
         f"  [{_condition_name}]"
@@ -212,24 +221,27 @@ def _patched_doTimestep(self):
         f"  pop={pop:>4}"
         f"  steps={_step:>9,}"
         f"  |∇|={mean_grad:.4f}"
+        f"  cos={cos_sim:.6f}"
         f"  θ=[{theta_str}]"
         f"  seed_eta={_fmt_time(eta_seed)}"
         f"  cond_eta={_fmt_time(eta_condition)}"
     )
 
-    # --- convergence check ---
-    if _recent_grad_norms and mean_grad < _converge_threshold:
-        _converge_stale += 1
-        if _converge_stale >= _converge_patience:
+    # --- direction stability convergence check (Bottou, 2012) ---
+    if _theta_snapshot is not None and cos_sim >= _direction_threshold:
+        _direction_stale += 1
+        if _direction_stale >= _direction_patience:
             print(
                 f"  [{_condition_name}]  seed {_seed_idx + 1}/{_n_seeds}"
                 f"  CONVERGED at t={t}"
-                f"  (|∇|={mean_grad:.4f} < {_converge_threshold}"
-                f" for {_converge_patience} intervals) — stopping seed early"
+                f"  (cos={cos_sim:.6f} >= {_direction_threshold}"
+                f" for {_direction_patience} intervals) — stopping seed early"
             )
             self.endSimulation()
     else:
-        _converge_stale = 0
+        _direction_stale = 0
+
+    _theta_snapshot = _theta.copy()
 
 
 def _fmt_time(seconds):
@@ -261,7 +273,7 @@ def _remove_irl_patches():
 # ---------------------------------------------------------------------------
 
 def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
-                     converge_threshold, converge_patience, out_dir, force):
+                     direction_threshold, direction_patience, out_dir, force):
     """
     Runs all derivation seeds for one baseline condition sequentially,
     accumulating Adagrad gradient updates into a single θ across seeds.
@@ -269,7 +281,8 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     """
     global _theta, _grad_sq, _base_lr, _step, _recent_grad_norms
     global _condition_name, _seed_idx, _n_seeds, _timesteps_total
-    global _log_interval, _converge_threshold, _converge_patience, _converge_stale
+    global _log_interval, _direction_threshold, _direction_patience
+    global _direction_stale, _theta_snapshot
     global _t0_seed, _t0_condition
 
     vectors_path = os.path.join(out_dir, "prioritization_vectors.json")
@@ -295,13 +308,13 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     _recent_grad_norms = []
 
     # Progress state
-    _condition_name     = condition_name
-    _n_seeds            = len(seeds)
-    _timesteps_total    = timesteps
-    _log_interval       = log_interval
-    _converge_threshold = converge_threshold
-    _converge_patience  = converge_patience
-    _t0_condition       = time.time()
+    _condition_name      = condition_name
+    _n_seeds             = len(seeds)
+    _timesteps_total     = timesteps
+    _log_interval        = log_interval
+    _direction_threshold = direction_threshold
+    _direction_patience  = direction_patience
+    _t0_condition        = time.time()
 
     config = dict(BASE_CONFIG)
     config["agentDecisionModels"] = models
@@ -315,9 +328,10 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     _apply_irl_patches()
     try:
         for seed_idx, seed in enumerate(seeds):
-            _seed_idx       = seed_idx
-            _converge_stale = 0
-            _t0_seed        = time.time()
+            _seed_idx        = seed_idx
+            _direction_stale = 0
+            _theta_snapshot  = None
+            _t0_seed         = time.time()
 
             config["seed"] = seed
             random.seed(seed)
@@ -356,10 +370,10 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
 
 def _derive_worker(args):
     (condition_name, models, seeds, timesteps, lr, log_interval,
-     converge_threshold, converge_patience, out_dir, force) = args
+     direction_threshold, direction_patience, out_dir, force) = args
     pi, steps = derive_condition(
         condition_name, models, seeds, timesteps, lr, log_interval,
-        converge_threshold, converge_patience, out_dir, force,
+        direction_threshold, direction_patience, out_dir, force,
     )
     return condition_name, pi.tolist(), steps
 
@@ -428,12 +442,12 @@ def parse_args():
     p.add_argument("--log-interval", type=int,   default=DEFAULT_LOG_INTERVAL,
                    dest="log_interval",
                    help="Print progress every N timesteps (default: %(default)s)")
-    p.add_argument("--converge-threshold", type=float, default=DEFAULT_CONVERGE_THRESHOLD,
-                   dest="converge_threshold",
-                   help="Early-stop when rolling |∇| drops below this (default: %(default)s)")
-    p.add_argument("--converge-patience", type=int, default=DEFAULT_CONVERGE_PATIENCE,
-                   dest="converge_patience",
-                   help="Consecutive intervals below threshold before stopping seed (default: %(default)s)")
+    p.add_argument("--direction-threshold", type=float, default=DEFAULT_DIRECTION_THRESHOLD,
+                   dest="direction_threshold",
+                   help="Early-stop when cosine similarity between consecutive θ snapshots exceeds this (default: %(default)s)")
+    p.add_argument("--direction-patience", type=int, default=DEFAULT_DIRECTION_PATIENCE,
+                   dest="direction_patience",
+                   help="Consecutive intervals above threshold before stopping seed (default: %(default)s)")
     p.add_argument("--parallel",     type=int,   default=1,
                    help="Conditions to derive in parallel (default: %(default)s)")
     p.add_argument("--force",        action="store_true",
@@ -457,9 +471,9 @@ def main():
         f"\n  seeds             : {args.seeds}"
         f"\n  timesteps         : {args.timesteps} (max per seed)"
         f"\n  lr (Adagrad)      : {args.lr}"
-        f"\n  log_interval      : every {args.log_interval} timesteps"
-        f"\n  converge_threshold: {args.converge_threshold}  (early-stop |∇| threshold)"
-        f"\n  converge_patience : {args.converge_patience}   (consecutive intervals before stop)"
+        f"\n  log_interval       : every {args.log_interval} timesteps"
+        f"\n  direction_threshold: {args.direction_threshold}  (cosine similarity early-stop threshold)"
+        f"\n  direction_patience : {args.direction_patience}   (consecutive stable intervals before stop)"
         f"\n  parallel          : {n_workers} condition(s) at a time"
         f"\n  output            : {vectors_path}"
         f"\n"
@@ -469,7 +483,7 @@ def main():
 
     worker_args = [
         (name, models, seeds, args.timesteps, args.lr, args.log_interval,
-         args.converge_threshold, args.converge_patience, args.outdir, args.force)
+         args.direction_threshold, args.direction_patience, args.outdir, args.force)
         for name, models in DERIVE_CONDITIONS.items()
     ]
 
