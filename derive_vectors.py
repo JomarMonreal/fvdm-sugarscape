@@ -55,13 +55,15 @@ from run_baseline_conditions import BASE_CONFIG, compute_felicific_vectors
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_OUT          = os.path.join(_SCRIPT_DIR, "data", "baseline")
-DEFAULT_N_SEEDS      = 30
-DEFAULT_TIMESTEPS    = 5000
-DEFAULT_LR           = 0.1
-DEFAULT_LOG_INTERVAL = 500
-ADAGRAD_EPS          = 1e-8
-GRAD_WINDOW          = 500   # rolling window size for mean gradient norm display
+DEFAULT_OUT                = os.path.join(_SCRIPT_DIR, "data", "baseline")
+DEFAULT_N_SEEDS            = 30
+DEFAULT_TIMESTEPS          = 5000
+DEFAULT_LR                 = 0.1
+DEFAULT_LOG_INTERVAL       = 500
+DEFAULT_CONVERGE_THRESHOLD = 1e-3
+DEFAULT_CONVERGE_PATIENCE  = 3      # consecutive intervals below threshold → stop seed early
+ADAGRAD_EPS                = 1e-8
+GRAD_WINDOW                = 500    # rolling window size for mean gradient norm display
 
 # Baseline conditions to derive vectors from (same as conditions 1–4)
 DERIVE_CONDITIONS = {
@@ -103,13 +105,16 @@ _step              = 0      # total gradient steps so far
 _recent_grad_norms = []     # rolling window of per-step |∇| for display
 
 # Progress tracking (set before each seed run)
-_condition_name  = ""
-_seed_idx        = 0
-_n_seeds         = 0
-_timesteps_total = 0
-_log_interval    = DEFAULT_LOG_INTERVAL
-_t0_seed         = 0.0   # wall-clock start of current seed
-_t0_condition    = 0.0   # wall-clock start of current condition
+_condition_name     = ""
+_seed_idx           = 0
+_n_seeds            = 0
+_timesteps_total    = 0
+_log_interval       = DEFAULT_LOG_INTERVAL
+_converge_threshold = DEFAULT_CONVERGE_THRESHOLD
+_converge_patience  = DEFAULT_CONVERGE_PATIENCE
+_converge_stale     = 0   # consecutive log intervals with |∇| below threshold
+_t0_seed            = 0.0   # wall-clock start of current seed
+_t0_condition       = 0.0   # wall-clock start of current condition
 
 _orig_findBestCell = None
 _orig_doTimestep   = None
@@ -172,8 +177,10 @@ def _patched_findBestCell(self):
 def _patched_doTimestep(self):
     """
     Wraps Sugarscape.doTimestep to print a progress line every
-    _log_interval timesteps.
+    _log_interval timesteps and stop early on gradient convergence.
     """
+    global _converge_stale
+
     _orig_doTimestep(self)
 
     t = self.timestep
@@ -209,6 +216,20 @@ def _patched_doTimestep(self):
         f"  cond_eta={_fmt_time(eta_condition)}"
     )
 
+    # --- convergence check ---
+    if _recent_grad_norms and mean_grad < _converge_threshold:
+        _converge_stale += 1
+        if _converge_stale >= _converge_patience:
+            print(
+                f"  [{_condition_name}]  seed {_seed_idx + 1}/{_n_seeds}"
+                f"  CONVERGED at t={t}"
+                f"  (|∇|={mean_grad:.4f} < {_converge_threshold}"
+                f" for {_converge_patience} intervals) — stopping seed early"
+            )
+            self.endSimulation()
+    else:
+        _converge_stale = 0
+
 
 def _fmt_time(seconds):
     """Format seconds into a human-readable string."""
@@ -239,7 +260,7 @@ def _remove_irl_patches():
 # ---------------------------------------------------------------------------
 
 def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
-                     out_dir, force):
+                     converge_threshold, converge_patience, out_dir, force):
     """
     Runs all derivation seeds for one baseline condition sequentially,
     accumulating Adagrad gradient updates into a single θ across seeds.
@@ -247,7 +268,8 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     """
     global _theta, _grad_sq, _base_lr, _step, _recent_grad_norms
     global _condition_name, _seed_idx, _n_seeds, _timesteps_total
-    global _log_interval, _t0_seed, _t0_condition
+    global _log_interval, _converge_threshold, _converge_patience, _converge_stale
+    global _t0_seed, _t0_condition
 
     vectors_path = os.path.join(out_dir, "prioritization_vectors.json")
 
@@ -272,11 +294,13 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     _recent_grad_norms = []
 
     # Progress state
-    _condition_name  = condition_name
-    _n_seeds         = len(seeds)
-    _timesteps_total = timesteps
-    _log_interval    = log_interval
-    _t0_condition    = time.time()
+    _condition_name     = condition_name
+    _n_seeds            = len(seeds)
+    _timesteps_total    = timesteps
+    _log_interval       = log_interval
+    _converge_threshold = converge_threshold
+    _converge_patience  = converge_patience
+    _t0_condition       = time.time()
 
     config = dict(BASE_CONFIG)
     config["agentDecisionModels"] = models
@@ -290,8 +314,9 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     _apply_irl_patches()
     try:
         for seed_idx, seed in enumerate(seeds):
-            _seed_idx = seed_idx
-            _t0_seed  = time.time()
+            _seed_idx       = seed_idx
+            _converge_stale = 0
+            _t0_seed        = time.time()
 
             config["seed"] = seed
             random.seed(seed)
@@ -389,6 +414,12 @@ def parse_args():
     p.add_argument("--log-interval", type=int,   default=DEFAULT_LOG_INTERVAL,
                    dest="log_interval",
                    help="Print progress every N timesteps (default: %(default)s)")
+    p.add_argument("--converge-threshold", type=float, default=DEFAULT_CONVERGE_THRESHOLD,
+                   dest="converge_threshold",
+                   help="Early-stop when rolling |∇| drops below this (default: %(default)s)")
+    p.add_argument("--converge-patience", type=int, default=DEFAULT_CONVERGE_PATIENCE,
+                   dest="converge_patience",
+                   help="Consecutive intervals below threshold before stopping seed (default: %(default)s)")
     p.add_argument("--force",        action="store_true",
                    help="Re-derive even if vectors already exist")
     return p.parse_args()
@@ -404,12 +435,14 @@ def main():
 
     print(
         f"\nDerivation settings:"
-        f"\n  conditions : {list(DERIVE_CONDITIONS.keys())}"
-        f"\n  seeds      : {args.seeds}"
-        f"\n  timesteps  : {args.timesteps}"
-        f"\n  lr (Adagrad): {args.lr}"
-        f"\n  log_interval: every {args.log_interval} timesteps"
-        f"\n  output     : {vectors_path}"
+        f"\n  conditions        : {list(DERIVE_CONDITIONS.keys())}"
+        f"\n  seeds             : {args.seeds}"
+        f"\n  timesteps         : {args.timesteps} (max per seed)"
+        f"\n  lr (Adagrad)      : {args.lr}"
+        f"\n  log_interval      : every {args.log_interval} timesteps"
+        f"\n  converge_threshold: {args.converge_threshold}  (early-stop |∇| threshold)"
+        f"\n  converge_patience : {args.converge_patience}   (consecutive intervals before stop)"
+        f"\n  output            : {vectors_path}"
         f"\n"
         f"\nMinimum viable: 5 seeds × 200 timesteps (~250k gradient steps per condition)."
         f"\nDefault (30 × 5000) captures ecological diversity across population states.\n"
@@ -426,6 +459,7 @@ def main():
         pi = derive_condition(
             condition_name, models, seeds,
             args.timesteps, args.lr, args.log_interval,
+            args.converge_threshold, args.converge_patience,
             args.outdir, args.force
         )
         results[condition_name]     = pi
