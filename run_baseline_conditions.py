@@ -19,6 +19,7 @@ Usage:
 import argparse
 import csv
 import json
+import math
 import multiprocessing
 import os
 import random
@@ -245,10 +246,18 @@ def compute_felicific_vectors(ag, chosen_cell):
     m_i = ag.sugarMetabolism + ag.spiceMetabolism
     H_i = ag.findTimeToLive()
 
-    # Certainty: chosen cell is always reachable (it was selected as best)
-    C = 1.0
-    # Proximity: always 1 (timestepDistance = 1)
-    P = 1.0
+    # Distance from agent's current cell to chosen cell
+    dx = abs(chosen_cell.x - ag.cell.x)
+    dy = abs(chosen_cell.y - ag.cell.y)
+    if env.wraparound:
+        dx = min(dx, env.width - dx)
+        dy = min(dy, env.height - dy)
+    d = math.sqrt(dx * dx + dy * dy)
+
+    # Certainty: decreases with distance (further = more competition risk)
+    C = 1.0 / (1.0 + d)
+    # Proximity: spatial nearness in Bentham's sense — closer cells are more proximate
+    P = 1.0 / (1.0 + d)
 
     # Intensity I = 1 / ((1+H_i)(1+pollution_c))
     denom_I = (1.0 + H_i) * (1.0 + chosen_cell.pollution)
