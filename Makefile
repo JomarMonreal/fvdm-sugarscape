@@ -8,6 +8,9 @@ BASELINE = run_baseline_conditions.py
 BASELINE_DIR = data/baseline
 DERIVE = derive_vectors.py
 VECTORS = $(BASELINE_DIR)/prioritization_vectors.json
+FVDM_RUNNER = run_fvdm.py
+HETERO_RUNNER = run_hetero.py
+DATA_ROOT = data
 SCREENSHOTS = *.ps
 TEST = test.py
 
@@ -31,12 +34,25 @@ PLOTS = $(PLOTCHECK) \
 TESTS = tests/*.config \
         tests/*.log
 
+FVDM_DIRS = $(DATA_ROOT)/fvdmRawSugarscape \
+            $(DATA_ROOT)/fvdmEgoist \
+            $(DATA_ROOT)/fvdmAltruist \
+            $(DATA_ROOT)/fvdmBentham
+
+HETERO_DIRS = $(DATA_ROOT)/rawSugarscape \
+              $(DATA_ROOT)/egoist \
+              $(DATA_ROOT)/altruist \
+              $(DATA_ROOT)/bentham \
+              $(FVDM_DIRS)
+
 CLEAN = $(DATASET) \
 		$(LOGS) \
 		$(PLOTS) \
 		$(SCREENSHOTS) \
 		$(TESTS) \
-		$(BASELINE_DIR)
+		$(BASELINE_DIR) \
+		$(FVDM_DIRS) \
+		$(HETERO_DIRS)
 
 # Change to python3 (or other alias) if needed
 PYTHON = python
@@ -91,6 +107,25 @@ derive:
 derive-force:
 	$(PYTHON) $(DERIVE) --seeds $(SEEDS) --timesteps $(DERIVE_TIMESTEPS) --parallel $(PARALLEL) --outdir $(BASELINE_DIR) --force
 
+fvdm:
+	$(PYTHON) $(FVDM_RUNNER) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(DATA_ROOT) --baseline-dir $(BASELINE_DIR)
+
+fvdm-force:
+	$(PYTHON) $(FVDM_RUNNER) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(DATA_ROOT) --baseline-dir $(BASELINE_DIR) --force
+
+hetero:
+	$(PYTHON) $(HETERO_RUNNER) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(DATA_ROOT) --baseline-dir $(BASELINE_DIR)
+
+hetero-force:
+	$(PYTHON) $(HETERO_RUNNER) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(DATA_ROOT) --baseline-dir $(BASELINE_DIR) --force
+
+all_fvdm: baseline derive fvdm
+
+all_fvdm-force:
+	$(MAKE) baseline-force
+	$(MAKE) derive-force
+	$(MAKE) fvdm-force
+
 test:
 	cd tests && $(PYTHON) $(TEST) --conf ../$(CONFIG)
 
@@ -100,5 +135,5 @@ clean:
 lean:
 	rm -rf $(PLOTS) || true
 
-.PHONY: all baseline baseline-force clean data derive derive-force lean plots run seeds setup test
+.PHONY: all all_fvdm all_fvdm-force baseline baseline-force clean data derive derive-force fvdm fvdm-force hetero hetero-force lean plots run seeds setup test
 # vim: set noexpandtab tabstop=4:
