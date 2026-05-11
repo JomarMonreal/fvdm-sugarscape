@@ -12,13 +12,17 @@ Algorithm (Abbeel & Ng, 2004):
      simultaneously (250 agents, round-robin assigned: none, egoist, altruist,
      bentham).  Heterogeneous populations trigger combat, trade, and reproduction
      across model types, producing behaviorally richer cell-selection trajectories.
-  2. At every agent decision step, record the combined feature vector of the
-     chosen cell, keyed by the agent's decision model:
+  2. At every agent decision step where the chosen cell is occupied by a
+     different-tribe agent (O=1, a contested move), record the combined
+     feature vector keyed by the agent's decision model:
          f(c*) = E^imm(c*) + γ · E^fut(c*)
      where E^imm = (I, D, C, P, X) and E^fut = (I_f, D_f, C_f, P_f, X_f).
      Propinquity is the normalized intensity ratio:
          P   = I / (I + I_f)   (share of combined intensity that is immediate)
          P_f = I_f / (I + I_f) (complement; P + P_f = 1)
+     Filtering to O=1 instances isolates the decisions where egoists actively
+     seek occupied cells (combat loot) while altruists avoid them — producing
+     meaningfully divergent feature expectations across model types.
   3. After all derivation runs, compute the per-type mean feature vector:
          μ_k = (1/N_k) Σ f_k(c*_t)   for each model type k
   4. Normalize each μ_k to unit length → P_i for condition k.
@@ -68,9 +72,11 @@ from run_baseline_conditions import BASE_CONFIG, compute_felicific_vectors
 # ---------------------------------------------------------------------------
 
 DEFAULT_OUT          = os.path.join(_SCRIPT_DIR, "data", "baseline")
-DEFAULT_N_SEEDS      = 15
-DEFAULT_TIMESTEPS    = 2000
+DEFAULT_N_SEEDS      = 30
+DEFAULT_TIMESTEPS    = 5000
 DEFAULT_LOG_INTERVAL = 500
+DEFAULT_PARALLEL     = 30
+DEFAULT_PILOT        = 5
 
 # All four model strings as assigned by sugarscape.py (rawSugarscape → "none")
 MODEL_TO_CONDITION = {
@@ -119,15 +125,23 @@ _orig_doTimestep   = None
 
 
 def _patched_findBestCell(self):
-    """Intercepts every agent cell selection and records f(c*) keyed by model."""
+    """Intercepts cell selection; records f(c*) only for contested moves (O=1).
+
+    O=1: chosen cell is occupied by a different-tribe agent — the decisions
+    where egoist/altruist/rawSugarscape behavioural differences emerge.
+    """
     chosen_cell = _orig_findBestCell(self)
     if chosen_cell is not None:
-        model = self.decisionModel
-        if model in _feature_accumulator:
-            try:
-                _feature_accumulator[model].append(_feature_vector(self, chosen_cell))
-            except Exception:
-                pass
+        occupant = chosen_cell.agent
+        if (occupant is not None
+                and occupant is not self
+                and occupant.tribe != self.tribe):
+            model = self.decisionModel
+            if model in _feature_accumulator:
+                try:
+                    _feature_accumulator[model].append(_feature_vector(self, chosen_cell))
+                except Exception:
+                    pass
     return chosen_cell
 
 
@@ -189,18 +203,13 @@ def _remove_patches():
         sugarscape_module.Sugarscape.doTimestep = _orig_doTimestep
 
 # ---------------------------------------------------------------------------
-# Seed-level worker (picklable for ProcessPoolExecutor)
+# Seed-level workers (picklable for ProcessPoolExecutor)
 # ---------------------------------------------------------------------------
 
-def _seed_worker(args):
-    """
-    Runs one heterogeneous seed.  Returns {model: (sum_array, count)} so that
-    the main process can merge without shipping millions of arrays over IPC.
-    """
+def _setup_and_run_seed(seed, seed_idx, n_seeds, timesteps, log_interval):
+    """Shared core: sets global state, patches, runs one heterogeneous seed."""
     global _feature_accumulator
     global _seed_idx, _n_seeds, _timesteps_total, _log_interval, _t0_seed, _t0_total
-
-    seed, seed_idx, n_seeds, timesteps, log_interval = args
 
     _feature_accumulator = {m: [] for m in MODEL_TO_CONDITION}
     _seed_idx        = seed_idx
@@ -208,7 +217,7 @@ def _seed_worker(args):
     _timesteps_total = timesteps
     _log_interval    = log_interval
     _t0_seed         = time.time()
-    _t0_total        = _t0_seed  # per-worker; ETA is per-seed only in parallel mode
+    _t0_total        = _t0_seed
 
     config = dict(BASE_CONFIG)
     config["agentDecisionModels"] = HETERO_MODELS
@@ -231,14 +240,18 @@ def _seed_worker(args):
     finally:
         _remove_patches()
 
-    elapsed = time.time() - _t0_seed
-    counts  = {m: len(_feature_accumulator[m]) for m in MODEL_TO_CONDITION}
+    elapsed    = time.time() - _t0_seed
+    counts     = {m: len(_feature_accumulator[m]) for m in MODEL_TO_CONDITION}
     counts_str = "  ".join(
         f"{MODEL_TO_CONDITION[m][:6]}={counts[m]:>7,}" for m in MODEL_TO_CONDITION
     )
     print(f"  seed {seed_idx + 1}/{n_seeds} complete  [{counts_str}]  ({_fmt_time(elapsed)})")
 
-    # Return sums + counts only — avoids shipping large arrays over IPC
+
+def _seed_worker(args):
+    """Full-run worker: returns {model: (sum, count)} — compact for IPC."""
+    seed, seed_idx, n_seeds, timesteps, log_interval = args
+    _setup_and_run_seed(seed, seed_idx, n_seeds, timesteps, log_interval)
     result = {}
     for model, acc in _feature_accumulator.items():
         if acc:
@@ -246,6 +259,114 @@ def _seed_worker(args):
         else:
             result[model] = (np.zeros(5), 0)
     return result
+
+
+def _pilot_seed_worker(args):
+    """Pilot worker: returns {model: (sum, sum_of_squares, count)} for variance."""
+    seed, seed_idx, n_seeds, timesteps, log_interval = args
+    _setup_and_run_seed(seed, seed_idx, n_seeds, timesteps, log_interval)
+    result = {}
+    for model, acc in _feature_accumulator.items():
+        if acc:
+            arr = np.array(acc)
+            result[model] = (np.sum(arr, axis=0), np.sum(arr ** 2, axis=0), len(acc))
+        else:
+            result[model] = (np.zeros(5), np.zeros(5), 0)
+    return result
+
+# ---------------------------------------------------------------------------
+# Pilot analysis
+# ---------------------------------------------------------------------------
+
+def _z_score(p):
+    """Inverse normal CDF via statistics.NormalDist (Python ≥ 3.8)."""
+    try:
+        from statistics import NormalDist
+        return NormalDist().inv_cdf(p)
+    except ImportError:
+        # Fallback hardcoded values for common α/(2k) quantiles
+        table = {0.995: 2.576, 0.999: 3.090, 0.9995: 3.291}
+        return min(table.items(), key=lambda kv: abs(kv[0] - p))[1]
+
+
+def run_pilot(seeds, n_pilot, timesteps, log_interval, eps, alpha):
+    """
+    Run n_pilot heterogeneous seeds, estimate per-type per-dimension σ, and
+    print the minimum --seeds required to satisfy the variance-based sample
+    size bound at the given ε and α (Bonferroni-corrected over k=5 dimensions).
+
+    Bound: N ≥ (z_{α/(2k)} · σ̂ / ε)²
+
+    Returns the recommended number of seeds as an integer.
+    """
+    n_features    = 5
+    feature_names = ["I", "D", "C", "P", "X"]
+    z             = _z_score(1.0 - alpha / (2 * n_features))
+
+    print(f"\nPilot mode: {n_pilot} seed(s)  |  ε={eps}  α={alpha}"
+          f"  k={n_features}  z={z:.3f}\n")
+
+    worker_args = [
+        (seed, idx, n_pilot, timesteps, log_interval)
+        for idx, seed in enumerate(seeds[:n_pilot])
+    ]
+
+    combined = {m: (np.zeros(5), np.zeros(5), 0) for m in MODEL_TO_CONDITION}
+    for wa in worker_args:
+        for model, (s, sq, n) in _pilot_seed_worker(wa).items():
+            ps, psq, pn = combined[model]
+            combined[model] = (ps + s, psq + sq, pn + n)
+
+    W = 80
+    print(f"\n{'═'*W}")
+    print(f"  Pilot results  ({n_pilot} seed(s)  |  ε={eps}  α={alpha}  z={z:.3f})")
+    print(f"{'─'*W}")
+    print(f"  {'Type':<20}  {'dim':>3}  {'σ̂':>8}  {'N_req':>10}  {'n/seed':>8}  {'seeds_req':>10}")
+    print(f"{'─'*W}")
+
+    overall_max_seeds = 0
+
+    for model, (total_sum, total_sq, total_n) in combined.items():
+        cond_name    = MODEL_TO_CONDITION[model]
+        avg_per_seed = total_n / n_pilot if n_pilot > 0 else 1.0
+        type_max     = 0
+
+        rows = []
+        for j, fname in enumerate(feature_names):
+            if total_n < 2:
+                sigma = 0.0
+            else:
+                var   = (total_sq[j] - total_sum[j] ** 2 / total_n) / (total_n - 1)
+                sigma = math.sqrt(max(var, 0.0))
+
+            if sigma < 1e-10:
+                n_req = seeds_req = 0
+            else:
+                n_req     = math.ceil((z * sigma / eps) ** 2)
+                seeds_req = math.ceil(n_req / avg_per_seed) if avg_per_seed > 0 else 0
+
+            type_max = max(type_max, seeds_req)
+            rows.append((fname, sigma, n_req, seeds_req))
+
+        for i, (fname, sigma, n_req, seeds_req) in enumerate(rows):
+            prefix = f"  {cond_name:<20}" if i == 0 else f"  {'':20}"
+            flag   = " ←" if seeds_req == type_max and seeds_req > 0 else ""
+            print(f"{prefix}  {fname:>3}  {sigma:>8.4f}  {n_req:>10,}  "
+                  f"{avg_per_seed:>8.0f}  {seeds_req:>10,}{flag}")
+
+        print(f"  {'':20}  {'MAX':>3}  {'':>8}  {'':>10}  {'':>8}  {type_max:>10,}"
+              f"  ← {cond_name}")
+        print(f"{'─'*W}")
+        overall_max_seeds = max(overall_max_seeds, type_max)
+
+    print(f"{'═'*W}")
+    print(f"  Recommendation:  --seeds {overall_max_seeds}")
+    print(f"  (satisfies all types × all dims at ε={eps}, α={alpha},"
+          f" Bonferroni over {n_features} dims)")
+    print(f"{'═'*W}\n")
+
+    return overall_max_seeds
+
 
 # ---------------------------------------------------------------------------
 # Seed management
@@ -310,8 +431,15 @@ def parse_args():
     p.add_argument("--log-interval", type=int, default=DEFAULT_LOG_INTERVAL,
                    dest="log_interval",
                    help="Print progress every N timesteps (default: %(default)s)")
-    p.add_argument("--parallel",     type=int, default=1,
+    p.add_argument("--parallel",     type=int, default=DEFAULT_PARALLEL,
                    help="Seeds to run in parallel (default: %(default)s)")
+    p.add_argument("--pilot",        type=int, default=DEFAULT_PILOT, metavar="N",
+                   help="Run N pilot seeds to estimate σ and print required sample "
+                        "size; set to 0 to skip (default: %(default)s)")
+    p.add_argument("--eps",          type=float, default=0.01,
+                   help="Target mean-estimation error ε for sample-size bound (default: %(default)s)")
+    p.add_argument("--alpha",        type=float, default=0.05,
+                   help="Significance level α for sample-size bound (default: %(default)s)")
     p.add_argument("--force",        action="store_true",
                    help="Re-derive even if vectors already exist")
     return p.parse_args()
@@ -323,7 +451,16 @@ def main():
 
     seeds_path   = os.path.join(args.outdir, "seeds.json")
     vectors_path = os.path.join(args.outdir, "prioritization_vectors.json")
-    seeds        = _load_or_generate_seeds(seeds_path, args.seeds)
+    seeds        = _load_or_generate_seeds(seeds_path, max(args.seeds, args.pilot))
+
+    # Pilot phase: estimate σ and recommend seed count
+    if args.pilot > 0:
+        recommended = run_pilot(seeds, args.pilot, args.timesteps,
+                                args.log_interval, args.eps, args.alpha)
+        reply = input(f"Continue with full derivation using --seeds {args.seeds}? [y/N] ").strip().lower()
+        if reply not in ("y", "yes"):
+            print("Aborted. Re-run with --seeds <N> as recommended.")
+            return
 
     # Skip if already derived (unless forced)
     if not args.force and os.path.exists(vectors_path):
