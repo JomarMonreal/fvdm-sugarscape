@@ -289,7 +289,7 @@ def _z_score(p):
         return min(table.items(), key=lambda kv: abs(kv[0] - p))[1]
 
 
-def run_pilot(seeds, n_pilot, timesteps, log_interval, eps, alpha):
+def run_pilot(seeds, n_pilot, timesteps, log_interval, eps, alpha, n_workers=1):
     """
     Run n_pilot heterogeneous seeds, estimate per-type per-dimension σ, and
     print the minimum --seeds required to satisfy the variance-based sample
@@ -303,8 +303,9 @@ def run_pilot(seeds, n_pilot, timesteps, log_interval, eps, alpha):
     feature_names = ["I", "D", "C", "P", "X"]
     z             = _z_score(1.0 - alpha / (2 * n_features))
 
+    n_workers = min(n_workers, n_pilot)
     print(f"\nPilot mode: {n_pilot} seed(s)  |  ε={eps}  α={alpha}"
-          f"  k={n_features}  z={z:.3f}\n")
+          f"  k={n_features}  z={z:.3f}  parallel={n_workers}\n")
 
     worker_args = [
         (seed, idx, n_pilot, timesteps, log_interval)
@@ -312,10 +313,18 @@ def run_pilot(seeds, n_pilot, timesteps, log_interval, eps, alpha):
     ]
 
     combined = {m: (np.zeros(5), np.zeros(5), 0) for m in MODEL_TO_CONDITION}
-    for wa in worker_args:
-        for model, (s, sq, n) in _pilot_seed_worker(wa).items():
-            ps, psq, pn = combined[model]
-            combined[model] = (ps + s, psq + sq, pn + n)
+    if n_workers > 1:
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = {executor.submit(_pilot_seed_worker, wa): wa[0] for wa in worker_args}
+            for future in as_completed(futures):
+                for model, (s, sq, n) in future.result().items():
+                    ps, psq, pn = combined[model]
+                    combined[model] = (ps + s, psq + sq, pn + n)
+    else:
+        for wa in worker_args:
+            for model, (s, sq, n) in _pilot_seed_worker(wa).items():
+                ps, psq, pn = combined[model]
+                combined[model] = (ps + s, psq + sq, pn + n)
 
     W = 80
     print(f"\n{'═'*W}")
@@ -456,7 +465,8 @@ def main():
     # Pilot phase: estimate σ and recommend seed count
     if args.pilot > 0:
         run_pilot(seeds, args.pilot, args.timesteps,
-                  args.log_interval, args.eps, args.alpha)
+                  args.log_interval, args.eps, args.alpha,
+                  n_workers=args.parallel)
 
     # Skip if already derived (unless forced)
     if not args.force and os.path.exists(vectors_path):
