@@ -12,6 +12,10 @@ Algorithm (Abbeel & Ng, 2004):
   2. At every agent decision step, record the combined feature vector of the
      chosen cell:
          f(c*) = E^imm(c*) + γ · E^fut(c*)
+     where E^imm = (I, D, C, P, X) and E^fut = (I_f, D_f, C_f, P_f, X_f).
+     Propinquity is the normalized intensity ratio:
+         P   = I / (I + I_f)   (share of combined intensity that is immediate)
+         P_f = I_f / (I + I_f) (complement; P + P_f = 1)
   3. After all derivation runs, compute the mean feature vector across all
      recorded decisions:
          μ = (1/N) Σ f(c*_t)
@@ -78,7 +82,7 @@ DERIVE_CONDITIONS = {
 # ---------------------------------------------------------------------------
 
 def _feature_vector(ag, cell):
-    """f(c*) = E^imm(c*) + γ · E^fut(c*),  shape (5,)"""
+    """f(c*) = E^imm(c*) + γ · E^fut(c*), shape (5,). P = I/(I+I_f), P_f = I_f/(I+I_f)."""
     gamma = ag.decisionModelLookaheadDiscount if ag.decisionModelLookaheadFactor != 0 else 0.0
     E_imm, E_fut = compute_felicific_vectors(ag, cell)
     return np.array([
