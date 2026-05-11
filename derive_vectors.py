@@ -455,12 +455,8 @@ def main():
 
     # Pilot phase: estimate σ and recommend seed count
     if args.pilot > 0:
-        recommended = run_pilot(seeds, args.pilot, args.timesteps,
-                                args.log_interval, args.eps, args.alpha)
-        reply = input(f"Continue with full derivation using --seeds {args.seeds}? [y/N] ").strip().lower()
-        if reply not in ("y", "yes"):
-            print("Aborted. Re-run with --seeds <N> as recommended.")
-            return
+        run_pilot(seeds, args.pilot, args.timesteps,
+                  args.log_interval, args.eps, args.alpha)
 
     # Skip if already derived (unless forced)
     if not args.force and os.path.exists(vectors_path):
