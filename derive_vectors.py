@@ -76,7 +76,7 @@ DEFAULT_N_SEEDS      = 30
 DEFAULT_TIMESTEPS    = 5000
 DEFAULT_LOG_INTERVAL = 500
 DEFAULT_PARALLEL     = 30
-DEFAULT_PILOT        = 5
+DEFAULT_PILOT        = 10
 
 # All four model strings as assigned by sugarscape.py (rawSugarscape → "none")
 MODEL_TO_CONDITION = {
