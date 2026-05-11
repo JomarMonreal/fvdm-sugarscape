@@ -19,7 +19,6 @@ Usage:
 import argparse
 import csv
 import json
-import math
 import multiprocessing
 import os
 import random
@@ -248,17 +247,8 @@ def compute_felicific_vectors(ag, chosen_cell):
 
     # Certainty: chosen cell is always reachable (it was selected from cellsInRange)
     C = 1.0
-
-    # Distance from agent's current cell to chosen cell (for Propinquity)
-    dx = abs(chosen_cell.x - ag.cell.x)
-    dy = abs(chosen_cell.y - ag.cell.y)
-    if env.wraparound:
-        dx = min(dx, env.width - dx)
-        dy = min(dy, env.height - dy)
-    d = math.sqrt(dx * dx + dy * dy)
-
-    # Propinquity: spatial nearness as proxy for temporal delay
-    P = 1.0 / (1.0 + d)
+    # Propinquity: immediate effects are maximally near in time
+    P = 1.0
 
     # Intensity I = 1 / ((1+H_i)(1+pollution_c))
     denom_I = (1.0 + H_i) * (1.0 + chosen_cell.pollution)
@@ -289,7 +279,8 @@ def compute_felicific_vectors(ag, chosen_cell):
 
     # Lookahead discount γ — only when lookahead is enabled
     gamma = ag.decisionModelLookaheadDiscount if ag.decisionModelLookaheadFactor != 0 else 0.0
-    P_f = gamma
+    # Propinquity in the future layer is 0: future effects are definitionally deferred
+    P_f = 0.0
 
     # Future extent X_f = |N_i(c*)| / |V_i| from chosen cell's vantage
     if ag.decisionModelLookaheadFactor != 0:
