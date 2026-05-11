@@ -210,6 +210,8 @@ class Sugarscape:
             elif "negativeBentham" in agentConfiguration["decisionModel"]:
                 a = ethics.Bentham(agentID, self.timestep, placementCell, agentConfiguration)
                 a.selfishnessFactor = -1
+            elif "fvdm" in agentConfiguration["decisionModel"]:
+                a = ethics.FVDMAgent(agentID, self.timestep, placementCell, agentConfiguration)
             elif "temperance" in agentConfiguration["decisionModel"]:
                 a = ethics.Temperance(agentID, self.timestep, placementCell, agentConfiguration)
 
@@ -667,12 +669,14 @@ class Sugarscape:
         random.setstate(randomNumberReset)
         random.shuffle(sexes)
         random.shuffle(decisionModels)
+        prioritizationVector = configs.get("agentPrioritizationVector", [0.2, 0.2, 0.2, 0.2, 0.2])
         for i in range(numAgents):
             agentEndowment = {"seed": self.seed, "sex": sexes[i], "tags": tags.pop(), "tagPreferences": tagPreferences, "tagging": tagging,
                               "immuneSystem": immuneSystems.pop(), "inheritancePolicy": inheritancePolicy,
                               "decisionModel": decisionModels.pop(), "decisionModelLookaheadFactor": decisionModelLookaheadFactor,
                               "movementMode": movementMode, "neighborhoodMode": neighborhoodMode, "visionMode": visionMode,
-                              "depressionFactor": depressionFactors[i], "follower": follower}
+                              "depressionFactor": depressionFactors[i], "follower": follower,
+                              "prioritizationVector": prioritizationVector}
             for config in configurations:
                 # If sexes are enabled, ensure proper fertility and infertility ages are set
                 if sexes[i] == "female" and config == "femaleFertilityAge":
@@ -1429,6 +1433,8 @@ def sortConfigurationTimeframes(configuration, timeframe):
     return config
 
 def verifyConfiguration(configuration):
+    # Keys whose list values must NOT be sorted (ordered vectors, not ranges)
+    noSort = ["agentPrioritizationVector"]
     negativesAllowed = ["agentDecisionModelTribalFactor", "agentMaxAge", "agentSelfishnessFactor"]
     negativesAllowed += ["diseaseAggressionPenalty", "diseaseFertilityPenalty", "diseaseFriendlinessPenalty", "diseaseHappinessPenalty", "diseaseMovementPenalty"]
     negativesAllowed += ["diseaseSpiceMetabolismPenalty", "diseaseSugarMetabolismPenalty", "diseaseTimeframe", "diseaseVisionPenalty"]
@@ -1443,7 +1449,7 @@ def verifyConfiguration(configuration):
             configType = type(configValue[0])
             if configName in timeframes:
                 configuration[configName] = sortConfigurationTimeframes(configuration, configName)
-            else:
+            elif configName not in noSort:
                 configValue.sort()
             if configName not in negativesAllowed and (configType == int or configType == float):
                 for i in range(len(configValue)):
@@ -1677,6 +1683,7 @@ if __name__ == "__main__":
                      "agentInheritancePolicy": "none",
                      "agentLeader": False,
                      "agentLendingFactor": [0, 0],
+                     "agentPrioritizationVector": [0.2, 0.2, 0.2, 0.2, 0.2],
                      "agentLoanDuration": [0, 0],
                      "agentLogfile": None,
                      "agentLookaheadFactor": [0, 0],

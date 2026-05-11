@@ -30,6 +30,7 @@
         "agentInheritancePolicy": "children",
         "agentLeader": false,
         "agentLendingFactor": [1, 1],
+        "agentPrioritizationVector": [0.2, 0.2, 0.2, 0.2, 0.2],
         "agentLoanDuration": [5, 5],
         "agentLogfile": null,
         "agentLookaheadFactor": [1, 10],
