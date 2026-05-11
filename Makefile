@@ -12,13 +12,15 @@ SCREENSHOTS = *.ps
 TEST = test.py
 
 # Experiment options (override on command line, e.g. SEEDS=10 TIMESTEPS=500)
-SEEDS      = 30
+SEEDS      = 15
 TIMESTEPS  = 1000
 AGENTS     = 250
 PARALLEL   = $(shell nproc 2>/dev/null || echo 1)
 # Derivation-phase options (longer runs for IRL convergence)
-DERIVE_TIMESTEPS = 5000
-DERIVE_LR        = 0.1
+DERIVE_TIMESTEPS          = 2000
+DERIVE_LR                 = 0.1
+DERIVE_CONVERGE_THRESHOLD = 1e-3
+DERIVE_CONVERGE_PATIENCE  = 3
 
 DATASET = $(DATACHECK) \
 		data/*[[:digit:]]*.config \
@@ -87,10 +89,10 @@ baseline-force:
 	$(PYTHON) $(BASELINE) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(BASELINE_DIR) --force
 
 derive:
-	$(PYTHON) $(DERIVE) --seeds $(SEEDS) --timesteps $(DERIVE_TIMESTEPS) --lr $(DERIVE_LR) --outdir $(BASELINE_DIR)
+	$(PYTHON) $(DERIVE) --seeds $(SEEDS) --timesteps $(DERIVE_TIMESTEPS) --lr $(DERIVE_LR) --converge-threshold $(DERIVE_CONVERGE_THRESHOLD) --converge-patience $(DERIVE_CONVERGE_PATIENCE) --parallel $(PARALLEL) --outdir $(BASELINE_DIR)
 
 derive-force:
-	$(PYTHON) $(DERIVE) --seeds $(SEEDS) --timesteps $(DERIVE_TIMESTEPS) --lr $(DERIVE_LR) --outdir $(BASELINE_DIR) --force
+	$(PYTHON) $(DERIVE) --seeds $(SEEDS) --timesteps $(DERIVE_TIMESTEPS) --lr $(DERIVE_LR) --converge-threshold $(DERIVE_CONVERGE_THRESHOLD) --converge-patience $(DERIVE_CONVERGE_PATIENCE) --parallel $(PARALLEL) --outdir $(BASELINE_DIR) --force
 
 test:
 	cd tests && $(PYTHON) $(TEST) --conf ../$(CONFIG)

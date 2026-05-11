@@ -40,6 +40,7 @@ import os
 import random
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
@@ -347,7 +348,20 @@ def derive_condition(condition_name, models, seeds, timesteps, lr, log_interval,
     total_time = time.time() - _t0_condition
     print(f"\n  [{condition_name}] DONE  Pi = {[round(v, 4) for v in pi.tolist()]}"
           f"  ({_fmt_time(total_time)} total)\n")
-    return pi
+    return pi, _step
+
+# ---------------------------------------------------------------------------
+# Multiprocessing worker (must be top-level to be picklable)
+# ---------------------------------------------------------------------------
+
+def _derive_worker(args):
+    (condition_name, models, seeds, timesteps, lr, log_interval,
+     converge_threshold, converge_patience, out_dir, force) = args
+    pi, steps = derive_condition(
+        condition_name, models, seeds, timesteps, lr, log_interval,
+        converge_threshold, converge_patience, out_dir, force,
+    )
+    return condition_name, pi.tolist(), steps
 
 # ---------------------------------------------------------------------------
 # Seed management
@@ -420,6 +434,8 @@ def parse_args():
     p.add_argument("--converge-patience", type=int, default=DEFAULT_CONVERGE_PATIENCE,
                    dest="converge_patience",
                    help="Consecutive intervals below threshold before stopping seed (default: %(default)s)")
+    p.add_argument("--parallel",     type=int,   default=1,
+                   help="Conditions to derive in parallel (default: %(default)s)")
     p.add_argument("--force",        action="store_true",
                    help="Re-derive even if vectors already exist")
     return p.parse_args()
@@ -433,6 +449,8 @@ def main():
     vectors_path = os.path.join(args.outdir, "prioritization_vectors.json")
     seeds = _load_or_generate_seeds(seeds_path, args.seeds)
 
+    n_workers = min(args.parallel, len(DERIVE_CONDITIONS))
+
     print(
         f"\nDerivation settings:"
         f"\n  conditions        : {list(DERIVE_CONDITIONS.keys())}"
@@ -442,28 +460,35 @@ def main():
         f"\n  log_interval      : every {args.log_interval} timesteps"
         f"\n  converge_threshold: {args.converge_threshold}  (early-stop |∇| threshold)"
         f"\n  converge_patience : {args.converge_patience}   (consecutive intervals before stop)"
+        f"\n  parallel          : {n_workers} condition(s) at a time"
         f"\n  output            : {vectors_path}"
         f"\n"
         f"\nMinimum viable: 5 seeds × 200 timesteps (~250k gradient steps per condition)."
-        f"\nDefault (30 × 5000) captures ecological diversity across population states.\n"
+        f"\nDefault (15 × 2000) captures ecological diversity across population states.\n"
     )
 
-    results    = {}
-    step_counts = {}
-    t0_total   = time.time()
+    worker_args = [
+        (name, models, seeds, args.timesteps, args.lr, args.log_interval,
+         args.converge_threshold, args.converge_patience, args.outdir, args.force)
+        for name, models in DERIVE_CONDITIONS.items()
+    ]
 
-    for condition_name, models in DERIVE_CONDITIONS.items():
-        print(f"{'─'*60}")
-        print(f"  Condition: {condition_name}")
-        print(f"{'─'*60}")
-        pi = derive_condition(
-            condition_name, models, seeds,
-            args.timesteps, args.lr, args.log_interval,
-            args.converge_threshold, args.converge_patience,
-            args.outdir, args.force
-        )
-        results[condition_name]     = pi
-        step_counts[condition_name] = _step
+    results     = {}
+    step_counts = {}
+    t0_total    = time.time()
+
+    if n_workers > 1:
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = {executor.submit(_derive_worker, a): a[0] for a in worker_args}
+            for future in as_completed(futures):
+                condition_name, pi_list, steps = future.result()
+                results[condition_name]     = np.array(pi_list)
+                step_counts[condition_name] = steps
+    else:
+        for worker_arg in worker_args:
+            condition_name, pi_list, steps = _derive_worker(worker_arg)
+            results[condition_name]     = np.array(pi_list)
+            step_counts[condition_name] = steps
 
     _save_vectors(vectors_path, results, step_counts, seeds, args.timesteps, args.lr)
 
