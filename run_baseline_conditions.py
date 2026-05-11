@@ -42,25 +42,71 @@ import sugarscape as sugarscape_module
 DEFAULT_OUT = os.path.join(_SCRIPT_DIR, "data", "baseline")
 DEFAULT_N_SEEDS = 30
 
-# 4 baseline conditions; extend this dict to add heterogeneous runs
-CONDITIONS = {
-    "rawSugarscape": {
-        "agentDecisionModels": ["none"],
-        "experimentalGroup": None,
-    },
-    "egoist": {
-        "agentDecisionModels": ["egoist"],
-        "experimentalGroup": None,
-    },
-    "altruist": {
-        "agentDecisionModels": ["altruist"],
-        "experimentalGroup": None,
-    },
-    "bentham": {
-        "agentDecisionModels": ["bentham"],
-        "experimentalGroup": None,
-    },
-}
+_VECTORS_FILE = os.path.join(DEFAULT_OUT, "prioritization_vectors.json")
+
+
+def _load_derived_vectors():
+    """Load IRL-derived prioritization vectors if available, else return None."""
+    if not os.path.exists(_VECTORS_FILE):
+        return None
+    try:
+        with open(_VECTORS_FILE) as f:
+            data = json.load(f)
+        return {k: v["vector"] for k, v in data.items() if "vector" in v}
+    except Exception:
+        return None
+
+
+def _build_conditions():
+    """
+    Builds the full 8-condition dict.
+    Conditions 1–4: baseline rule-based agents.
+    Conditions 5–8: FVDM agents using IRL-derived prioritization vectors.
+    FVDM conditions are included only when prioritization_vectors.json exists.
+    """
+    conds = {
+        "rawSugarscape": {
+            "agentDecisionModels": ["none"],
+            "experimentalGroup": None,
+        },
+        "egoist": {
+            "agentDecisionModels": ["egoist"],
+            "experimentalGroup": None,
+        },
+        "altruist": {
+            "agentDecisionModels": ["altruist"],
+            "experimentalGroup": None,
+        },
+        "bentham": {
+            "agentDecisionModels": ["bentham"],
+            "experimentalGroup": None,
+        },
+    }
+
+    vectors = _load_derived_vectors()
+    if vectors is not None:
+        fvdm_map = {
+            "fvdmRawSugarscape": "rawSugarscape",
+            "fvdmEgoist":        "egoist",
+            "fvdmAltruist":      "altruist",
+            "fvdmBentham":       "bentham",
+        }
+        for fvdm_name, base_name in fvdm_map.items():
+            if base_name in vectors:
+                conds[fvdm_name] = {
+                    "agentDecisionModels": ["fvdm"],
+                    "experimentalGroup": None,
+                    "agentPrioritizationVector": vectors[base_name],
+                }
+        print(f"Loaded {len(vectors)} prioritization vectors → FVDM conditions added.")
+    else:
+        print(f"No prioritization vectors found at {_VECTORS_FILE}.")
+        print("Run 'make derive' first to add FVDM conditions 5–8.")
+
+    return conds
+
+
+CONDITIONS = _build_conditions()
 
 # Base simulation config matching the project defaults in config.json
 BASE_CONFIG = {
@@ -444,6 +490,9 @@ def run_single_simulation(args):
     config["agentLogfile"] = agent_log
     config["logfileFormat"] = "csv"
     config["headlessMode"] = True
+    # Pass FVDM prioritization vector when present (conditions 5–8)
+    if "agentPrioritizationVector" in condition_cfg:
+        config["agentPrioritizationVector"] = condition_cfg["agentPrioritizationVector"]
 
     _apply_patches()
     try:
