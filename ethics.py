@@ -1,5 +1,6 @@
 import agent
 
+import math
 import random
 import sys
 
@@ -329,3 +330,126 @@ class Temperance(agent.Agent):
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return Temperance(childID, birthday, cell, configuration)
+
+class FVDMAgent(agent.Agent):
+    """
+    Felicific Vector Distance Matching agent.
+
+    Selects the destination cell c* that minimises the sum of Euclidean distances
+    from the prioritization vector Pi to both the immediate and future felicific
+    effect vectors:
+
+        c* = argmin_{c in Vi} ( ||Pi - E^imm(c)||_2 + ||Pi - E^fut(c)||_2 )
+
+    Pi = (p_I, p_D, p_C, p_P, p_X) is a 5-dimensional vector derived via
+    MaxEnt IRL from baseline condition trajectories and supplied through
+    agentPrioritizationVector in the simulation config.
+    """
+
+    def __init__(self, agentID, birthday, cell, configuration):
+        super().__init__(agentID, birthday, cell, configuration)
+        # 5D prioritization vector; defaults to uniform if not provided
+        self.prioritizationVector = configuration.get(
+            "prioritizationVector", [0.2, 0.2, 0.2, 0.2, 0.2]
+        )
+
+    # ------------------------------------------------------------------
+    # Felicific effect vector computation
+    # ------------------------------------------------------------------
+
+    def computeImmediateEffectVector(self, cell):
+        """
+        E^imm(c) = [I, D, C, P, X]
+
+        I  Intensity   = 1 / ((1 + H_i)(1 + pollution_c))
+        D  Duration    = W_c / (m_i * W_c_max)
+        C  Certainty   = 1 if cell is reachable, else 0
+        P  Proximity   = 1  (single-step planning)
+        X  Extent      = |N_i| / |V_i|
+        """
+        env = self.cell.environment
+        W_c = cell.sugar + cell.spice
+        W_c_max = cell.maxSugar + cell.maxSpice
+        if cell.agent is not None and cell.agent is not self:
+            loot = min(cell.agent.sugar + cell.agent.spice, env.maxCombatLoot * 2)
+            W_c += loot
+            W_c_max += loot
+
+        m_i = self.sugarMetabolism + self.spiceMetabolism
+        H_i = self.findTimeToLive()
+        cells_in_range = len(self.cellsInRange) if self.cellsInRange else 1
+
+        C = 1.0 if self.canReachCell(cell) else 0.0
+        P = 1.0
+        denom_I = (1.0 + H_i) * (1.0 + cell.pollution)
+        I = 1.0 / denom_I if denom_I > 0.0 else 0.0
+        D = W_c / (m_i * W_c_max) if m_i > 0.0 and W_c_max > 0.0 else 0.0
+        X = len(self.neighborhood) / cells_in_range if cells_in_range > 0 else 1.0
+
+        return [I, D, C, P, X]
+
+    def computeFutureEffectVector(self, cell):
+        """
+        E^fut(c) = [I_f, D_f, C_f, P_f, X_f]
+
+        I_f  Future intensity  = cellNeighborWealth / (W_max * |adj(agent.cell)|)
+        D_f  Future duration   = (W_c - m_i) / (m_i * W_c_max)
+        C_f  Future certainty  = same as C
+        P_f  Future proximity  = gamma (lookahead discount)
+        X_f  Future extent     = |N_i(c)| / |V_i|
+        """
+        env = self.cell.environment
+        W_c = cell.sugar + cell.spice
+        W_c_max = cell.maxSugar + cell.maxSpice
+        if cell.agent is not None and cell.agent is not self:
+            loot = min(cell.agent.sugar + cell.agent.spice, env.maxCombatLoot * 2)
+            W_c += loot
+            W_c_max += loot
+
+        W_max = env.globalMaxSugar + env.globalMaxSpice
+        m_i = self.sugarMetabolism + self.spiceMetabolism
+        cells_in_range = len(self.cellsInRange) if self.cellsInRange else 1
+
+        C_f = 1.0 if self.canReachCell(cell) else 0.0
+        adj_count = len(self.cell.neighbors)
+        I_f = cell.findNeighborWealth() / (W_max * adj_count) if W_max > 0.0 and adj_count > 0 else 0.0
+        D_f = (W_c - m_i) / (m_i * W_c_max) if m_i > 0.0 and W_c_max > 0.0 else 0.0
+        gamma = self.decisionModelLookaheadDiscount if self.decisionModelLookaheadFactor != 0 else 0.0
+        P_f = gamma
+        if self.decisionModelLookaheadFactor != 0:
+            future_n = len(self.findNeighborhood(cell))
+            X_f = future_n / cells_in_range if cells_in_range > 0 else 1.0
+        else:
+            X_f = 1.0
+
+        return [I_f, D_f, C_f, P_f, X_f]
+
+    # ------------------------------------------------------------------
+    # Decision rule: c* = argmin ||Pi - E^imm||_2 + ||Pi - E^fut||_2
+    # ------------------------------------------------------------------
+
+    def findBestEthicalCell(self, cells, greedyBestCell=None):
+        if len(cells) == 0:
+            return greedyBestCell
+
+        Pi = self.prioritizationVector
+        best_cell = None
+        best_dist = float("inf")
+
+        for cell_record in cells:
+            cell = cell_record["cell"]
+            E_imm = self.computeImmediateEffectVector(cell)
+            E_fut = self.computeFutureEffectVector(cell)
+
+            dist_imm = math.sqrt(sum((Pi[k] - E_imm[k]) ** 2 for k in range(5)))
+            dist_fut = math.sqrt(sum((Pi[k] - E_fut[k]) ** 2 for k in range(5)))
+
+            total = dist_imm + dist_fut
+            if total < best_dist:
+                best_dist = total
+                best_cell = cell
+
+        return best_cell if best_cell is not None else (greedyBestCell or cells[0]["cell"])
+
+    def spawnChild(self, childID, birthday, cell, configuration):
+        return FVDMAgent(childID, birthday, cell, configuration)
