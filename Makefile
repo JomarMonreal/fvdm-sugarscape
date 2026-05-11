@@ -4,8 +4,16 @@ LOGS = agents.log.csv agents.log.json log.csv log.json
 PLOT = plot.py
 PLOTCHECK = plots/plots.complete
 RUN = run.py
+BASELINE = run_baseline_conditions.py
+BASELINE_DIR = data/baseline
 SCREENSHOTS = *.ps
 TEST = test.py
+
+# Baseline experiment options (override on command line, e.g. SEEDS=10 TIMESTEPS=500)
+SEEDS = 30
+TIMESTEPS = 1000
+AGENTS = 250
+PARALLEL = $(shell nproc 2>/dev/null || echo 1)
 
 DATASET = $(DATACHECK) \
 		data/*[[:digit:]]*.config \
@@ -23,7 +31,8 @@ CLEAN = $(DATASET) \
 		$(LOGS) \
 		$(PLOTS) \
 		$(SCREENSHOTS) \
-		$(TESTS)
+		$(TESTS) \
+		$(BASELINE_DIR)
 
 # Change to python3 (or other alias) if needed
 PYTHON = python
@@ -66,6 +75,12 @@ else
 	@echo "This message should never be reached."
 endif
 
+baseline:
+	$(PYTHON) $(BASELINE) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(BASELINE_DIR)
+
+baseline-force:
+	$(PYTHON) $(BASELINE) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(BASELINE_DIR) --force
+
 test:
 	cd tests && $(PYTHON) $(TEST) --conf ../$(CONFIG)
 
@@ -75,5 +90,5 @@ clean:
 lean:
 	rm -rf $(PLOTS) || true
 
-.PHONY: all clean data lean plots run seeds setup test
+.PHONY: all baseline baseline-force clean data lean plots run seeds setup test
 # vim: set noexpandtab tabstop=4:
