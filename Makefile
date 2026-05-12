@@ -21,8 +21,9 @@ AGENTS     = 250
 PARALLEL   = $(shell nproc 2>/dev/null || echo 1)
 # Derivation-phase options
 DERIVE_TIMESTEPS = 5000
-DERIVE_SEEDS     = 30
+DERIVE_SEEDS     = 128
 DERIVE_PARALLEL  = 30
+DERIVE_PILOT     = 0
 
 DATASET = $(DATACHECK) \
 		data/*[[:digit:]]*.config \
@@ -104,10 +105,10 @@ baseline-force:
 	$(PYTHON) $(BASELINE) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(BASELINE_DIR) --force
 
 derive:
-	$(PYTHON) $(DERIVE) --seeds $(DERIVE_SEEDS) --timesteps $(DERIVE_TIMESTEPS) --parallel $(DERIVE_PARALLEL) --outdir $(BASELINE_DIR)
+	$(PYTHON) $(DERIVE) --seeds $(DERIVE_SEEDS) --timesteps $(DERIVE_TIMESTEPS) --parallel $(DERIVE_PARALLEL) --pilot $(DERIVE_PILOT) --outdir $(BASELINE_DIR)
 
 derive-force:
-	$(PYTHON) $(DERIVE) --seeds $(DERIVE_SEEDS) --timesteps $(DERIVE_TIMESTEPS) --parallel $(DERIVE_PARALLEL) --outdir $(BASELINE_DIR) --force
+	$(PYTHON) $(DERIVE) --seeds $(DERIVE_SEEDS) --timesteps $(DERIVE_TIMESTEPS) --parallel $(DERIVE_PARALLEL) --pilot $(DERIVE_PILOT) --outdir $(BASELINE_DIR) --force
 
 fvdm:
 	$(PYTHON) $(FVDM_RUNNER) --seeds $(SEEDS) --timesteps $(TIMESTEPS) --agents $(AGENTS) --parallel $(PARALLEL) --outdir $(DATA_ROOT) --baseline-dir $(BASELINE_DIR)
