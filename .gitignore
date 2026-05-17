@@ -9,3 +9,11 @@ experiment_results/results/condition_aggregates.csv
 experiment_results/results/per_seed_summary.csv
 experiment_results/results/per_timestep.csv
 
+
+# Generated logs/results
+fvdm_vectors/sim_logs/
+focal_action_results/results/
+experiment_results/results/
+results/felicific_dataset.jsonl
+log.json
+*.log
