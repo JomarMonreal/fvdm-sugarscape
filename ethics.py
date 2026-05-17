@@ -425,235 +425,132 @@ class BiasedFocalAction(agent.Agent):
         return BiasedFocalAction(childID, birthday, cell, configuration)
 
 class FVDMAgent(agent.Agent):
-    """Felicific Value Decision Model (FVDM) Agent.
+    """Felicific Vector Distance Matching (FVDM) Agent.
 
-    This agent replaces the standard sequential discretionary phase with a 
-    vector distance matching mechanism. It still performs mandatory movement 
-    and gathering naturally, but strictly selects a single discretionary action 
-    (Trade, Reproduction, Lending, or None) based on which action's predicted 
-    felicific effect vector minimizes the Euclidean distance to the agent's 
-    assigned prioritization vector.
+    Cell selection is replaced by distance-minimising matching against a
+    BFE-derived prioritization profile (mu_imm, mu_fut).  All downstream
+    interactions (combat, trade, reproduction, lending) fire unconditionally
+    once the agent moves to the chosen cell, exactly as for baseline agents.
 
-    Reference: Thesis Section 3.6.3 – Main Experimental Runs.
+    Effect vectors are computed analytically at runtime from simulation state:
+      v_imm(c) = (I, D, C=1, P=1,   E=1/|V|)
+      v_fut(c)  = (J, Df, C=1, P=gamma, E=1/|V|)
+
+    Profiles are loaded from fvdm_vectors/bfe_profiles.json produced by
+    derive_vectors.py.
+
+    Reference: Thesis Section 3.5 – FVDM Framework.
     """
-    
-    # Class-level caching to prevent loading models 500x per run
-    _FVDM_MODELS = None
-    _FVDM_SCALER_MEAN = None   # cached from feature_scaler.mean_ for fast per-step transform
-    _FVDM_SCALER_SCALE = None  # cached from feature_scaler.scale_
-    _PRIORITIZATION_VECTORS = None
-    _VECTOR_KEYS = [
-        "rawDerived", "egoistDerived", "altruistDerived", "benthamDerived",
-        "combatDerived", "tradeDerived", "reproductionDerived", "lendingDerived"
+
+    _PROFILES = None   # class-level cache: {condition_key -> {"mu_imm": [...], "mu_fut": [...]}}
+    _PROFILE_PATH = "fvdm_vectors/bfe_profiles.json"
+
+    # Map substrings of decisionModel to profile keys
+    _KEY_MAP = [
+        ("egoist",   "egoist"),
+        ("altruist", "altruist"),
+        ("bentham",  "bentham"),
     ]
-    _EXTENT_DEFAULTS = {"combat": -1.0, "trade": 1.0, "reproduction": 1.0, "lending": 1.0}
 
     def __init__(self, agentID, birthday, cell, configuration):
         super().__init__(agentID, birthday, cell, configuration)
-        self._initialize_fvdm()
-        
-        # Determine prioritization vector key from decisionModel string
-        # e.g. "fvdmBentham" -> "benthamDerived"
+        self._load_profiles()
+
         dm = configuration.get("decisionModel", "").lower()
-        self.fvdm_key = "rawDerived" # default
-        for key in self._VECTOR_KEYS:
-            if key.replace("Derived", "").lower() in dm:
-                self.fvdm_key = key
+        profile_key = "rawSugarscape"
+        for substr, key in self._KEY_MAP:
+            if substr in dm:
+                profile_key = key
                 break
-        
-        if self._PRIORITIZATION_VECTORS:
-            self.prioritization_vector = np.array(self._PRIORITIZATION_VECTORS.get(self.fvdm_key, [0,0,0,0,0]))
-        else:
-            self.prioritization_vector = np.zeros(5)
+
+        profile = self._PROFILES.get(profile_key, {})
+        self.mu_imm = np.array(profile.get("mu_imm", [0.5, 0.5, 1.0, 1.0, 0.1]), dtype=float)
+        self.mu_fut = np.array(profile.get("mu_fut", [0.1, 0.3, 1.0, 0.5, 0.1]), dtype=float)
+
+        # Stores the chosen cell's analytically computed effect vectors for logging.
+        self._chosen_v_imm = np.zeros(5)
+        self._chosen_v_fut = np.zeros(5)
 
     @classmethod
-    def _initialize_fvdm(cls):
-        if cls._FVDM_MODELS is not None:
+    def _load_profiles(cls):
+        if cls._PROFILES is not None:
             return
-
-        import os
-        import json
-        import joblib
-
-        model_dir = "fvdm_models"
-        vector_path = "fvdm_vectors/prioritization_vectors.json"
-
-        cls._FVDM_MODELS = {}
-        cls._PRIORITIZATION_VECTORS = {}
-
-        if os.path.exists(model_dir):
-            for fname in os.listdir(model_dir):
-                if fname.endswith(".pkl"):
-                    name = fname[:-4]
-                    cls._FVDM_MODELS[name] = joblib.load(os.path.join(model_dir, fname))
-
-            scaler = cls._FVDM_MODELS.get("feature_scaler")
-            if scaler is not None:
-                cls._FVDM_SCALER_MEAN = scaler.mean_
-                cls._FVDM_SCALER_SCALE = scaler.scale_
-
-        if os.path.exists(vector_path):
-            with open(vector_path, "r") as f:
+        import json, os
+        cls._PROFILES = {}
+        if os.path.exists(cls._PROFILE_PATH):
+            with open(cls._PROFILE_PATH) as f:
                 data = json.load(f)
-                cls._PRIORITIZATION_VECTORS = data.get("vectors", {})
-
-    def _build_state_features(self):
-        """Construct the 12-dimensional state vector matching the derivation data."""
-        neighbors = self.cell.findNeighborAgents()
-        in_tribe = sum(1 for n in neighbors if n.tribe == self.tribe)
-        not_in_tribe = len(neighbors) - in_tribe
-        valid_moves = len(self.findEmptyNeighborCells())
-        
-        return np.array([
-            float(self.age),
-            float(self.sugar + self.spice),
-            float(self.sugar),
-            float(self.spice),
-            float(self.findTimeToLive()),
-            float(self.findMovement()),
-            float(len(neighbors)),
-            float(in_tribe),
-            float(not_in_tribe),
-            float(valid_moves),
-            float(self.findHappiness()),
-            float(int(self.isDepressed())) if hasattr(self, 'isDepressed') else 0.0
-        ])
-
-    def _predict_effect_vector(self, state, action):
-        """Predict E(a|s_i) = (I, D, C, P, X)."""
-        if action == "none":
-            return np.zeros(5)
-
-        models = self._FVDM_MODELS
-        if not models or f"intensity_{action}" not in models:
-            return np.zeros(5)
-
-        X = state.reshape(1, -1)
-
-        if self._FVDM_SCALER_MEAN is not None:
-            X = (X - self._FVDM_SCALER_MEAN) / self._FVDM_SCALER_SCALE
-
-        i_dist = models[f"intensity_{action}"].pred_dist(X)
-        I = float(i_dist.loc[0])
-        I_var = float(i_dist.scale[0] ** 2)
-
-        D = float(np.clip(models[f"duration_{action}"].predict(X)[0], 0, 1))
-        C = 1.0 / (1.0 + I_var)
-        P = float(np.clip(models[f"propinquity_{action}"].predict(X)[0], 0, 1))
-
-        ext_key = f"extent_{action}"
-        if ext_key in models:
-            classes = models[ext_key].classes_
-            probs = models[ext_key].predict_proba(X)[0]
-            Xc = float(sum(float(c) * p for c, p in zip(classes, probs)))
+            cls._PROFILES = data.get("profiles", {})
         else:
-            Xc = self._EXTENT_DEFAULTS.get(action, 0.0)
+            print(f"[FVDMAgent] Warning: profile file not found at {cls._PROFILE_PATH}. "
+                  "Run derive_vectors.py first. Using zero vectors as fallback.")
 
-        return np.array([I, D, C, P, Xc])
+    # ── Analytical effect vector computation ────────────────────────────────
 
-    def _find_destination_cells(self):
-        """Find the best available combat cell and empty cell."""
-        potentialCells = self.rankCellsInRange()
-        bestEmptyCell = None
-        bestCombatCell = None
-        
-        for cell_dict in potentialCells:
-            c = cell_dict["cell"]
-            if c.agent is None or c.agent == self:
-                if bestEmptyCell is None:
-                    bestEmptyCell = c
-            elif c.agent != self:
-                if bestCombatCell is None:
-                    bestCombatCell = c
-            
-            if bestEmptyCell and bestCombatCell:
-                break
-                
-        if bestEmptyCell is None:
-            bestEmptyCell = self.cell
-            
-        return bestCombatCell, bestEmptyCell
+    def _compute_v_imm(self, cell) -> np.ndarray:
+        """v_imm(c) = (I, D, C=1, P=1, E=1/|V|)."""
+        ttl  = max(0.0, self.findTimeToLive())
+        poll = max(0.0, float(cell.pollution))
+        m    = max(1.0, float(self.findSugarMetabolism() + self.findSpiceMetabolism()))
+        w_c      = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max  = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        v        = max(1,   len(self.cellsInRange))
 
-    def doTimestep(self, timestep):
-        """Override doTimestep to implement Deep FVDM Integration (Option 2)."""
-        self.timestep = timestep
-        self.doAging()
-        if not self.isAlive(): return
-        self.doDisease()
-        if not self.isAlive(): return
+        I = 1.0 / ((1.0 + ttl) * (1.0 + poll))
+        D = min(1.0, w_c / (m * w_c_max))
+        return np.array([I, D, 1.0, 1.0, 1.0 / v])
 
-        # ── 1. Evaluate Pre-Movement Options ──
-        bestCombatCell, bestEmptyCell = self._find_destination_cells()
-        state = self._build_state_features()
-        feasible_actions = ["none"]
-        
-        if bestCombatCell is not None:
-            feasible_actions.append("combat")
-            
-        neighbors = self.cell.findNeighborAgents()
-        if len(neighbors) > 0:
-            feasible_actions.append("trade")
-            
-        if self.isFertile() and len(self.findEmptyNeighborCells()) > 0:
-            for n in neighbors:
-                if n.isFertile():
-                    feasible_actions.append("reproduction")
-                    break
-                    
-        if self.isLender() or self.isBorrower():
-            for n in neighbors:
-                if n.isBorrower() or n.isLender():
-                    feasible_actions.append("lending")
-                    break
+    def _compute_v_fut(self, cell) -> np.ndarray:
+        """v_fut(c) = (J, Df, C=1, P=gamma, E=1/|V|)."""
+        m       = max(1.0, float(self.findSugarMetabolism() + self.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        v       = max(1,   len(self.cellsInRange))
 
-        # ── 2. FVDM Vector Distance Matching ──
-        # Only rank real discretionary actions; "none" is a fallback, not a candidate.
-        # Including "none" (zero vector) as a candidate would always win when P_i has
-        # near-zero Certainty weight, because C≈1.0 for all real actions.
-        real_actions = [a for a in feasible_actions if a != "none"]
-        best_action = "none"
-        if real_actions:
-            min_dist = float('inf')
-            for action in real_actions:
-                eff_vec = self._predict_effect_vector(state, action)
-                dist = np.linalg.norm(self.prioritization_vector - eff_vec)
-                if dist < min_dist:
-                    min_dist = dist
-                    best_action = action
+        env         = cell.environment
+        w_glob_max  = max(1.0, float(env.globalMaxSugar + env.globalMaxSpice))
+        w_adj       = float(cell.findNeighborWealth())
+        n_adj       = max(1, len(cell.neighbors))
+        gamma       = float(self.decisionModelLookaheadDiscount) if self.decisionModelLookaheadDiscount else 0.5
 
-        # ── 3. Unified Movement and Execution ──
-        if best_action == "combat":
-            # Move to target and execute combat
-            self.doCombat(bestCombatCell)
-            self.cell.agent = None
-            self.cell = bestCombatCell
-            self.cell.agent = self
-            self.lastMovedTimestep = self.timestep
-            self.collectResourcesAtCell()
-        else:
-            # Move to best empty cell to avoid combat, then execute chosen action
-            if bestEmptyCell != self.cell:
-                self.cell.agent = None
-                self.cell = bestEmptyCell
-                self.cell.agent = self
-                self.lastMovedTimestep = self.timestep
-            self.collectResourcesAtCell()
-            
-            if not self.isAlive(): return
-            
-            if best_action == "trade":
-                self.doTrading()
-            elif best_action == "reproduction":
-                self.doReproduction()
-            elif best_action == "lending":
-                self.doLending()
+        J  = w_adj / (w_glob_max * n_adj)
+        Df = max(0.0, w_c - m) / (m * w_c_max)
+        return np.array([J, Df, 1.0, gamma, 1.0 / v])
 
-        # ── 4. Mandatory Updates ──
-        self.doMetabolism()
-        if not self.isAlive(): return
-        self.doUniversalIncome()
-        self.doTagging()
-        self.updateHappiness()
+    # ── Cell selection override ──────────────────────────────────────────────
+
+    def findBestEthicalCell(self, cells, greedyBestCell=None):
+        """Select the candidate cell minimising ||mu_imm - v_imm||₂ + ||mu_fut - v_fut||₂."""
+        if not cells:
+            return greedyBestCell
+
+        best_cell = None
+        best_dist = float("inf")
+
+        for cell_dict in cells:
+            c     = cell_dict["cell"]
+            v_imm = self._compute_v_imm(c)
+            v_fut = self._compute_v_fut(c)
+            dist  = float(np.linalg.norm(self.mu_imm - v_imm) +
+                          np.linalg.norm(self.mu_fut - v_fut))
+            if dist < best_dist:
+                best_dist = dist
+                best_cell = c
+                self._chosen_v_imm = v_imm
+                self._chosen_v_fut = v_fut
+
+        return best_cell if best_cell is not None else greedyBestCell
+
+    # ── Runtime stats: append chosen-cell vectors ────────────────────────────
+
+    def updateRuntimeStats(self):
+        super().updateRuntimeStats()
+        # Extend the already-appended runtimeStats dict with per-timestep
+        # felicific effect vectors of the chosen cell (for BFS and cosine similarity).
+        labels = ["I", "D", "C", "P", "E"]
+        for i, lbl in enumerate(labels):
+            self.runtimeStats[f"v_imm_{lbl}"] = round(float(self._chosen_v_imm[i]), 6)
+            self.runtimeStats[f"v_fut_{lbl}"] = round(float(self._chosen_v_fut[i]), 6)
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return FVDMAgent(childID, birthday, cell, configuration)
