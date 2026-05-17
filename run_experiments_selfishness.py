@@ -381,6 +381,12 @@ def run_selfishness_sweep(args):
             agg_rows.append(aggregate_seeds(summs))
     write_csv(agg_rows, os.path.join(results_dir, "condition_aggregates.csv"))
 
+    if args.delete_logs:
+        for (_, _, _, cfg_path, log_path) in all_runs:
+            for p in (log_path, cfg_path):
+                if p and os.path.exists(p):
+                    os.remove(p)
+
     # ── Spearman correlations ──────────────────────────────────────────────
     outcome_metrics = [
         "finalPopulation", "finalSocietalWealth", "finalMeanWealth",
@@ -456,6 +462,8 @@ def parse_args():
     p.add_argument("--python",          default="python3")
     p.add_argument("--force",           action="store_true", default=False,
                    help="Re-run even if log files already exist")
+    p.add_argument("--delete-logs",     action="store_true", default=False,
+                   help="Delete raw JSON sim logs after parsing (saves disk space)")
     return p.parse_args()
 
 

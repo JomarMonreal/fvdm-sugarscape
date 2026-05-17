@@ -141,7 +141,7 @@ def load_base_config(path: str) -> dict:
 
 def make_run_config(base: dict, seed: int, decision_models: list,
                     timesteps: int, num_agents: int,
-                    log_path: str, agent_log_path: str) -> dict:
+                    log_path: str, agent_log_path: str = "") -> dict:
     cfg = dict(base)
     cfg["seed"]               = seed
     cfg["agentDecisionModels"] = decision_models
@@ -155,7 +155,7 @@ def make_run_config(base: dict, seed: int, decision_models: list,
     cfg["screenshots"]        = False
     cfg["profileMode"]        = False
     cfg["logfile"]            = log_path
-    cfg["agentLogfile"]       = agent_log_path   # needed for felicific profiles
+    cfg["agentLogfile"]       = agent_log_path
     cfg["logfileFormat"]      = "json"
     return cfg
 
@@ -467,6 +467,12 @@ def run_baseline(args):
     write_csv(all_summaries, os.path.join(results_dir, "per_seed_summary.csv"))
     write_csv(all_felicific, os.path.join(results_dir, "per_seed_felicific.csv"))
 
+    if args.delete_logs:
+        for (_, _, cfg_path, log_path, agent_log_path) in all_runs:
+            for p in (log_path, agent_log_path, cfg_path):
+                if p and os.path.exists(p):
+                    os.remove(p)
+
     agg_rows = []
     for cname, summs in cond_summaries.items():
         if summs:
@@ -500,20 +506,19 @@ def run_baseline(args):
         print(f"  Step: {args.hetero_step}%  Conditions: {len(HETERO_CONDITIONS)}")
         print(f"{'='*60}\n")
 
-        # Build all hetero run configs
+        # Build all hetero run configs (no agent logs — not used for hetero sweep)
         all_runs_hetero = []
         for cname, models in HETERO_CONDITIONS.items():
             cdir = os.path.join(hetero_sim_dir, cname)
             os.makedirs(cdir, exist_ok=True)
             for seed in seeds:
-                log_path       = os.path.join(cdir, f"{cname}_{seed}.json")
-                agent_log_path = os.path.join(cdir, f"{cname}_{seed}_agents.json")
+                log_path = os.path.join(cdir, f"{cname}_{seed}.json")
                 cfg = make_run_config(base_cfg, seed, models, timesteps, num_agents,
-                                      log_path, agent_log_path)
+                                      log_path)
                 cfg_path = os.path.join(cdir, f"{cname}_{seed}.config")
                 with open(cfg_path, "w") as f:
                     json.dump(cfg, f)
-                all_runs_hetero.append((cname, seed, cfg_path, log_path, agent_log_path))
+                all_runs_hetero.append((cname, seed, cfg_path, log_path, ""))
 
         pending_hetero = []
         for (cname, seed, cfg_path, log_path, _) in all_runs_hetero:
@@ -613,6 +618,12 @@ def run_baseline(args):
         write_csv(hetero_spearman_rows,
                   os.path.join(hetero_results_dir, "hetero_spearman.csv"))
 
+        if args.delete_logs:
+            for (_, _, cfg_path, log_path, _agent) in all_runs_hetero:
+                for p in (log_path, cfg_path):
+                    if p and os.path.exists(p):
+                        os.remove(p)
+
         print(f"  Hetero outputs written to {hetero_results_dir}/\n")
 
     # ── Console summary ─────────────────────────────────────────────────────
@@ -666,7 +677,9 @@ def parse_args():
     p.add_argument("-j", "--cores",     type=int, default=1)
     p.add_argument("-g", "--gamma",     type=float, default=0.5)
     p.add_argument("--python",          default="python3")
-    p.add_argument("--force",      action="store_true", default=False)
+    p.add_argument("--force",       action="store_true", default=False)
+    p.add_argument("--delete-logs", action="store_true", default=False,
+                   help="Delete raw JSON sim logs after parsing (saves disk space)")
     p.add_argument("--hetero-step", type=int, default=10,
                    help="Percentage-point increment for Egoist--Bentham sweep")
     p.add_argument("--no-hetero",  action="store_true", default=False,
