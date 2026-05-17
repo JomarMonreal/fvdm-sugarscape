@@ -130,6 +130,9 @@ AGENT (standing at current position)
 │
 │    a) Immediate welfare components:
 │
+│           e   = |live neighbors visible from agent's current cell| / |cells in range|
+│                 — social density weight from the agent's present position
+│
 │           i_k = 1 / ( (1 + TTL_k) × (1 + pollution) )
 │                 — higher when the agent is close to dying
 │                 — higher when the cell carries more pollution
@@ -138,6 +141,10 @@ AGENT (standing at current position)
 │                 — higher when the cell can sustain the agent longer
 │
 │    b) Future welfare components (same cell, one timestep later):
+│
+│           e_f = |live neighbors visible from candidate cell c| / |cells in range|
+│                 — social density weight projected from the candidate cell's position
+│                 — recomputed per candidate; generally ≠ e
 │
 │           i_f  = adj. neighbor wealth / (global_max × num_adj_cells)
 │                  — higher when surrounding cells are resource-rich
