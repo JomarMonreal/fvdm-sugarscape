@@ -119,6 +119,16 @@ class Agent:
         self.wealthHappiness = 0
         self.validMoves = []
 
+        # BFE data: chosen-cell properties captured pre-movement, used for
+        # analytical felicific coordinate computation in post-processing.
+        self._bfe_w_c = 0.0
+        self._bfe_w_c_max = 1.0
+        self._bfe_pollution = 0.0
+        self._bfe_adj_wealth = 0.0
+        self._bfe_num_adj = 1
+        self._bfe_cells_in_range = 1
+        self._bfe_is_contested = False
+
         self.combatWithControlGroup = 0
         self.combatWithExperimentalGroup = 0
         self.diseaseWithControlGroup = 0
@@ -1220,6 +1230,16 @@ class Agent:
 
     def moveToBestCell(self):
         bestCell = self.findBestCell()
+        # Capture chosen-cell data before movement for felicific profile logging.
+        occ = bestCell.agent
+        self._bfe_w_c          = float(bestCell.sugar + bestCell.spice)
+        self._bfe_w_c_max      = float(max(1, bestCell.maxSugar + bestCell.maxSpice))
+        self._bfe_pollution    = float(bestCell.pollution)
+        self._bfe_adj_wealth   = float(bestCell.findNeighborWealth())
+        self._bfe_num_adj      = max(1, len(bestCell.neighbors))
+        self._bfe_cells_in_range = max(1, len(self.cellsInRange))
+        self._bfe_is_contested = (occ is not None and occ != self and
+                                  occ.tribe != self.tribe)
         if "all" in self.debug or "agent" in self.debug:
             print(f"Agent {self.ID} moving to ({bestCell.x},{bestCell.y})")
         if self.findAggression() > 0:
@@ -1511,6 +1531,7 @@ class Agent:
         timeToLiveDifference = self.timeToLive - self.lastTimeToLive
         pollutionDifference = self.cell.pollution - self.lastPollution
 
+        env = self.cell.environment
         self.runtimeStats = {"timestep": self.timestep, "ID": self.ID, "age": self.age, "wealth": round(self.sugar + self.spice, 2),
                              "sugar": round(self.sugar, 2), "spice": round(self.spice, 2), "sugarGained": round(sugarGained, 2),
                              "spiceGained": round(spiceGained, 2), "wealthGained": round(wealthGained, 2), "movement": self.findMovement(), "timeToLive": round(self.timeToLive, 1),
@@ -1519,7 +1540,19 @@ class Agent:
                              "neighbors": len(self.neighbors), "validMoves": self.lastValidMoves, "moveRank": self.lastMoveRank, "lendingPartners": loans,
                              "pollutionDifference": pollutionDifference, "timeToLiveDifference": timeToLiveDifference, "neighborsInTribe": neighborsInTribe,
                              "neighborsNotInTribe": len(self.neighbors) - neighborsInTribe, "experimentalGroupNeighbors": experimentalNeighbors,
-                             "controlGroupNeighbors": controlNeighbors, "didMove": didMove}
+                             "controlGroupNeighbors": controlNeighbors, "didMove": didMove,
+                             "decisionModel": self.decisionModel,
+                             "sugarMetabolism": self.findSugarMetabolism(),
+                             "spiceMetabolism": self.findSpiceMetabolism(),
+                             "globalMaxWealth": env.globalMaxSugar + env.globalMaxSpice,
+                             # Chosen-cell data for analytical felicific profile computation
+                             "bfe_w_c": round(self._bfe_w_c, 4),
+                             "bfe_w_c_max": round(self._bfe_w_c_max, 4),
+                             "bfe_pollution": round(self._bfe_pollution, 6),
+                             "bfe_adj_wealth": round(self._bfe_adj_wealth, 4),
+                             "bfe_num_adj": self._bfe_num_adj,
+                             "bfe_cells_in_range": self._bfe_cells_in_range,
+                             "bfe_is_contested": self._bfe_is_contested}
 
         sugarscape.agentRuntimeStats.append(self.runtimeStats)
 
