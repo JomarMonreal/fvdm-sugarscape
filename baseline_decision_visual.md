@@ -463,8 +463,9 @@ CELL c  ────────────────────────
         │                                                      agent relative to cell capacity
         │     Certainty    C       1  (always)                 Agent can definitely reach c
         │     Propinquity  P       1  (always)                 One step away (current timestep)
-        │     Extent       E       1 / |V|                     Social density weight
-        │                                                      (1 per cell in vision range)
+        │     Extent       E       |N(agent)| / |V|            Immediate social density:
+        │                                                      neighbors visible from the
+        │                                                      agent's current cell
         │
         └─► FUTURE EFFECT VECTOR      v_fut(c)  =  [ J,  Df, C,  P,  E ]
         │
@@ -476,11 +477,10 @@ CELL c  ────────────────────────
         │                                                             one step's worth
         │     Certainty         C      1  (always)
         │     Propinquity       P      γ  (lookahead discount)        Future reward counts less
-        │     Extent            E      1 / |V|    (simplified: FVDM uses uniform
-        │                                          1/|V| for both vectors; the h
-        │                                          formula uses projected e_f per
-        │                                          candidate, but the BFE averages
-        │                                          this out across all choices)
+        │     Extent            E      |N'(c)| / |V|             Future social density:
+        │                                                          neighbors visible from
+        │                                                          candidate cell c
+        │                                                          (varies per candidate)
 ```
 
 **Variable reference:**
