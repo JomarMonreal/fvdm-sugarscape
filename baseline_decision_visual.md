@@ -702,3 +702,422 @@ OFFLINE (run once, before experiments)            ONLINE (each simulation timest
  Save mu_imm, mu_fut                                       ▼
  → bfe_profiles.json                              Move to c* = argmin dist(c)
 ```
+
+---
+
+---
+
+# Experimental Narrative: What We Run and Why It Proves FVDM Is Needed
+
+This section walks through the full simulation pipeline as a story. Each
+experiment asks a question. Each answer either reveals a problem with the
+baseline or demonstrates that FVDM solves it.
+
+---
+
+## The Story in One Paragraph
+
+The baseline hedonic calculus (KH2024) is a sound model — but it has a hidden
+assumption: you must already know what φ to set for an agent to behave
+ethically. FVDM asks the opposite question. Instead of *"what do I set φ to?"*
+it asks *"given how this agent behaves, what does its ethical profile look
+like?"* The experiments below build the case that this question matters — and
+that FVDM answers it in a way the baseline cannot.
+
+---
+
+## Experiment 1 — Baseline Homogeneous Conditions
+
+**Script:** `run_experiments_baseline.py` (4 conditions, 30 seeds each)
+
+**What we run:**
+
+```
+Condition 1:  rawSugarscape  — no ethical formula, pure resource grab
+Condition 2:  egoist         — φ = 1.0, only own welfare matters
+Condition 3:  altruist       — φ = 0.0, only others' welfare matters
+Condition 4:  bentham        — φ = 0.5, own and others' welfare balanced
+```
+
+Each condition runs 30 independent seeds (30 random starting configurations)
+for 5,000 timesteps each. All other parameters are identical — same map,
+same number of agents, same metabolism range.
+
+**What we observe:**
+
+```
+Metric            rawSugar    Egoist    Altruist    Bentham
+──────────────    ────────    ──────    ────────    ───────
+Extinction %         ?          ?          ?           ?
+Final population     ?          ?          ?           ?
+Mean wealth          ?          ?          ?           ?
+Gini (inequality)    ?          ?          ?           ?
+Time-to-live         ?          ?          ?           ?
+```
+
+*(Values filled in after experiments run.)*
+
+**What this reveals:**
+
+The four conditions give us the performance baseline — a reference point for
+how each ethical stance affects the population over time. By itself this is a
+replication of KH2024. The important thing this experiment sets up is: *we now
+know what Egoist, Altruist, and Bentham populations look like at the societal
+level.*
+
+**The problem it exposes:**
+
+The only thing distinguishing the three hedonic conditions is the value of φ.
+That value is set by the researcher. There is no way to look at an agent
+mid-simulation and ask *"how altruistic is this agent actually behaving right
+now?"* — only *"what φ was it given at the start?"* φ is a design parameter,
+not a measurement.
+
+---
+
+## Experiment 2 — The Selfishness Factor Sweep
+
+**Script:** `run_experiments_selfishness.py` (21 φ levels, 30 seeds each)
+
+**What we run:**
+
+```
+φ = 0.00  (pure altruist)
+φ = 0.05
+φ = 0.10
+...
+φ = 0.50  (bentham)
+...
+φ = 0.95
+φ = 1.00  (pure egoist)
+```
+
+Every agent in the simulation uses the same φ (homogeneous population). This
+is a direct replication of Herman & Kremer (2024) Section VII-C.
+
+**What we observe (KH-style plots, median + Q1/Q3 bands):**
+
+```
+     Final population
+     │
+ 250 ┤  ╭──────╮
+     │ ╱        ╲
+ 150 ┤╱           ╲────────
+     │
+     └──────────────────────
+      0.0    0.5    1.0
+            φ
+
+     Gini coefficient
+     │
+ 1.0 ┤                  ╭──
+     │           ╭──────╯
+ 0.5 ┤───────────╯
+     │
+     └──────────────────────
+      0.0    0.5    1.0
+            φ
+```
+
+**What this reveals:**
+
+The relationship between φ and societal outcomes is not simple. Population
+peaks at a middle φ value — neither fully selfish nor fully altruistic societies
+thrive best. Some metrics change monotonically with φ; others have inflection
+points or plateau regions.
+
+**The problem it exposes:**
+
+Two different φ values can produce nearly identical final population and mean
+wealth. From outcome metrics alone, you cannot distinguish a φ=0.3 society
+from a φ=0.7 society if they happen to have similar populations. The same
+outcomes can arise from fundamentally different ethical stances.
+
+This is **Gap 1** in the framework: outcome equivalence ≠ ethical equivalence.
+The baseline has no tool to detect the difference. FVDM does — because it
+operates in behavioral space, not outcome space.
+
+---
+
+## Experiment 3 — The Heterogeneous Population Sweep
+
+**Script:** `run_experiments_baseline.py` (hetero sweep, 11 mixes, 30 seeds)
+
+**What we run:**
+
+```
+Mix 1:   0% Bentham, 100% Egoist
+Mix 2:  10% Bentham,  90% Egoist
+...
+Mix 6:  50% Bentham,  50% Egoist
+...
+Mix 11: 100% Bentham,  0% Egoist
+```
+
+The selfishness factor of each agent is set by its type (Egoist: φ=1,
+Bentham: φ=0.5). The mix ratio changes but individual φ values do not.
+
+**What we observe:**
+
+```
+     Final population vs. Bentham proportion
+     │
+ 250 ┤          ╭─────────╮
+     │         ╱           ╲
+ 150 ┤────────╱             ╲────
+     │
+     └──────────────────────────
+      0%   Bentham proportion  100%
+           Egoist ←───→ Bentham
+
+     Spearman r (% Bentham vs. population) = ?
+```
+
+**What this reveals:**
+
+Mixing ethical types changes societal outcomes in ways that a purely
+homogeneous model cannot predict. The population curve has inflection points —
+small proportions of Bentham agents in an Egoist population can improve
+outcomes more than proportionally, suggesting ethical minority effects.
+
+**The problem it exposes:**
+
+This is **Gap 2**: a Bentham agent's behavior is coupled to who surrounds it.
+The hedonic formula for φ=0.5 weights neighbor welfare at 50%. As the
+proportion of Egoists increases, the neighbors whose welfare is being counted
+are Egoists — agents who pursue high-resource cells aggressively. The Bentham
+agent's decision changes not because its φ changed, but because its
+*neighborhood changed.*
+
+In other words: the same φ=0.5 agent behaves differently in a 10% Bentham
+population than in a 90% Bentham population. The baseline has no way to
+measure or control this behavioral drift. It only knows the design parameter φ.
+
+---
+
+## Experiment 4 — BFE Derivation (The Core Contribution)
+
+**Script:** `derive_vectors.py` (1 mixed-population pilot, multiple seeds)
+
+**What we run:**
+
+```
+A single simulation with all four agent types at once:
+  rawSugarscape : egoist : altruist : bentham  (round-robin mix)
+
+For every timestep, for every agent that moves to a contested cell:
+  → record the chosen cell's welfare fingerprint (v_imm, v_fut)
+```
+
+**What we compute:**
+
+```
+Across all observations, per agent type:
+
+  Egoist agents chose cells with fingerprints:
+      obs 1: [0.31, 0.28, 1, 1, 0.20]  ← v_imm
+      obs 2: [0.28, 0.33, 1, 1, 0.25]
+      ...
+      obs N: [0.22, 0.31, 1, 1, 0.19]
+                     ↓ average
+      mu_imm_egoist = [0.27, 0.31, 1, 1, 0.21]  ← the profile
+
+  Same process for Altruist, Bentham, rawSugarscape.
+```
+
+**What this reveals:**
+
+Each agent type has a characteristic *kind of cell* it moves toward when
+competing for resources. That characteristic is stable across seeds, across
+timesteps, and across different starting conditions. It is an empirical
+fingerprint derived purely from observed behavior — no φ value is assumed or
+required to compute it.
+
+**Why this is the key result:**
+
+The BFE profile is the first tool in this framework that characterizes ethical
+behavior as a measurable object. Given any agent's sequence of choices, we can
+compute its empirical profile and ask: *how close is this to the known egoist
+profile? to the altruist profile?* That question was previously unanswerable.
+
+---
+
+## Experiment 5 — FVDM Agents Running the Same Conditions
+
+**Script:** `run_experiments_fvdm.py` (same 4 conditions + hetero sweep)
+
+**What we run:**
+
+```
+Condition 1:  fvdmEgoist   — uses mu_egoist profile, picks by argmin distance
+Condition 2:  fvdmAltruist — uses mu_altruist profile
+Condition 3:  fvdmBentham  — uses mu_bentham profile
+Condition 4:  fvdmRaw      — uses mu_raw profile
+
+Then: heterogeneous FVDM sweep (0–100% fvdmBentham proportion)
+```
+
+**What we observe:**
+
+```
+For each FVDM condition, compute:
+
+  BFS (Behavioral Feature Score):
+      How often does the FVDM agent's chosen cell fall within a
+      tolerable distance of the target profile?
+
+  Societal outcomes:
+      Same metrics as Experiment 1 — population, wealth, Gini, TTL
+
+  Cross-condition comparison:
+      FVDM-Egoist  vs.  Baseline Egoist
+      FVDM-Bentham vs.  Baseline Bentham
+      (same seeds, same maps)
+```
+
+**What this reveals — the three comparison tests:**
+
+```
+TEST A — Does FVDM reproduce baseline behavior?
+
+  If BFS is high for fvdmEgoist (it frequently picks cells close to
+  the egoist profile), FVDM has successfully learned and replicated the
+  egoist decision strategy without being given φ.
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  Panel asks: "Why not just set φ=1?"                        │
+  │  Answer: Because φ is a design choice. BFS is a measurement. │
+  │  FVDM proves the strategy is reproducible from data alone.   │
+  └─────────────────────────────────────────────────────────────┘
+
+
+TEST B — Is FVDM more stable across population compositions?
+
+  Run both Baseline-Bentham and FVDM-Bentham through the hetero sweep.
+  At each population mix, measure each agent's BFS against the pure
+  Bentham profile.
+
+  Expected result:
+
+  BFS vs. % Egoist neighbors
+  │
+  1.0 ┤  ─────────────────────────  ← FVDM-Bentham  (profile-anchored)
+      │
+  0.7 ┤         ╲
+      │           ╲_______________  ← Baseline Bentham  (drifts with neighbors)
+      │
+      └──────────────────────────
+       0%   Egoist proportion   100%
+
+  The baseline Bentham agent's behavior drifts because its h(c) formula
+  literally counts neighbor welfare — and those neighbors change. The FVDM
+  agent does not compute neighbor welfare at all; it matches a fixed profile.
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  Panel asks: "Does that make FVDM better or just different?" │
+  │  Answer: More predictable. The designer knows what they get. │
+  │  φ=0.5 does not guarantee Bentham behavior in all contexts.  │
+  └─────────────────────────────────────────────────────────────┘
+
+
+TEST C — Can FVDM detect ethical equivalence the baseline misses?
+
+  Find two φ values from Experiment 2 that produce identical societal
+  outcomes (same final population, same mean wealth). Compute their BFE
+  profiles and their FVDM-derived profiles. Show they are measurably
+  different in felicific space even though outcomes are the same.
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  Panel asks: "So what? If outcomes are the same, who cares?" │
+  │  Answer: A hospital that heals the same number of patients   │
+  │  using two different treatments is not ethically equivalent. │
+  │  The process matters, not just the outcome. FVDM can         │
+  │  characterize the process. The baseline cannot.              │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Experiment 6 — Profile Space Visualization
+
+**Script:** Custom plot using PCA on derived BFE profiles.
+
+**What we run:** No new simulation. Post-process the profiles already derived
+in Experiment 4 and 5.
+
+**What we plot:**
+
+```
+Project all 10D profiles (mu_imm + mu_fut concatenated) into 2D via PCA.
+Plot one point per agent type.
+
+  BFE space (PCA projection):
+
+  PC2
+  │
+  │  Altruist ●
+  │             ╲
+  │              ╲
+  │    fvdmAltruist ★ (should cluster near ●)
+  │
+  │             Bentham ●
+  │           fvdmBentham ★
+  │
+  │                        Egoist ●
+  │                      fvdmEgoist ★
+  │
+  └─────────────────────────────────── PC1
+```
+
+**What this reveals:**
+
+If FVDM-derived agents cluster near their corresponding baseline profiles in
+this space, the plot shows visually that:
+  1. The four ethical types are genuinely distinct in behavioral space.
+  2. FVDM correctly positions agents relative to those types without using φ.
+  3. The distance between profiles is a meaningful measure — Egoist and
+     Altruist are furthest apart; Bentham sits between them.
+
+This is the figure a panelist can look at for ten seconds and understand the
+entire claim of the thesis.
+
+---
+
+## The Full Experimental Arc — At a Glance
+
+```
+Experiment 1:  WHAT DOES EACH ETHICAL TYPE DO?
+               Baseline homogeneous conditions.
+               → Establishes reference outcomes per agent type.
+
+Experiment 2:  WHAT HAPPENS WHEN φ IS CONTINUOUS?
+               Selfishness sweep (φ = 0.0 to 1.0).
+               → Shows outcome equivalence problem: same outcomes,
+                 different φ. Baseline cannot distinguish them.
+
+Experiment 3:  WHAT HAPPENS IN MIXED POPULATIONS?
+               Heterogeneous Egoist–Bentham sweep.
+               → Shows behavioral drift: same φ, different neighbors,
+                 different effective behavior. Baseline cannot measure this.
+
+Experiment 4:  CAN WE CHARACTERIZE BEHAVIOR WITHOUT φ?
+               BFE derivation (derive_vectors.py).
+               → YES. Each agent type has a stable behavioral fingerprint
+                 derivable from observations alone.
+
+Experiment 5:  DOES FVDM REPRODUCE AND IMPROVE ON BASELINE?
+               FVDM homogeneous + heterogeneous sweep.
+               → FVDM agents match target profiles (Test A).
+               → FVDM is more stable across compositions (Test B).
+               → FVDM resolves the outcome equivalence problem (Test C).
+
+Experiment 6:  CAN WE SEE THE FRAMEWORK WORKING?
+               PCA projection of all profiles.
+               → Visual confirmation that ethical types are distinct in
+                 behavioral space and FVDM maps agents correctly.
+```
+
+**The one-sentence answer to "why is FVDM needed?"**
+
+> Because φ tells you what an agent is designed to be. FVDM measures what
+> an agent actually does — and those two things are not always the same.
