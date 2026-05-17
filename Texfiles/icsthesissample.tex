@@ -472,7 +472,11 @@ where $W_{\mathrm{cell}} = W_{\mathrm{sugar}} + W_{\mathrm{spice}}$ is the cell�
 \[
 e = \frac{|\mathcal{N}|}{|\mathcal{C}|}
 \]
-where $|\mathcal{N}|$ is the number of live agents in the evaluating agent’s current neighborhood and $|\mathcal{C}|$ is the total number of cells within its vision range. This captures how socially connected the agent’s current position is. The future-layer counterpart $e_f$ is computed identically from the same current-position neighborhood (not from the candidate cell), so $e_f = e$ in all cases.
+where $|\mathcal{N}|$ is the number of live agents in the evaluating agent’s current neighborhood and $|\mathcal{C}|$ is the total number of cells within its vision range. This captures how socially connected the agent’s current position is. The future-layer counterpart $e_f$ uses a projected neighborhood: it counts the live agents that would fall within the agent’s vision range \emph{if it were standing at the candidate cell}, divided by the same $|\mathcal{C}|$ denominator. Formally,
+\[
+e_f = \frac{|\mathcal{N}’(c)|}{|\mathcal{C}|}
+\]
+where $|\mathcal{N}’(c)|$ is the number of live agents visible from candidate cell $c$. Because the origin shifts to $c$, $e_f$ varies across candidate cells and is generally not equal to $e$: a candidate cell in a densely populated area will have a higher $e_f$, while an isolated cell will have a lower one.
 
 \textbf{Temporal discount} $\gamma$ is a configured lookahead factor that scales the future welfare term. When lookahead is disabled, $\gamma = 0$ and the entire future term drops out. In all experiments conducted in this study, $\gamma = 0.5$ as set by \texttt{agentDecisionModelLookaheadDiscount} in the simulation configuration, consistent with the default Digital Terrarium parameters. The future term is therefore active, and both temporal layers contribute to the agent's cell score.
 
