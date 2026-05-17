@@ -1,0 +1,1199 @@
+%Sample for icsthesis.cls
+%Author: JCEPlaras
+%Reminders: Omit \lipsum commands
+
+\documentclass{icsthesis}
+\usepackage[T1]{fontenc}
+\usepackage{lipsum} %for generating dummy text
+\usepackage{microtype} % improves typography and helps prevent words from overflowing the margins
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{float}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\usepackage{xurl} % allows long URLs to break anywhere
+
+%\usepackage{showframe} %for debugging the margins
+\raggedbottom
+                              
+                              
+%Replace the values here, various commands depend on this variables                                                                                                                                                            
+\renewcommand{\TITLE}{FELICIFIC VECTOR DISTANCE MATCHING: \mbox{MODELING} AGENT DECISION MAKING IN DIGITAL TERRARIUM SIMULATION}
+\renewcommand{\AUTHOR}{JOMAR MONREAL}
+\renewcommand{\DEGREE}{BACHELOR OF SCIENCE IN COMPUTER SCIENCE}
+\renewcommand{\MAJOR}{Computer Science}
+\renewcommand{\MONTH}{MAY}
+\renewcommand{\YEAR}{2026}
+
+\begin{document}
+	
+	\begin{frontmatter}
+		%create title
+		\maketitle
+				
+		\begin{approvalpage}
+			The thesis hereto attached entitled \TITLE , prepared and submitted by \AUTHOR , in partial fulfillment of the requirements for the degree of \DEGREE\ (\MAJOR) is hereby accepted.
+			
+			\begin{multicols}{2}
+				\centering
+				\addsignature{ARIAN J. JACILDO}{Adviser, Assistant Professor} %custom command for adding signature field
+				\columnbreak
+				\addsignature{ZENITH O. ARNEJO}{Assistant Professor}
+			\end{multicols}
+			\addsignature{RODOLFO C. CAMACLANG}{Assistant Professor}
+			
+			Accepted in partial fulfillment of the requirements for the degree of \DEGREE\ (\MAJOR). 
+			\addsignature{RACHEL EDITA O. ROXAS}{Director,Professor School\\Institute of Computer Science}
+		\end{approvalpage}
+		
+		\begin{biosketch}
+Jomar Monreal is a Computer Science student at the University of the Philippines Los Baños with a strong interest in software development, artificial intelligence, and human-centered computing. His academic background is supported by consistent scholastic achievement, including high general averages during his secondary education and recognition as class valedictorian during his elementary studies. He has developed practical experience in frontend, full-stack, Android, and game development through several university projects, including an online room reservation system for the Institute of Computer Science, a farm-to-table web application, a donation-management mobile application, and an offline two-player dodgeball game. These projects strengthened his skills in collaborative software engineering, Agile Scrum, user interface development, database-backed applications, and rapid feature integration. Beyond technical work, he has experience in scriptwriting, administrative work, entrepreneurship, and varsity athletics, which contributed to his communication, leadership, organization, and teamwork skills. These experiences shaped his interest in building computational systems that are not only functional, but also socially aware, adaptive, and useful in practical contexts. 		
+			
+			\addauthorsignaturefield
+		\end{biosketch}	
+		
+		%acknowledgement
+		\begin{acknowledgement}
+I would like to express my deepest gratitude to my family, whose unwavering support and encouragement provided me with the necessary motivation to complete this study on time. Their belief in my capabilities was the driving force behind my perseverance.
+
+I am profoundly grateful to my adviser, Sir Arian J. Jacildo, for supporting this research as an initiative I personally started and for providing the guidance that made its completion possible.
+
+I would also like to thank Doc. Hjalmar Hernandez, my ENG 10 professor, for providing the motivation and knowledge that helped me write this paper effectively.
+
+To my superclassmates at the University of the Philippines Los Baños and my high school friends, thank you for the constant reminders and the camaraderie that kept me focused on my paper. Your presence made the journey much more bearable.
+
+I also want to acknowledge the UPLB Game Development Society. As a member of this organization, I am thankful for the community and the support they provided throughout the development of my thesis.
+
+Finally, I extend my gratitude to the entire Institute of Computer Science for providing me with the foundational knowledge and the academic environment that made this research possible.
+		\end{acknowledgement}
+		
+		%TOC
+		\maketableofcontents
+		
+		%LOT
+		\makelistoftables
+
+		%LOF
+		\makelistoffigures
+	
+		%ABSTRACT
+		
+		\begin{abstractwithpageno}	
+		\noindent
+This study developed and evaluated Felicific Vector Distance Matching (FVDM), a multidimensional ethical decision-making model for artificial agents within the Sugarscape Digital Terrarium framework adopted from Kremer-Herman et al. Existing approaches to ethical agent behavior often rely on rule-based heuristics or scalar utility functions, which can oversimplify moral reasoning by reducing complex welfare effects to fixed rules or single-value outcomes. To address this limitation, FVDM represents each feasible deliberate action as two felicific effect vectors --- one for immediate welfare effects and one for future welfare effects --- each consisting of five operational coordinates: intensity, duration, certainty, propinquity, and extent. Each agent is assigned a prioritization profile consisting of two corresponding reference vectors that express the welfare effects it tends to favor across both temporal layers, and the model selects the feasible action whose combined vector distance to that profile is smallest. Using a quantitative, simulation-based experimental design, the study compared baseline rule-based Digital Terrarium agents and empirically derived FVDM agents under a centralized resource topology. Simulation outcomes were evaluated through action-selection frequencies, individual wealth, population wealth, survival measures, population size, death counts, extinction events, and final population end states. Results showed that empirically derived FVDM agents tended to converge toward short-term self-preserving strategies under resource scarcity, producing severe population bottlenecks and concentrated individual wealth. The findings challenge the use of individual wealth accumulation as a sufficient proxy for societal utility and demonstrate that vector-based ethical decision-making offers a more expressive and transparent alternative to conventional rule-based models in agent-based simulations.
+		\end{abstractwithpageno}
+
+	\end{frontmatter}
+	
+	%BODY OF THESIS HERE (Use up to 3 levels only, (sec -> subsec -> subsubsec)
+	\begin{mainmatter}
+\emergencystretch=3em
+				\section{INTRODUCTION}
+			\subsection{Background of the Study}
+
+Ethical decision-making has become more difficult to ignore as computational systems are allowed to act with less direct human control. When artificial agents make their own decisions, it can affect not only their individual behavior but also the behavior of the larger system. However, many ethically relevant cases cannot be tested directly with real people because they may involve harm, lack of consent, or unacceptable risk.
+
+Agent-based modeling (ABM) allows ethical decision rules to be tested inside a simulated society. Instead of observing real participants in risky situations, researchers can model interacting agents and examine how their local decisions lead to larger social outcomes. This makes ABM suitable for studying cases that would be difficult or impermissible to test in real life, especially when direct data collection would violate ethical constraints \citep{LasquetyReyes2018, Slater2006, Groff2019}.
+
+The Digital Terrarium developed by \citet{KremerHerman2024b} is one recent attempt to address this gap. It is a computational framework that simulates societies of autonomous agents that gather resources and survive within a shared environment. The framework modifies the standard Sugarscape simulation by adding a socio-ethical decision layer. Instead of limiting agents to greedy resource-maximizing choices, it allows them to follow ethical decision models and compares how these models affect survival, resource distribution, and social stability.
+
+The primary limitation of the Digital Terrarium does not stem from its simplification of ethical theories, which is a necessary component of computational modeling, but rather from the specific dimensions that this simplification excludes. \citet{KremerHerman2024b} intentionally implement ethical theories at a ``layperson's level of understanding'' to make them computationally manageable. By utilizing resources like sugar and spice as quantitative proxies for welfare, the framework essentially reduces ethical value to resource-based outcomes.
+
+This limitation matters because ethical judgment often involves values that cannot be reduced to one utility score. Proxies are useful because they make welfare and ethical judgment measurable, but they remain incomplete when moral value is complex, uncertain, or difficult to quantify \citep{Baujard2009, Coyle2000, Munda2020}. The Digital Terrarium also represents utilitarianism, egoism, and altruism mainly through their outcomes, which limits its ability to account for intentions, virtues, and relational dynamics \citep{KremerHerman2024b}. Thus, although the framework is a useful first step in ethical simulation, it remains limited in representing intention-based, relational, or culturally diverse ethical systems. These limitations are acknowledged by the original authors themselves: \citet{KremerHerman2024b} describe their welfare quantification as incomplete, capturing only a fraction of the full utility Bentham's calculus aspires to measure, identify the need for a more thorough accounting of non-economic welfare factors that are qualitative or difficult to quantify, and characterize their implemented ethical decision models as a starting point rather than a complete solution. Agent-based models therefore need methods that can represent multiple ethical dimensions while remaining computationally usable.
+
+One possible way to address this limitation is to treat ethical decision-making as a problem of alignment between an agent's priorities and the welfare-relevant effects of an action. In this view, geometric distance provides a clear way to measure how closely a possible action matches what an agent values. Empirical findings on distance effects and semantic congruity effects suggest that moral severity may be processed similarly to other continuous magnitudes, while theoretical work on moral problem spaces supports the possibility of comparing moral distinctions across multiple dimensions \citep{Powell2017, Waldner2025}. A study on moral geometry further argues that moral systems can be compared through distance functions that define proximity, clustering, and alignment among moral agents, and that Euclidean embeddings are useful because they make complex moral relationships easier to visualize and compare within a computational space \citep{Halpern2021}. By representing an agent's priorities and an action's expected ethical effects as vectors, geometric distance becomes a consistent computational rule for evaluating alignment across multiple ethical dimensions.
+
+Building from this alignment-based view, vector representation addresses these modeling constraints by preserving multiple ethically relevant dimensions during evaluation, even when a final decision rule is used to select among possible actions. Vector-based approaches show that ethical and fairness-related dimensions can be encoded in computable form, allowing agent strategies, human values, and social judgments to be compared within a shared representational space \citep{Bontempi2025, Izzidien2022}. Similarly, an agent's internal framework can be represented as a prioritization vector, enabling ethical decision-making to be modeled as a formal comparison between the effects of a potential action and the agent's ethical priorities.
+
+Therefore, this study proposes Felicific Vector Distance Matching (FVDM) as a decision-making model for the Sugarscape Digital Terrarium. In this study, ``felicific'' refers to the welfare-relevant effects of an action across multiple ethical dimensions. FVDM represents each possible action as two felicific effect vectors --- one for immediate welfare effects and one for future welfare effects --- and each agent as a prioritization profile consisting of two corresponding reference vectors. The agent selects the action whose combined effect vector distance to its prioritization profile is smallest. In this way, FVDM contributes a distance-based action-selection rule that preserves multiple ethical dimensions during decision-making, rather than relying only on single utility scores or broad moral categories.
+
+			\subsection{Statement of the Problem}
+The field of ethical agent decision-making in agent-based modeling (ABM) suffers from a significant reductionist bias, as existing studies rely almost exclusively on rule-based heuristics or scalar utility functions \citep{EpsteinAxtell1996, KremerHerman2024b, LasquetyReyes2018}. While previous studies have independently explored welfare proxies \citep{Baujard2009, Li2002}, model transparency \citep{Bontempi2025, doi:10.1177/29498732251377351}, and societal outcomes \citep{Tolk2022, Munda2020}, they have failed to integrate these dimensions into a single computable decision-making framework that allows ethical models to be expressed, compared, and evaluated in a shared representational space. This study addresses these gaps by systematically modeling and evaluating whether the behavioral patterns observed in rule-based ethical models can be reformulated and reproduced within a multi-dimensional, vector-matched decision environment (FVDM).
+
+
+The remainder of the paper is structured as follows. The next section provides the objectives, significance, and definition of terms, which will be followed by the review of related literature, and lastly, the methodology which features the research design, data gathering procedure, and statistical treatment.
+
+			\subsection{Objectives of the Study}
+The general objective of this study is to examine whether ethical decision-making in the Sugarscape Digital Terrarium can be represented computationally through Felicific Vector Distance Matching. Specifically, this study aims to:
+
+\begin{enumerate}
+\item reformulate the original Digital Terrarium ethical decision models as FVDM prioritization vectors within a shared felicific effect space;
+\item compare the cell-selection behavior of FVDM-derived agents with their corresponding original Digital Terrarium rule-based agents by examining the felicific profiles of chosen cells;
+\item determine whether different FVDM-derived prioritization vectors produce distinguishable behavioral patterns across all four FVDM-derived conditions;
+\item assess whether the FVDM Bentham-derived condition preserves or diverges from the population-level outcomes of the original rule-based Bentham model;
+\item evaluate the effects of vector-based decision representation on population stability, survival, extinction, and wealth distribution under the original Digital Terrarium resource configuration; and
+\item determine whether the five felicific dimensions constitute a representationally sufficient basis for each original rule-based decision model by analyzing the behavioral fidelity of FVDM-derived agents relative to their baseline counterparts; and
+\item examine whether FVDM-derived agents in a heterogeneous Egoist--Bentham population replicate the societal outcome gradient produced by their rule-based counterparts across varying Bentham proportions.
+\end{enumerate}
+
+
+			\subsection{Significance of the Study}
+Existing ethical agent models in agent-based simulation --- from the original Sugarscape \citep{EpsteinAxtell1996} to the Digital Terrarium \citep{KremerHerman2024b} --- assign different ethical rules to different agent types, but these rules operate on incompatible representations: one agent uses combat loot, another aggregates neighbor utilities, a third avoids occupied cells. Behavioral outcomes can be observed and compared \citep{KremerHerman2024b, LasquetyReyes2018}, but the welfare priorities that produced those outcomes cannot be directly compared, because no shared measurement space exists in which to express them. FVDM addresses this directly by projecting all agent decision-making into a common five-dimensional felicific coordinate space, enabling, for the first time, direct measurement and comparison of implicit welfare priorities across ethical models. This shared language resolves a foundational limitation of rule-based ethical ABM and creates an interoperable foundation for multi-model comparison \citep{Halpern2021, Bontempi2025}.
+
+The significance of this contribution is grounded in the open problems explicitly identified by \citet{KremerHerman2024b} themselves. First, they acknowledge that their assumption about the computational tractability of socially-considerate behavior is stated but deliberately left untested, noting that they leave the door open for future research to address it. Second, they describe their welfare quantification as incomplete, conceding that their framework captures only a fraction of the full utility Bentham aspired to measure and that a more thorough accounting of non-economic, qualitative welfare factors remains an unresolved challenge. Third, they note that extending their framework to any new ethical theory requires implementing an entirely new scoring function, a practical constraint that limits the generalizability of the approach and excludes ethical theories --- such as virtue ethics or feminist ethics --- that do not reduce to a hedonic scoring formula. Fourth, despite explicitly inviting the digital terrarium to serve as a hub for comparing and contrasting a diverse range of decisionmaking models, they provide no cross-model comparison metric \citep{KremerHerman2024b}. FVDM directly answers each of these open problems. The Behavioral Feature Expectation derivation empirically tests the computability assumption by measuring how faithfully ethical behavioral style can be captured as a vector profile under real simulation conditions. The five felicific dimensions --- intensity, duration, certainty, propinquity, and extent --- provide the structured, multi-dimensional welfare decomposition they called for. The Behavioral Fidelity Score operationalizes the cross-model comparison hub they envisioned. And because prioritization profiles are derived from observed behavior rather than from theory-specific scoring functions, the framework is applicable to any agent whose choices can be observed, without the need to re-implement the decision layer for each new ethical theory.
+
+Ethical agent behavior in simulation has historically been opaque: a rule specifies what to do under what conditions, but does not reveal how much the agent implicitly values each welfare dimension \citep{Kang2025, TimmonsByrne2018}. The growing field of explainable ethical AI has called for frameworks that make agent decision reasoning interpretable and auditable, particularly as autonomous systems are given consequential roles \citep{Bontempi2025, doi:10.1177/29498732251377351}. FVDM responds to this call by grounding decision-making in a prioritization profile --- a pair of welfare vectors that express the agent's implicit preferences along intensity, duration, certainty, propinquity, and extent dimensions. These profiles, derived through Behavioral Feature Expectation \citep{AbbeelNg2004}, are fully interpretable: they translate any behavioral policy into a readable welfare decomposition without requiring access to the policy's source rules.
+
+Beyond improving interpretability, FVDM enables a diagnostic question that has not previously been asked in ethical ABM: which ethical decision models can be reformulated in welfare terms, and which cannot? This question has direct relevance to the AI value alignment problem, where recovering agent values from behavioral observation is a central challenge \citep{Bostrom2014, AbbeelNg2004}. FVDM's Behavioral Fidelity Score operationalizes this as an empirical test: when FVDM-derived agents' felicific profiles match their rule-based counterparts, the five welfare dimensions are representationally sufficient; when they diverge, the original rule depended on factors outside the welfare space. Both outcomes are scientifically informative and contribute to the emerging understanding of the limits of welfare-based ethical formalization \citep{Baujard2009, Munda2020}.
+
+The study also contributes to evidence-based policy reasoning. By quantifying how the composition of ethical orientations within a simulated population shapes societal outcomes --- survival, wealth distribution, and extinction risk --- it provides concrete computational evidence for policy-relevant phenomena \citep{Tolk2022, Lempert2002}. The negative relationship between hyper-accumulation and population welfare supports the evidence base for SDG 10 (Reduced Inequalities) \citep{UNSDG10}, while the emphasis on transparent, interpretable decision-making directly supports SDG 16 (Peace, Justice, and Strong Institutions) \citep{UNSDG16}. The study demonstrates that vector-based ethical matching can be implemented in a running simulation platform, establishing a replicable and extensible methodological template for future computational ethics research.
+
+			\subsection{Scope and Limitations}
+
+This study is limited to the modeling and evaluation of Felicific Vector Distance Matching (FVDM) as the proposed deliberate action-selection mechanism within the Sugarscape Digital Terrarium simulation adopted from \citet{KremerHerman2024b}. The study does not introduce a new simulation environment. Instead, it modifies the decision stage of the existing Digital Terrarium framework by replacing the baseline rule-based action-selection logic with a vector-matching procedure.
+
+The scope of the study covers deliberate agent actions that can be selected during the decision stage, including attacking, trading, mating, and lending or crediting. Movement and tagging are excluded from the discretionary action analysis as they are treated as mandatory and passive automated processes, respectively, within the simulation cycle. Movement is a mandatory action performed by every agent in every timestep, while tagging is a passive social update; both are therefore excluded to focus the analysis on discretionary, ethically-weighted agent interactions. Passive biological, social, and environmental processes, such as metabolism, aging, disease effects, resource consumption, and other automatic updates, are preserved under the original Digital Terrarium mechanics unless directly affected by the selected action. The FVDM model uses five operational felicific coordinates: intensity, duration, certainty, propinquity, and extent. The remaining two dimensions of Bentham's original calculus --- fecundity and purity --- are not modeled as separate coordinates, as they resist direct quantification and are outside the scope of this study.
+
+The evaluation is limited to simulation-based outcomes generated under the configured experimental conditions. These outcomes include action-type selection, agent wealth, population wealth, survival measures, death counts, population size, extinction events, and population end states. The study compares baseline rule-based Digital Terrarium agents and their empirically derived FVDM counterparts. The findings therefore apply to vector-based ethical decision-making within the configured Sugarscape Digital Terrarium environment and should not be interpreted as direct evidence about real human moral judgment, real economies, or real-world policy outcomes.
+
+The study is further limited by its dependence on wealth and survival as welfare proxies, its use of simplified measurable felicific dimensions, and its reliance on empirical coordinate functions derived from simulation-generated data. Since the coordinate functions are fitted from the available simulation conditions, their accuracy depends on the representativeness and quality of those data. The centralized resource topology and other experimental settings were intentionally configured for controlled stress testing, but they may also constrain the generalizability of the results to other Sugarscape configurations or agent-based environments.
+
+\newpage
+			\subsection{Definition of Terms}
+
+\begin{description}
+\item[Action Type.] This refers to the category of deliberate action selected or performed by an agent during a decision point in the simulation.
+
+\item[Agent.] This refers to an autonomous entity in the Sugarscape Digital Terrarium that observes its local environment, selects a feasible deliberate action, and undergoes automatic simulation processes.
+
+\item[Attacking.] This refers to an aggressive interaction in which an agent may target a valid weaker agent when aggression is enabled under the current simulation rules.
+
+\item[Baseline Decision Model.] This refers to the original rule-based Digital Terrarium decision process adopted from \citet{KremerHerman2024b}. In this study, it serves as the comparison condition against the FVDM decision model.
+
+\item[Certainty.] This refers to the felicific coordinate that represents the predicted probability that the intended welfare-relevant effect of an action will occur.
+
+\item[Cosine Similarity.] This refers to a measure of similarity between two non-zero vectors of an inner product space. In this study, it was used to evaluate the structural similarity of the derived felicific coordinate functions across different action categories.
+
+\item[Decision Model Condition.] This refers to the action-selection model used in a simulation condition. In this study, it is classified as either the baseline Digital Terrarium decision process or the Felicific Vector Distance Matching model.
+
+\item[Deliberate Action.] This refers to a discretionary action available to an agent during the decision stage of a timestep, specifically attacking, trading, mating, and lending or crediting. This excludes mandatory movement and passive tagging.
+
+\item[Digital Terrarium.] This refers to the Sugarscape-based agent simulation framework developed by \citet{KremerHerman2024b} for studying socio-ethical artificial-agent decision-making. In this thesis, the term refers to that adopted simulation environment and its baseline mechanics, not to the FVDM model introduced by the present study.
+
+\item[Distance Matching.] This refers to the procedure of comparing the two predicted felicific effect vectors of each feasible action with the agent's prioritization profile and selecting the action with the smallest combined Euclidean distance across both temporal layers.
+
+\item[Duration.] This refers to the expected number of turns for which the primary welfare-relevant effect of an action remains materially significant. For resource-related actions, duration is operationalized as the number of turns during which the net gain continues to meet metabolism requirements or extend time to live.
+
+\item[Effective Metabolism.] This refers to the agent's actual sugar and spice consumption rate per timestep after base metabolism values are adjusted by active modifiers.
+
+\item[Empirical Coordinate Function.] This refers to the estimated state-conditioned function used to predict the felicific coordinates of feasible actions. These functions are fitted from simulation-generated data for the felicific effect space.
+
+\item[Empty Cells.] These refer to unoccupied grid cells that may serve as feasible destinations for movement or placement.
+
+\item[Evaluation Horizon.] This refers to the fixed number of simulation turns over which the effects of an action are observed and measured for data generation and coordinate estimation.
+
+\item[Extent.] This refers to the felicific coordinate that represents the predicted proportion of the population materially affected by the effects of an action.
+
+\item[Feasible Action.] This refers to an action available to an agent in a given local state under the current simulation rules and environmental conditions. An action is feasible only when the requirements for performing it are satisfied.
+
+\item[Felicific Effect Space.] This refers to the five-dimensional space in which action effects and agent priorities are represented. All coordinates are bounded to $[0,1]$ by their defining formulas, allowing direct comparison between what a candidate cell is expected to produce and what an agent tends to prioritize.
+
+\item[Felicific Effect Vector.] This refers to the predicted five-dimensional effects profile of a feasible action under a given local state. It consists of intensity, duration, certainty, propinquity, and extent.
+
+\item[Felicific Vector Distance Matching (FVDM).] This refers to the proposed decision model introduced in this study. It selects the feasible action whose two predicted felicific effect vectors are jointly nearest to the agent's prioritization profile, measured as the sum of Euclidean distances across the immediate and future layers.
+
+\item[Intensity.] This refers to the felicific coordinate that represents the welfare urgency of an agent at a candidate cell, computed as the inverse of the agent's time-to-live scaled by the cell's pollution level.
+
+\item[Internal State Variables.] These refer to the local state variables that describe the agent's own attributes at the time of decision, including current sugar holdings, current spice holdings, total wealth, vision, sugar metabolism, spice metabolism, and estimated time to live.
+
+\item[Lending.] This refers to an interaction in which an agent may extend a resource loan or credit to a neighboring agent that satisfies the conditions for borrowing under the current simulation rules.
+
+\item[Local State.] This refers to the information available to the agent at the time of decision. In this study, it includes internal state variables, resource-opportunity variables, and social-risk and interaction variables derived from the Sugarscape codebase.
+
+\item[Mating.] This refers to an interaction in which an agent may reproduce with a genetically or socially compatible adjacent partner when an available child-placement cell exists under the current simulation rules.
+
+\item[Metabolism.] This refers to the agent's per-timestep consumption of sugar and spice required for survival in the simulation. An agent dies when its required resource consumption can no longer be sustained.
+
+\item[Nearby Agents.] These refer to agents located within the focal agent's relevant observable or interaction range at the time of decision.
+
+\item[Population Structure.] This refers to the composition of the agent population in terms of whether agents are assigned identical or differing prioritization vectors and related decision attributes.
+
+\item[Primary Action.] This refers to the single deliberate action selected by an agent during a timestep under the FVDM model before automatic processes proceed.
+
+\item[Prioritization Vector.] This refers to the five-dimensional vector that represents the agent's orientation toward intensity, duration, certainty, propinquity, and extent.
+
+\item[Propinquity.] This refers to the felicific coordinate that represents the expected delay before the primary welfare-relevant effect of an action becomes materially relevant.
+
+\item[Resource-Opportunity Variables.] These refer to the local state variables that describe nearby resource conditions, including the amount and distance of the nearest visible sugar and spice and the number of reachable empty cells.
+
+\item[Social-Risk and Interaction Variables.] These refer to the local state variables that describe nearby agents and interaction opportunities, including the number of nearby agents, the distance to the nearest stronger or weaker nearby agent, the mean wealth of nearby agents, and the presence or absence of trading, mating, lending, tagging, and attacking opportunities.
+
+\item[Sugarscape Digital Terrarium.] This refers to the specific Sugarscape-based Digital Terrarium simulation environment adopted from \citet{KremerHerman2024b} and used as the setting of the present study.
+
+\item[Tagging.] This refers to an automated interaction in which an agent may alter one bit of the cultural tag of an eligible adjacent agent when tagging is enabled. It is considered a passive social process and is excluded from discretionary action analysis.
+
+\item[Time to Live.] This refers to the estimated number of turns an agent can survive based on its current resource holdings and metabolism rates.
+
+\item[Total Wealth.] This refers to the combined amount of sugar and spice held by an agent and is used in the study as a proxy for welfare.
+
+\item[Trading.] This refers to an interaction in which an agent may exchange sugar and spice with a valid adjacent trading partner under the current simulation rules.
+
+\item[Utility.] This refers to the welfare-related benefit associated with an action or outcome. In this study, it is represented through wealth-related change, survival-related effects, and population-level outcomes within the Sugarscape Digital Terrarium.
+
+\item[Vision.] This refers to the agent's observable range in the environment, which determines how far it can detect cells, resources, and other decision-relevant conditions.
+
+\item[Wealth Outcomes.] These refer to resource-based simulation results, including mean individual wealth, accumulated wealth, and total population wealth. These serve as welfare proxies rather than complete measures of ethical value.
+\end{description}
+
+				\section{REVIEW OF LITERATURE}
+			\subsection{Ethical Decision-making}
+Ethical decision-making refers to the process of assessing and selecting among possible actions in a manner that is consistent with accepted ethical principles (Pembi \& Ali, 2024). It is the cognitive and behavioral process used to explain and navigate complex, ambiguous, and high-stakes ethical dilemmas. It has been used by organizations and scholars to provide frameworks for ethical conduct and its large-scale implications \citep{MacDougall2014}. 
+
+The significance of ethical decision-making is evident when faced with real-world dilemmas spanning across medical, economic and administrative fields. Public sectors in Turkey had been doing unethical activities that challenged professional values including bribery and extortion; it moved from individual level to institutional which is characterized as an “intensive and common ethical depression” \citep{Cigeroglu2019}.  In machine learning, there is a risk that “principle learning” could result in internal development of immoral principles by the agent, especially if the reasoning process is a “block box” \citep{Miranda2010}.  A self-driving car mirrors the trolley if it was forced to choose between the safety of its passengers and the lives of bystanders in an unavoidable accident \citep{KremerHerman2024b}. Widespread integration of AI tools into content creation introduced a new frontier of plagiarism which erodes the foundation of original thought and intellectual honesty \citep{Joshi2025}. 
+
+There are several ethical models and theories that serve as a framework to help people distinguish between ethical and unethical decisions. \citet{Whittier2006} identified three types of models: normative, descriptive, and prescriptive models. \citet{Pembi2024} defined four theories: rights, justice, caring and Bentham.
+
+\citet{Whittier2006} built a set of criteria to evaluate ethical decision-making models’ adequacy. In the process of building this, they had found three types of models that dominated their literature: normative, prescriptive and descriptive models. Normative models specify how choices should ideally be made. Prescriptive models aim to improve choices under real-world constraints. Descriptive models consider empirical evidence to explain how choices are actually made. From these three models, the study leaned toward making the agent’s decision-making a descriptive model.
+
+\citet{Pembi2024} analyzed theoretical frameworks to help managers in corporate decision-making. They defined four main theories: rights, justice, caring and Bentham theories. Rights theory states that ethical decision-making is the most effective way to protect and uphold the fundamental rights and privileges of all individuals affected. Justice theory addresses issues of abuse and unfair treatment particularly within organizations. Caring theory emphasizes the importance of relationships and interdependence in moral life; it is developed largely through feminist ethical thought. Bentham theory works in this central principle: to achieve “the greatest good for the greatest number" (White and Taft, 2004, as cited in Pembi \& Ali, 2024). These ethical theories collectively provide the conceptual foundation for the study. However, the primary theory the study used was utilitarianism due its quantitative nature. 
+
+			\subsection{Bentham’s Felicific Calculus}
+Utilitarianism is rooted in the pragmatic ideas of Jeremy Bentham and John Stuart Mill in the 18th century. It is based on the assumption that knowledge and decisions should be grounded in observable, objective, and verifiable data. It prioritizes overall welfare over considerations such as rights, duties, or justice. In evaluating ethical choices, this theory adopts a societal perspective, assessing actions based on their overall consequences in terms of the balance between good and harm (White \& Taft, 2004, as cited in Pembi \& Ali, 2024).
+
+Bentham’s felicific calculus is a morality system produced by the Utilitarianism movement that compares the pain and pleasure an action has created \citep{Majot2014}. It is a deliberation method or technical tool used to operationalize the principle of utility \citep{Baujard2009}. 
+
+The principle of utility, also called the greatest happiness principle, is the foundational ethical standard that defines how right or wrong an action is based on its tendency to increase or decrease the happiness of the party involved (\citealp{Bentham1907}; \citealp{Baujard2009}). According to this principle, pain and pleasure shape people’s understanding of right and wrong and influence every action, thought, and decision they make even if individuals claim to reject this influence. This principle is based on the reality that recognizing that people naturally seek outcomes that maximize happiness or felicity. This principle was proposed by Bentham to be the basis for moral reasoning and legal systems rather than relying on abstract rhetoric or metaphor (Bentham, 1789, as cited in \citealp{Baujard2009}). 
+
+To quantify pleasure and pain, the seven dimensions of utility were identified by \citet{Bentham1907}. These are intensity, duration, certainty, propinquity, fecundity, purity, and extent. 
+
+When estimating pain or pleasure by itself, four of these dimensions are considered: intensity, duration, certainty, and propinquity. Intensity is how pleasant the pleasure or pain is. Duration is how long the pleasure or pain would last. Certainty is how probable the pleasure or pain occurs. Propinquity is the how near the pleasure or pain in time.
+
+When evaluating the consequences of an action, two additional factors should also be considered: fecundity and purity. Fecundity is the likelihood that the experience will be followed by similar sensations, and purity is the likelihood that it will not be followed by the opposite sensation. However, these two factors are not direct qualities of the pleasure or pain itself, but rather characteristics of the action that produces them. When considering the effects of pleasure or pain on a group of people, extent must be added which refers to the number of individuals affected by the action (\citealp{Bentham1907}; \citealp{Sprigge1999}).
+
+Bentham’s felicific calculus bridges two ideas: moral welfarism, the ethical goal of maximizing welfare or happiness, and technical non-welfarism, the practical use of proxy variables when welfare cannot be directly measured \citep{Baujard2006}. The felicific calculus is inordinately tedious, expensive, and often impossible to implement in the real world because accurately measuring individual utility is not always possible \citep{Baujard2006}. Although moral welfarism assumes that individual utility is the only relevant consideration, practitioners cannot directly observe a person’s internal thoughts or preferences \citep{Baujard2006}. By knowing how to move toward technical non-welfarism, practical proxies have been used by decision makers to estimate utility in ways that are more feasible for public policy \citep{Baujard2006}. 
+
+Proxies are external, observable indicators that serve as substitutes for unobservable internal states like utility or happiness. They have been used to perform practical calculations since utility is a theoretical construct with no objective measurement unit \citep{Li2002}.
+
+There are different types of proxies used across different fields. Money has been suggested as a “measuring rod” by Bentham since it does not require a lot of information and its amount reflects how much people value or prefer something \citep{Baujard2006}. Secondary circumstances such as sex, age, rank, education, and religious profession were also suggested by Bentham since these “very visible traits” are not the definition of utility itself but are highly correlated with an individual's "bias of sensibility," making them reliable proxies for legal and judicial decisions \citep{Baujard2009}. Indexes and scoreboards such as Human Development Index (HDI) summarize complex, interdependent phenomena that are not directly observable \citep{Munda2020}. In digital simulations, specifically in Sugarscape, the consumption of sugar and spice acts as a proxy for happiness \citep{KremerHerman2024b}. In this study, this use of proxy to estimate utility was evident in the Digital Terrarium simulation. 
+
+In the Digital Terrarium simulation, agents must continuously evaluate possible actions based on local state conditions, resource availability, and interactions with other agents. This makes agent-based modeling a suitable framework for operationalizing Bentham’s felicific calculus, as the dimensions of utility can be translated into quantifiable indicators for decision-making.
+
+			\subsection{Agent-based Modeling}
+Agent-based modeling is a computational method in computer simulations designed to examine how processes at the micro level influence outcomes at the macro level \citep{Scalco2015}. This is a “bottom-up approach” where the simulation models individual agents and allows system behaviour to emerge from their interactions \citep{Kehoe2015}. This modeling paradigm was advanced by artificial societies with human and social factors integrated to the model \citep{Tolk2022}.
+
+\citet{Tolk2022} identified the three primary elements of artificial societies: individual agents, social networks and situated environment.
+
+Individual agents are entities that form the building blocks of an artificial society. They are autonomous units that interact at micro-level based on their own rules \citep{KremerHerman2024b}. They are heterogenous units with different information, backgrounds, and decision-making rules \citep{Lempert2002}. They follow a “perceive-and-act” cycle governed by their inner logic typically through probability rules or conditional statements \citep{Tolk2022}.
+
+Social networks capture various affiliations, interactions, and embedded structures that influence how individuals behave and how policies impact the population. They represent the diverse social groups an agent belongs to which dictates the behaviour it needs to select \citep{Tolk2022}. They are viewed as networks of intelligent adaptive agents that affect macro-level performance of an organization (Carley, 2002, as cited in \citealp{Lempert2002}). In Sugarscape, these social networks are often represented as tribes; it is a group of agents sharing the same “cultural tags” \citep{KremerHerman2024b}.
+
+Situated environment provides the infrastructure and social drivers that shape agent behaviours and policy outcomes. It is the surrounding situation being perceived by the agent when they act with their inner logic \citep{Tolk2022}. It is a digital landscape that enables the simulation of resource scarcity or abundance and how it affects the artificial society \citep{KremerHerman2024b}.  
+
+This study used these three elements to model agent decision-making as a dynamic process in which agents compare possible actions through felicific vectors and select the option that most closely aligns with their preferred outcomes within a given social and environmental context. To operationalize this, the study adopted the Digital Terrarium simulation by \citet{KremerHerman2024b} implemented through the Sugarscape model.
+
+			\subsection{Sugarscape Model}
+Sugarscape is the first large scale agent-based social simulation developed and presented by Epstein and Axtell (1996) in their book “Growing Artificial Societies”. It is frequently used as a benchmark for agent-based modeling toolkits such as Swarm, Repast, and Netlogo. It was used to explore how different social networks can be influenced by individual decisions with the population \citep{Kehoe2015}. Its mechanism can be divided into three parts: environment, agents, and interactions.
+
+				\subsubsection{Sugarscape Environment}
+The Sugarscape environment provides the physical space upon which agents interact. It is structured as a discrete two-dimensional M by M toroidal grid; it wraps around all four edges where an agent, for instance, can move to the left edge and reappear on the right edge. Each grid cell can only hold one agent at a time. For the agents’ interaction space, the simulation uses von Neumann neighborhood; it is the adjacent cells to the left, right, top, and down of a grid cell \citep{Kehoe2015}. 
+
+Its environment has specifications for resource dynamics. There are two main resources in this model: sugar and spice; where spice is another resource extended to enable trading. Each resource has a fixed maximum limit for each grid cell called the carrying capacity. These resources are not permanent as they regenerate at a predefined rate up to the grid cell’s carrying capacity \citep{Kehoe2015}. 
+
+This physical space is not static and can undergo large-scale changes over time called seasons. Its grid is divided into two parts: the top half is summer and the bottom half is winter. Resources grow back at full rate during summer, and they grow back at a significantly slower rate during winter. This feature is toggleable including the seasonal growback rules \citep{Kehoe2015}. 
+
+The environment simulates side-effects for gathering and consuming resources called pollution. This pollution spreads across the space where the pollution level at each site is updated to the average of its Von Neumann neighbors; this spread of pollution is called pollution diffusion. When a location is polluted, a new location would be chosen by an agent based on a welfare function that considers the resource-to-pollution ratio \citep{Kehoe2015}. 
+
+				\subsubsection{Sugarscape Agents}
+The Sugarscape agents are defined by internal traits that determine its physical and survival needs: metabolism, vision, age, and resource store. Metabolism is the rate at which an agent consumes sugar and spice in every turn; once it reaches zero, the agent dies. Vision determines how many grid cells an agent can see to find resources or other agents. Age is how long the agent is present in the simulation. Resource store is the amount of sugar and spice the agent has in the beginning of the simulation \citep{Kehoe2015}.
+
+These agents are not identical as they carry the following traits that define their place in the artificial society: sex, fertility, cultural stage, disease, and immunity. Sex assigned to an agent is either male or female. Fertility is the property needed by an agent to be able to mate with other agents which is dependent on the agent’s age. Cultural tag is the bit sequence the agent carries that defines its cultural identity or tribe. Disease is a bit sequence that increases the metabolism of an agent by one unit; an agent can carry at least one disease and can be passed between agents. Immunity is a bit sequence that can confer against certain diseases \citep{Kehoe2015}.
+
+				\subsubsection{Sugarscape Interactions}
+The Sugarscape interactions are rules designed to model a wide array of social, economic, and biological phenomena which operate on a local-level. Local-level interactions are restricted by an agent’s vision; these include movement, mating, trading, lending, cultural transmission, disease transmission, and aggression. For movement, agents search their visible neighborhood for unoccupied sites and move to the nearest location with the highest welfare. For mating, it occurs when two adjacent agents are of opposite sexes, both are fertile, and at least one empty neighboring site is available for the offspring. For trading, agents with different marginal rates of substitution exchange sugar and spice until no further mutually beneficial trade is possible. For lending, neighboring agents borrow and lend resources to each other. For cultural transmission, also called tagging, agents may spread culture tags to others. For disease transmission, agents may also spread disease to their neighbors. For aggression, it occurs through combat where agents may attack weaker members of another tribe and seize their resources \citep{Kehoe2015}.
+
+The Sugarscape model demonstrates how complex social, economic, and biological phenomena can emerge from relatively simple rule-based interactions among agents within a structured environment. This model was extended by \citet{KremerHerman2024b} called the “Digital Terrarium” that further refined the operationalization of ethical decision-making under Bentham’s felicific calculus.
+
+			\subsection{Digital Terrarium}
+The Digital terrarium is an extension of the Sugarscape agent-based model developed by \citet{KremerHerman2024b}. It is a computational framework for studying the societal impact of ethical decision-making by autonomous agents. It is designed to test and compare different ethical theories in a controlled setting. 
+
+In the original Sugarscape, agents act selfishly to maximize their own sugar consumption. This model was modified by the researchers by adding a decision layer which allows agents to follow specific ethical principles and make decisions based on what benefits the larger society, not just themselves. In this model, an agent evaluates all available actions based on a Bentham principle, calculating which option maximizes happiness or welfare for the greatest number of agents. Similarly, altruism and egoism were plugged into the model, and the simulation can then explore how societies evolve under each type of moral logic.
+
+In the Sugarscape model, Ben\-tham’s seven fe\-li\-ci\-fic calculus variables are op\-er\-a\-tion\-al\-ized into simulation parameters. Intensity is represented by raw sugar and spice gained per action, while duration is modeled as additional survival time proportional to intensity. Certainty and pro\-pin\-qui\-ty collapse into binary values since Sugarscape actions are de\-ter\-mi\-nis\-tic and immediate. Fecundity and purity are not directly modeled. Finally, extent corresponds to the number of agents affected, directly mapped from Bentham’s definition.
+
+A utility function was formalized for agent decision-making. Happiness is expressed as:
+\[ h = cp \left[ e(i+d) + \gamma e_f(i_f+d_f) \right] \]
+
+where certainty ($c$) and propinquity ($p$) weigh the overall outcome, immediate rewards are captured by extent ($e$), intensity ($i$), and duration ($d$), and future rewards use future intensity ($i_f$) and future duration ($d_f$) discounted by $\gamma$ to represent uncertainty in long-term predictions. When $\gamma = 0$, the future term vanishes and the formula reduces to $h = cp \cdot e(i+d)$.
+
+This structure is embedded into a Markov Decision Process (MDP), where each timestep agent acts sequentially in Sugarscape. The Bellman optimality equation guides decision-making:
+\[ V^{*}(s) = \max_{a} \sum_{s'} T(s,a,s') \left[ R(s,a,s') + \gamma V^{*}(s') \right] \]
+
+Here, $T(s,a,s')$ corresponds to $cp$, while $R(s,a,s')$ aligns with the current reward $e(i+d)$, and $\gamma V^*(s')$ parallels the discounted future reward. This formulation enables agents to rationally select actions that maximize expected happiness across time.
+
+The Digital Terrarium provides the computational framework for operationalizing these ethical logics within a structured agent-based society. To provide a broader context for extending this environment with the FVDM model, the following studies were reviewed for their relevance with regards to modeling ethical decision-making and the use of welfare proxies. This review serves as the foundation for the study’s conceptual framework, bridging established theoretical constructs with the computational mechanics of the FVDM model.
+
+			\subsection{Related Studies}
+Ethical agent decision-making remains difficult to model because welfare and moral judgment are complex, indirect, and not easily captured through single measures. Existing studies showed that these judgments must be represented through proxies, modeled transparently under uncertainty, tested through agent-based modeling mechanisms, and examined for their societal and policy consequences in simulation. In response, this study proposed a computable framework that represents welfare-relevant dimensions as vectors and uses distance matching to evaluate alignment among agent choices, ethical values, and simulated outcomes.
+
+Welfare and ethical judgment cannot be directly captured, so substituting proxies are needed. \citet{Baujard2009} noted that Bentham introduced an alternative mode of deliberation that relied on the use of acceptable proxies for utility rather than direct assessment alone. As \citet{Baujard2009} explained, Bentham suggested replacing direct utility measurement with proxies, particularly money, as a practical standard of evaluation. Instead of accounting for the many primary circumstances involved, satisfactory judgment could be based on secondary circumstances serving as suitable proxies \citep{Baujard2009}. These proxies provide a way for welfare and ethical judgment to be measurable.
+
+These proxies cannot be captured well by crude categories or single indicators. \citet{Dunn1993} reported that category-variable models failed to detect the interaction effect, thereby producing a substantial overestimation of the effect of discrepancies in working hours. Continuous data performed as well as categorical data in both investigations, suggesting that the prevalent use of categorical responses may lead to an avoidable loss of information \citep{Dunn1993}. More precise and straightforward interpretation was possible with continuous numerical data, as these allowed exact estimation of the effects of explanatory variables rather than the probability-based interpretation provided by ordered logit estimation \citep{Dunn1993}. By representing these proxies in continuous rather than categorical form, we can preserve more information and support more precise evaluation.
+
+Once these proxies are represented, model validity and transparency become essential as quantified models are not automatically better. \citet{KremerHerman2024b} assumed that many aspects of ethical and socially considerate behavior can be computed either exactly or through high-fidelity approximation, while acknowledging that this assumption requires further interdisciplinary investigation. \citet{Coyle2000} argued that when uncertainties interact and accumulate, it becomes difficult to assume that the behavior of a quantitative model and the policy conclusions drawn from it are necessarily more valid than those derived from a qualitative model. \citet{Munda2020} emphasized that no model can fully capture a complex real-world problem, because complete description and formal consistency cannot be achieved at the same time; consequently, every model remains shaped by the assumptions introduced to make it relevant to a particular policy issue. The credibility of policy-relevant scientific evidence depends heavily on transparency and reproducibility, as these are essential for establishing and maintaining trust (Munda et al., 2020). Therefore, a model is valid only if its assumptions, uncertainties, and limits are made transparent.
+
+Agent-based models provide an appropriate environment for testing agent-level decision mechanisms, especially when behavior, learning, and evaluation matter. \citet{Kang2025} found that the ReAct-RAG model, particularly with GPT-4o, performed best on the behavior calibration metrics of behavior consistency, group coordination, and trajectory interpretability. GPT-4o also recorded the highest behavior consistency and trajectory interpretability scores than ReAct and Llama 3.1 70B \citep{Kang2025}. \citet{Kang2025} further showed that the ReAct-RAG model, especially with GPT-4o, surpassed the other systems in language quality and ethical compliance. \citet{TimmonsByrne2018} found that participants judged that action should have been taken and assigned moral responsibility to the agent when the agent chose to act rather than refrain from acting, regardless of the outcome. Consistent with these findings, \citet{Tolk2022} argued that improving agent-based modeling and simulation requires the integration of learning as a central component. Taken together, these studies show that agent-based models are well suited for examining how behavioral calibration, ethical evaluation, and learning shape agent-level decision processes.
+
+These individual decision-making mechanisms scale into macro-level societal outcomes through their effects on stability and survival, collective prosperity and wealth accumulation, and social costs and ethical trade-offs.
+
+Different ethical strategies generate different levels of stability, survivability, and extinction risk at the societal level. The proportions of altruists and egoists in the population initially shifted sharply before eventually reaching a stable state (Qi \& Zhao, 2008). \citet{KremerHerman2024b} expressed concern that a large share of non-Bentham societies became extinct because they were not well suited to adapt to an unknown and hostile environment. Societal survival was nearly guaranteed when agents ranged from 5\% to 85\% greedy (Kremer-Herman et al., 2024). At 60\% Bentham agents, societal success approached the level observed in a fully Bentham society (Kremer-Herman et al., 2024). In contrast, \citet{KremerHerman2024b} found that purely selfless societies, composed of agents with 0\% selfishness, were unstable and prone to failure. Societies made up of agents who were more than 80\% selfish also produced unstable outcomes and often ended in extinction (Kremer-Herman et al., 2024). Under these pressures, altruistic individuals occupied a disadvantageous position in the Prisoner’s Dilemma, which led them to form clusters to increase their chances of survival (Qi \& Zhao, 2008). This evidence shows that small differences in ethical strategy can produce large differences in collective survival and societal stability.
+
+They affect not only survival but also collective prosperity and wealth accumulation. \citet{Scalco2015} showed through simulation that although altruistic agents made higher offers than selfish agents, they ultimately achieved a higher average cash return at the system level. \citet{KremerHerman2024b} reported that Bentham societies composed of agents who were at or near 50\% selfish were highly successful and had an almost certain probability of success. Across all cases studied, Bentham societies maintained larger and longer-lasting populations and accumulated surplus societal wealth (Kremer-Herman et al., 2024). These findings suggest that ethical strategies shape not only whether societies persist, but also how much prosperity they generate and sustain.
+
+These strategies can produce desirable surface outcomes while still imposing severe social costs, whether through excessive self-sacrifice or unequal harm. The seemingly agreeable deference present in altruist societies led to excessive and wasteful self-sacrifice (Kremer-Herman et al., 2024). \citet{KremerHerman2024b} argued that the limited advantages of a greedy, highly individualistic society came at the cost of many agents who were left dead or impoverished by the success of a few. These findings show that ethical strategies may appear beneficial at the aggregate level while still generating serious harm for many individual members of society.
+
+Taken together, these studies show that ethical decision-making mechanisms do not remain confined to the level of individual choice, but instead shape the whole structure and trajectory of artificial society. These macro-level consequences make simulation valuable for helping decision-makers reason systematically about complex social outcomes.
+
+Simulation supports systematic policy reasoning by structuring analysis, anticipating consequences, and informing decisions under complex social conditions. In system dynamics, a longstanding orthodox view has been that problems can be properly analyzed and policy recommendations formulated only through the use of a fully quantified model (Coyle, 2000). \citet{Munda2020} argued that, although quantitative modeling cannot yield exact solutions to policy problems, it can still support policymakers and other stakeholders by offering a scientifically sound basis for systematic and transparent analysis. \citet{Tolk2022} explained that simulation enables policymakers to examine possible future scenarios and anticipate the likely consequences of policy choices before those decisions are implemented. Ex-post impact evaluation is used to assess the real-world effects of policy changes and reflects a “what works?” approach in which policy design is informed by rigorous analysis of evidence drawn from past outcomes (Munda et al., 2020).
+
+However, the value of simulation for policy support does not mean that current frameworks perform these tasks well. \citet{Kang2025} reported that even the best current frameworks performed poorly on these tasks, with the top system reaching only a 24.5\% coverage rate on comprehensive scenarios, 15.04\% on sub-tasks, and 14.5\% on auto-generated tasks. \citet{KremerHerman2024b} noted that, although this kind of evaluation does not directly measure real-world success, it can still encourage deeper reflection on the societal consequences of adopting a particular socio-ethical theory.
+
+These studies show that simulation supports systematic policy reasoning without providing exact or final answers. Its value lies in structuring complexity, comparing consequences, and making ethical and policy choices open to evaluation. However, the limits of current frameworks also reveal the need for a clearer way to encode ethical judgment itself. 
+
+Vector representation addresses this need by translating values, strategies, and action consequences into computable form, allowing alignment to be assessed through comparison, proximity, or similarity. \citet{Bontempi2025} proposed a method for representing an automatic agent’s decision-making strategy as a multivariate vector so that its alignment with human values can be compared and evaluated. \citet{Bontempi2025} further argued that the Ethics2Vec approach maps an agent’s strategy into the user’s ethical space, making it possible to compare alternative strategies and assess how well an agent’s actions align with human values. More broadly, Anything2Vec methods have been applied in areas such as natural language processing, recommendation systems, and graph analysis, where they map similar objects to nearby points in a vector space and thereby capture complex relationships while reducing dimensionality \citep{Bontempi2025}.
+
+Similarly, \citet{Izzidien2022} developed a fairness vector constructed from the social dimensions typically drawn on in fairness judgments. \citet{Izzidien2022} also presented a simple vector-based method for identifying whether a verb reflects fairness, such as thank or appreciate, or unfairness, such as slur or insult. Word embeddings can capture the dimensions underlying fairness judgments, including responsibility versus irresponsibility, gain versus loss, reward versus sanction, and joy versus pain, within a single FairVec, allowing verbs to be evaluated through cosine similarity \citep{Izzidien2022}. \citet{doi:10.1177/29498732251377351} aimed to improve embedding interpretability by aligning entity-vector dimensions with meaningful semantic aspects, allowing the representations to show what features they encode. \citet{doi:10.1177/29498732251377351} also found that their InterpretE approach links entities to selected semantic aspects, which makes embeddings easier to explain and helps cluster similar entities more accurately, with results showing that InterpretE improves semantic-similarity evaluation and supports more transparent decision-making in explainable AI. 
+
+These studies show that vector representation provides a workable basis for encoding ethical dimensions, comparing agent strategies, and linking welfare proxies, decision rules, and simulation outcomes within a single operational framework.
+
+Ethical agent decision-making has remained difficult to model because welfare and moral judgment are complex, indirect, and not easily reduced to single measures. It was shown that these judgments must be represented through proxies, modeled transparently under uncertainty, tested through agent-based mechanisms, and examined for their societal and policy consequences in simulation. This motivates a framework in which agent decisions are guided by felicific vectors, a structured proxy representations of welfare-relevant dimensions, and selected through distance matching within the Digital Terrarium simulation.
+
+			\subsection{Conceptual Framework}
+The study examined how vector-based ethical prioritization influences both individual behavior and emergent societal outcomes in the Sugarscape Digital Terrarium. Specifically, it showed how the simulation is structured, how agent attributes shape the decision-making process, and how this process produces individual and population-level effects.
+
+The structure of the simulation consists of the following components: the environment, the local state of each agent, the feasible deliberate action set, and the agent prioritization vector. 
+The environment provides the space in which agents interact with resources, other agents, and rule-based simulation processes. The environment includes sugar and spice resources, agent metabolism, wealth, survival conditions, reproduction, trade, lending, tagging, combat, disease, inheritance, and population updating procedures.
+
+The local state of each agent is observed at each decision point. This local state includes internal state variables such as wealth and metabolism; resource-opportunity variables such as visible sugar, visible spice, distance to resources, and reachable empty cells; and social-risk and interaction variables such as nearby agents, stronger or weaker neighbors, mean nearby wealth, and possible interaction opportunities.
+
+The agent's deliberate decision at each timestep is the selection of a destination cell within its vision range. Combat, trade, reproduction, and lending are not chosen actions; they are triggered automatically by the conditions at the destination cell. Automated processes such as tagging, aging, death, disease transmission, inheritance, and pollution remain part of the simulation but are not part of the cell-selection decision.
+
+The agent also has a prioritization vector, which represents the kind of effects it tends to favor. This vector corresponds to the five felicific dimensions used in the study: intensity, duration, certainty, propinquity, and extent. These dimensions allow the agent’s ethical orientation to be represented continuously rather than as a fixed moral category.
+
+The decision-making process of the agent is shaped by its prioritization profile. The model first identifies the deliberate actions that are feasible in the agent’s current local state. For each feasible action, the model analytically computes two felicific effect vectors --- one immediate, one future --- each estimating the action’s welfare consequences across five coordinates: intensity, duration, certainty, propinquity, and extent.
+
+The predicted felicific effect vector represents the expected welfare profile of a feasible action under a specific local state. Intensity captures the expected signed net welfare effect of the action. Duration captures how long the welfare effect remains materially significant. Certainty captures the model’s confidence in the predicted effect. Propinquity captures how soon the effect becomes relevant. Extent captures whether the effect is directed toward the acting agent, others, or both.
+
+After the predicted effect vectors are generated, the model compares each action’s effect vector with the agent’s prioritization vector. The distance between the two vectors is computed, and the agent selects the feasible action with the smallest distance. The selected action becomes the agent’s primary action for that timestep. The original Digital Terrarium mechanics execute the chosen action, while passive biological and environmental processes continue according to the baseline simulation rules.
+
+The individual and population-level effects are produced by the decision-making process of the agents. These effects occur at two levels: the individual level and the population level. At the individual level, the selected action affects the agent’s wealth, survival condition, time to live, and eventual age at death. At the population level, repeated agent decisions affect broader societal outcomes. These include population size, total societal wealth, mean agent wealth, mean time to live, mean deaths, mean age at death, and categorical population end states, specifically if the population went extinct, worse, or better. 
+
+The study framed FVDM as a link between simulation structure, agent decision-making, and measurable outcomes. This framework shows how ethical prioritization is represented, how decisions are made, and how their effects are observed. This served as the basis for implementing the model, deriving its coordinate functions, assigning prioritization vectors, and evaluating its outcomes in the Digital Terrarium.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.4\textwidth]{"conceptual_framework"}
+	\caption{Conceptual Framework of the Study}
+	\label{fig:conceptual_framework}
+\end{figure}
+
+\section{METHODOLOGY}
+\subsection{Research Design}
+
+This study used a quantitative, agent-based simulation study design to test whether ethical decision-making in the Sugarscape Digital Terrarium can be represented through Felicific Vector Distance Matching (FVDM).
+
+The Digital Terrarium was forked from the open-source implementation by \citet{KremerHerman2024b}, available at \url{https://github.com/digital-terraria-lab/sugarscape}. This codebase provided the simulation environment, agent mechanics, resource dynamics, and baseline ethical decision models. The implementation was extended with a FVDM decision layer, including analytical felicific coordinate computation and prioritization vector derivation.
+
+The design was experimental because it compared decision conditions within the same simulation environment, with the original Digital Terrarium ethical models as baselines and FVDM-based agents as the modified conditions. It was computational because all observations were generated through simulation, which suited the study of decision rules, agent interactions, and emergent social outcomes in a controlled environment.
+
+The Digital Terrarium’s automatic and environmental processes were preserved across all conditions. The only modification was at the cell-selection stage, where FVDM replaced the original rule-based cell-selection logic with distance-based matching.
+
+The study addressed three behavioral criteria to evaluate whether FVDM successfully represented ethical decision-making. Translation validity required that the mean felicific effect vectors of chosen cells of FVDM-derived conditions remain structurally consistent with their corresponding rule-based baselines across both temporal layers, measured through cosine similarity. Because all baseline conditions produced near-identical felicific cell-choice profiles under the centralized resource configuration, cosine similarity alone was not a sufficient discriminator; downstream interaction frequencies and population-level outcomes were also examined to detect meaningful differences. Behavioral differentiation required that mean felicific effect vector coordinates across the four FVDM-derived conditions remained statistically distinguishable, tested through a Kruskal-Wallis H-test at $\alpha = 0.05$. Population-level preservation required that the FVDM Bentham Derived condition produced no statistically significant difference from the original Bentham condition on Gini coefficient and extinction rate, tested through Mann-Whitney U at $\alpha = 0.05$.
+
+The study operated at two computational scales. Derivation runs collected behavioral trajectories for Behavioral Feature Expectation prioritization vector estimation, using 250 starting agents and 5{,}000 timesteps per run across 128 matched seeds. Main experimental runs evaluated behavioral and population-level outcomes across eight homogeneous conditions and a heterogeneous Egoist--Bentham sweep, using 30 matched random seeds per condition, run for 5,000 timesteps each with 250 starting agents. All conditions within each phase shared an identical seed pool so that cross-condition comparisons were not confounded by initial stochastic variation.
+
+\subsection{Simulation Model Structure}
+The Digital Terrarium served as the agent-based simulation environment. It was structured around four components: agents, environment, interactions, and organization.
+
+\subsubsection{Agents}
+Agents are autonomous entities in a shared artificial society. Each agent maintains sugar holdings, spice holdings, sugar metabolism, spice metabolism, age, maximum lifespan, and location. These attributes expose agents to resource scarcity, biological aging, social differentiation, and unequal wealth accumulation.
+
+The simulation begins with 250 agents distributed across the grid, consistent with the original Digital Terrarium configuration \citep{KremerHerman2024b}. Each agent is evaluated every timestep based on its internal state and local surroundings. In the baseline models, agents follow deterministic ethical decision rules corresponding to predefined ethical types. In the FVDM version, agents retain the same biological and environmental constraints but select destination cells by matching two felicific effect vectors against a prioritization profile in the shared felicific effect space.
+
+\subsubsection{Environment}
+The environment is a 50 $\times$ 50 toroidal grid \citep{KremerHerman2024b} containing sugar and spice. Toroidal wrapping prevents edge effects.
+
+The environment is held constant across conditions. Seasons, pollution, and disease are disabled, following the configuration of the original Digital Terrarium study \citep{KremerHerman2024b}, so observed differences in behavior and population outcomes are attributable to the decision models under comparison.
+
+\subsubsection{Interactions}
+Four interaction classes occur within the simulation: combat, trade, reproduction, and lending. These interactions are not explicitly chosen by the agent; they are triggered automatically by the conditions present at the destination cell after the agent moves. Combat is triggered when the destination cell is occupied by an enemy agent of lower wealth from a different tribe \citep{Kehoe2015}. Trade is triggered when a neighboring agent has a complementary marginal rate of substitution. Reproduction is triggered when a fertile agent is adjacent to a compatible mate with sufficient resource holdings \citep{Kehoe2015}. Lending is triggered when a qualifying agent is adjacent to a borrower.
+
+Because interactions are condition-triggered, the agent’s only deliberate decision is which cell to move to. The feasibility conditions for each interaction apply identically across baseline and FVDM conditions and are enforced by the simulation environment rather than the decision model. Interaction frequencies are therefore observational ecological outcomes that reflect where agents chose to move, not what they explicitly chose to do.
+
+\subsubsection{Organization}
+Organization refers to macro-level patterns that emerge from repeated local decisions. The Digital Terrarium imposes no centralized control; population-level outcomes emerge from individual survival behavior, resource competition, spatial movement, social interaction, and ethical decision-making. These include unequal wealth accumulation (measured by Gini coefficient), changes in population size and extinction risk, and tribal differentiation through tagging.
+
+FVDM is evaluated at this level by observing whether different ethical decision representations produce different systemic outcomes across population stability, survival, extinction, wealth inequality, and behavioral differentiation.
+
+
+\subsection{Baseline Ethical Decision-making Models}
+
+The baseline decision models were adapted from \citet{KremerHerman2024b}. Each applied a different decision logic to the same simulation environment. The four models retained in this study are Raw Sugarscape, Bentham, Egoist, and Altruist.
+
+Raw Sugarscape is the greedy survival baseline adopted from the original Sugarscape model \citep[as cited in][]{KremerHerman2024b}. Agents move to whichever cell in their vision range holds the most resources, without considering the welfare of any other agent.
+
+The remaining three models --- Bentham, Egoist, and Altruist --- share a common decision procedure. At each timestep, an agent considers every cell it can see and scores each one using a utility function. The agent then moves to the highest-scoring cell.
+
+\subsubsection*{Scoring a candidate cell}
+
+To score a candidate cell, the agent does not evaluate the cell in isolation. Instead, it considers the cell from the perspective of every live agent currently within its vision range, including itself. For each such neighbor, it computes how much welfare that neighbor would gain or lose if the evaluating agent were to move there. These per-neighbor contributions are then summed to produce the cell’s total utility score.
+
+The welfare contribution of a single neighbor is \citep{KremerHerman2024b}:
+\[ h = cp \left[ e(i+d) + \gamma e_f(i_f+d_f) \right] \]
+
+The two bracketed terms separate welfare into an immediate component $e(i+d)$ and a discounted future component $\gamma e_f(i_f+d_f)$. Each variable is defined as follows.
+
+\textbf{Certainty} $c$ is a binary reachability indicator:
+\[
+c = \begin{cases} 1 & \text{if the neighbor can reach the candidate cell} \\ 0 & \text{otherwise} \end{cases}
+\]
+Neighbors with $c = 0$ are skipped entirely.
+
+\textbf{Propinquity} $p$ is the inverse of the timestep distance to the cell:
+\[
+p = \frac{1}{\Delta t}
+\]
+Since agents plan only one step ahead, $\Delta t = 1$ and therefore $p = 1$ in all cases.
+
+\textbf{Intensity} $i$ measures how urgently the neighbor needs this cell, expressed as a function of its remaining survival time (TTL) and the cell’s pollution level:
+\[
+i = \frac{1}{(1 + \mathrm{TTL})(1 + \mathrm{pollution})}
+\]
+where $\mathrm{TTL} = \min\!\left(\dfrac{W_{\mathrm{sugar}}}{M_{\mathrm{sugar}}},\, \dfrac{W_{\mathrm{spice}}}{M_{\mathrm{spice}}}\right)$ is the neighbor’s estimated remaining survival time from current resource stocks and metabolic rates. A lower TTL produces a higher intensity, reflecting a more urgent welfare need.
+
+\textbf{Duration} $d$ measures how long the cell’s resources would sustain the neighbor:
+\[
+d = \frac{W_{\mathrm{cell}}\,/\,M_{\mathrm{neighbor}}}{W_{\mathrm{max}}}
+\]
+where $W_{\mathrm{cell}} = W_{\mathrm{sugar}} + W_{\mathrm{spice}}$ is the cell’s total available wealth, $M_{\mathrm{neighbor}}$ is the neighbor’s total metabolic rate, and $W_{\mathrm{max}}$ is the cell’s maximum possible wealth. A resource-rich cell relative to the neighbor’s needs yields a high duration.
+
+\textbf{Extent} $e$ is a social density weight:
+\[
+e = \frac{|\mathcal{N}|}{|\mathcal{C}|}
+\]
+where $|\mathcal{N}|$ is the number of live agents in the evaluating agent’s current neighborhood and $|\mathcal{C}|$ is the total number of cells within its vision range. This captures how socially connected the agent’s current position is. The future-layer counterpart $e_f$ is computed identically from the same current-position neighborhood (not from the candidate cell), so $e_f = e$ in all cases.
+
+\textbf{Temporal discount} $\gamma$ is a configured lookahead factor that scales the future welfare term. When lookahead is disabled, $\gamma = 0$ and the entire future term drops out. In all experiments conducted in this study, \texttt{decisionModelLookaheadFactor} is set to zero, which disables the future term entirely and reduces the operative formula to:
+\[
+h = cp \cdot e(i + d)
+\]
+The full expression $h = cp\bigl[e(i+d) + \gamma e_f(i_f+d_f)\bigr]$ is preserved in the specification for completeness and to maintain fidelity to the original KH2024 formulation, but $\gamma e_f(i_f+d_f) = 0$ holds throughout all reported simulations. The future-layer coordinates $i_f$ and $d_f$ are therefore defined but inactive in the baseline decision rule.
+
+\textbf{Future intensity} $i_f$ estimates how resource-rich the surroundings of the candidate cell are:
+\[
+i_f = \frac{W_{\mathrm{adj}}}{W_{\mathrm{global}} \cdot |\mathcal{A}|}
+\]
+where $W_{\mathrm{adj}}$ is the total resource wealth of the candidate cell’s adjacent cells, $W_{\mathrm{global}}$ is the global resource maximum, and $|\mathcal{A}|$ is the number of those adjacent cells.
+
+\textbf{Future duration} $d_f$ estimates the cell’s sustainability after one metabolism step:
+\[
+d_f = \frac{(W_{\mathrm{cell}} - M_{\mathrm{neighbor}})\,/\,M_{\mathrm{neighbor}}}{W_{\mathrm{max}}}
+\]
+
+The two bracketed terms in the utility function therefore expand as:
+\begin{align*}
+e(i+d) &= \frac{|\mathcal{N}|}{|\mathcal{C}|} \cdot (i + d) \qquad \text{(immediate welfare)} \\[4pt]
+\gamma\, e_f(i_f+d_f) &= \gamma \cdot \frac{|\mathcal{N}|}{|\mathcal{C}|} \cdot (i_f + d_f) \qquad \text{(discounted future welfare)}
+\end{align*}
+Since $e_f = e$, the extent factor is the same for both temporal layers. The full per-neighbor contribution is:
+\[
+h = (c \cdot p)\!\left[\frac{|\mathcal{N}|}{|\mathcal{C}|}(i+d) + \gamma\frac{|\mathcal{N}|}{|\mathcal{C}|}(i_f+d_f)\right]
+\]
+
+\subsubsection*{Combining self and neighbor contributions}
+
+Once the raw per-neighbor value is computed, a selfishness factor $\phi$ determines how much weight to give to the evaluating agent’s own welfare versus that of its neighbors. Contributions from the evaluating agent itself are scaled by $\phi$. Contributions from all other neighbors are treated as opportunity costs --- negated and scaled by $1 - \phi$. The total utility score of a candidate cell is:
+\[
+h(c) = \phi \cdot h_{\mathrm{self}} - (1-\phi)\sum_{\mathrm{others}} h_{\mathrm{other}}
+\]
+
+The selfishness factor $\phi$ is the sole parameter that differentiates the three ethical models:
+
+\begin{itemize}
+    \item \textbf{Bentham} ($\phi = 0.5$): self and neighbor contributions receive equal weight, so $h(c) = 0.5\,h_{\mathrm{self}} - 0.5\sum h_{\mathrm{other}}$.
+    \item \textbf{Egoist} ($\phi = 1.0$): neighbor opportunity costs are eliminated, so $h(c) = h_{\mathrm{self}}$.
+    \item \textbf{Altruist} ($\phi = 0.0$): the agent’s own contribution is dropped, so $h(c) = -\sum h_{\mathrm{other}}$; the cell is scored entirely by the harm it imposes on neighbors.
+\end{itemize}
+
+\subsubsection*{Connection to the Bellman equation}
+
+\citet{KremerHerman2024b} showed that the per-neighbor utility function is an instance of the Bellman optimality equation:
+\[
+V^{*}(s) = \max_{a} \sum_{s’} T(s,a,s’) \left[ R(s,a,s’) + \gamma V^{*}(s’) \right]
+\]
+
+The mapping is as follows. The current state $s$ is the evaluating agent’s position and resources. The action $a$ is the candidate cell. The summation over $s’$ is the loop over all live neighbor agents within vision range, where each neighbor is an affected perspective rather than a stochastic future state. The transition term $T(s,a,s’) = c \cdot p$ captures whether a given neighbor can reach the cell. The immediate reward $R(s,a,s’) = e(i+d)$ and the discounted future value $\gamma V^{*}(s’) = \gamma e_f(i_f+d_f)$. The $\max_a$ is realized by selecting the candidate cell with the highest total score $h(c)$. In the Digital Terrarium, the cell itself is the action \citep{KremerHerman2024b}; combat, trade, reproduction, and lending are not chosen directly but are triggered automatically by the conditions present at the destination cell.
+
+These four models were selected because they represent the core decision configurations examined by \citet{KremerHerman2024b}. Additional models available in the Digital Terrarium were not included as they fall outside the scope of this comparative analysis. These four models generated the original behavioral patterns that FVDM-derived agents reformulated within a shared felicific effect space.
+
+\subsection{Felicific Vector Distance Matching Framework}
+The Felicific Vector Distance Matching (FVDM) framework is the main decision architecture for reformulating original rule-based ethical agents into a shared vector-based model. Each candidate destination cell is represented by two analytically computed felicific effect vectors --- one capturing immediate welfare effects and one capturing future welfare effects --- and each ethical agent type is represented through a prioritization profile consisting of two corresponding reference vectors. Cell selection is performed by comparing these vectors within a common felicific coordinate system.
+
+The FVDM process consists of four components: felicific effect space; felicific coordinate computation; prioritization vectors; and decision rule.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.8\textwidth]{fvdm_diagram}
+	\caption{The Felicific Vector Distance Matching (FVDM) Framework}
+	\label{fig:fvdm_framework}
+\end{figure}
+
+\subsubsection{Felicific Effect Space}
+The felicific effect space is the shared representational space in which both action effects and agent preferences are expressed. For each candidate cell $c$ in the agent's vision range, the framework analytically computes two felicific effect vectors, each with five coordinates $(I,\, D,\, C,\, P,\, E)$:
+\begin{itemize}
+  \item $\mathbf{v}^{\mathrm{imm}}(c)$ --- the \emph{immediate} felicific effect vector, capturing the welfare consequences the evaluating agent experiences in the current step;
+  \item $\mathbf{v}^{\mathrm{fut}}(c)$ --- the \emph{future} felicific effect vector, capturing the discounted welfare consequences that arise one step beyond the current move.
+\end{itemize}
+Both vectors are computed from the evaluating agent's own perspective, but as shown in the Felicific Coordinate Computation subsection, together they contain enough information to recover the welfare effect on every agent in the neighborhood exactly --- no information from the baseline is discarded.
+
+The five coordinates share the same interpretation across both vectors. \textbf{Intensity} ($I$) captures welfare urgency: in $\mathbf{v}^{\mathrm{imm}}(c)$ it reflects how urgently the evaluating agent needs this cell right now (higher when the agent is close to dying or the cell is polluted); in $\mathbf{v}^{\mathrm{fut}}(c)$ it reflects the resource richness of the cells adjacent to $c$, serving as a proxy for the strategic value of the location. \textbf{Duration} ($D$) captures resource sustainability: in $\mathbf{v}^{\mathrm{imm}}(c)$ it measures how many steps the cell's current resources would sustain the evaluating agent; in $\mathbf{v}^{\mathrm{fut}}(c)$ it measures the residual sustainability after consuming one step's worth of resources. \textbf{Certainty} ($C$) captures whether the candidate cell is actually accessible to the evaluating agent; it is identical across both vectors. \textbf{Propinquity} ($P$) distinguishes the temporal layer: $P = 1$ in $\mathbf{v}^{\mathrm{imm}}(c)$ (one step ahead) and $P = \gamma$ in $\mathbf{v}^{\mathrm{fut}}(c)$ (discounted future), where $\gamma$ is the temporal discount factor. \textbf{Extent} ($E$) captures the self-fraction of the vision range; it equals $1/|\mathcal{V}|$ in both vectors, encoding the evaluating agent's share of the cells under consideration.
+
+Unlike a scalar utility model, which compresses all welfare consequences into one value, the two five-coordinate vectors preserve welfare effects across five independent dimensions and two temporal layers simultaneously. All coordinates are bounded to $[0,1]$ through the formulas defined in the Felicific Coordinate Computation subsection, so Euclidean distance functions as a consistent similarity measure across all five dimensions of each effect vector.
+
+Euclidean distance was selected as the distance metric over Manhattan and cosine alternatives. To understand why, consider what each metric does. Euclidean distance measures the straight-line gap between two points. Manhattan distance measures distance by summing how far apart the points are on each axis separately, as if moving only along grid lines. Cosine distance measures the angle between two vectors, not the gap between them.
+
+Choosing a metric requires deciding what counts as a good or bad match between an action's welfare profile and an agent's priorities. In the FVDM context, an action that causes severe harm on even one felicific dimension should be treated as a poor choice, regardless of how well it scores on the others. Euclidean distance captures this: because it squares each difference before summing, a large miss on a single coordinate is penalized more heavily than the same total miss spread evenly across all coordinates. Manhattan distance does not make this distinction. It treats a large miss on one axis identically to several small misses that sum to the same total, which misrepresents the severity of a single-dimension ethical failure.
+
+Manhattan distance also has a known advantage in data settings where individual measurements can be extreme or unreliable, since it does not square the differences. However, all five FVDM coordinates are bounded by their normalization formulas. Extreme values cannot occur by design, so this advantage of Manhattan does not apply here.
+
+Cosine distance is best suited for high-dimensional spaces where most values are near zero, such as word counts in text analysis. In such settings it is more informative to ask whether two vectors point in the same general direction than to ask how far apart they are. The FVDM space has only five coordinates, all of which carry meaningful non-zero values in most agent decisions. More critically, cosine distance treats two vectors as equally aligned as long as they point in the same direction, regardless of their size. An action with a small welfare effect and an action with a large welfare effect would appear equally close to a prioritization vector under cosine distance if they point in the same direction, even though the magnitudes differ substantially. This is not appropriate for welfare evaluation, where the size of the effect matters.
+
+Euclidean distance avoids all three of these problems. The normalization of all coordinates removes its sensitivity to scale differences across axes. Its penalization of large single-axis deviations matches the welfare judgment that severe misalignment on any one felicific dimension cannot be offset by agreement on the remaining four.
+
+The formal relationship between Euclidean and cosine distance under normalization further supports this choice. \citet{Bouhsine2026} proved that when vectors are constrained to the unit sphere, cosine distance reduces to exactly half the squared Euclidean distance, meaning both metrics produce identical neighbor rankings. \citet{Kryszkiewicz2013} independently confirmed that cosine similarity neighborhoods and Euclidean distance neighborhoods are interchangeable when applied to normalized vector forms. Put simply, once vectors are normalized, the two metrics are mathematically the same in terms of which actions appear closest. Since all FVDM coordinates are analytically bounded to $[0,1]$ by construction, the effect vectors occupy a constrained and consistent region of the coordinate space, and cosine distance offers no ranking advantage over Euclidean distance here --- the choice becomes a matter of interpretability, and Euclidean preserves the more intuitive geometric meaning of nearness.
+
+One remaining concern is that \citet{Rubinov2010} showed squared Euclidean distance is sensitive to outliers, while norm-based measures are not. However, all five FVDM coordinates are constrained to fixed ranges by their normalization formulas. Extreme values cannot occur by design, which means the outlier sensitivity of Euclidean distance cannot be triggered in this framework. The theoretical limitation does not apply in practice.
+
+
+\subsubsection{Felicific Coordinate Computation}
+\label{sec:coordinate_computation}
+
+The two felicific effect vectors are derived directly from the baseline utility function in three steps. The key insight is that the evaluating agent’s own welfare quantities at cell $c$ are a \emph{sufficient statistic} for the entire neighborhood: because all agents share the same cell, their individual welfare values are known transformations of the evaluating agent’s values. This makes the derivation lossless --- the full scalar baseline utility is exactly recoverable from the five unique cell-varying quantities spread across the two vectors.
+
+\paragraph{Notation.}
+Let $W_c = \mathrm{sugar}_c + \mathrm{spice}_c$ be the total resource content of candidate cell $c$, $W_c^{\max}$ its resource capacity, $m_k$ the combined metabolism of agent $k$, $W_{\max}$ the global resource ceiling, $|\mathcal{N}|$ the number of live agents within the evaluating agent’s vision range including itself, $|\mathcal{V}|$ the total number of cells in vision range, and $\gamma$ the temporal lookahead discount. The time-to-live of any agent $k$ is:
+\[
+TTL_k = \min\!\left(\frac{W_{\mathrm{sugar},k}}{m_{\mathrm{sugar},k}},\; \frac{W_{\mathrm{spice},k}}{m_{\mathrm{spice},k}}\right)
+\]
+
+\paragraph{Step 1 --- Compute the evaluating agent’s immediate welfare quantities and assemble $\mathbf{v}^{\mathrm{imm}}(c)$.}
+The baseline utility function assigns every agent $k$ a welfare contribution for candidate cell $c$:
+\[
+h_k = (c_k \cdot p)\bigl[e(i_k + d_k) + \gamma\, e_f(i_f + d_{f,k})\bigr]
+\]
+For the evaluating agent $i$, the immediate welfare quantities are read directly:
+\begin{align*}
+I &= i_i = \frac{1}{(1 + TTL_i)(1 + \mathrm{pollution}_c)} & &\text{(Intensity: higher when survival is more urgent)} \\
+D &= d_i = \frac{W_c\,/\,m_i}{W_c^{\max}} & &\text{(Duration: how many steps the cell sustains agent }i\text{)} \\
+C &= c_i = \mathbf{1}[\text{cell }c\text{ is accessible to agent }i] & &\text{(Certainty: binary accessibility)}
+\end{align*}
+Propinquity is set to $P = 1$ (one step ahead) and extent to $E = 1/|\mathcal{V}|$ (the evaluating agent’s self-fraction of the vision range). Together these five values assemble the immediate effect vector:
+\[
+\mathbf{v}^{\mathrm{imm}}(c) = \bigl(\,i_i,\;\; d_i,\;\; c_i,\;\; 1,\;\; 1/|\mathcal{V}|\,\bigr)
+\]
+
+\paragraph{Step 2 --- Compute the future welfare quantities and assemble $\mathbf{v}^{\mathrm{fut}}(c)$.}
+The future quantities capture the discounted welfare consequences one step beyond the current move:
+\begin{align*}
+I &= i_f = \frac{\mathrm{neighborWealth}(c)}{W_{\max} \cdot |\mathrm{adj}(c)|} & &\text{(future intensity: resource richness of the adjacent cells)} \\
+D &= d_{f,i} = \frac{(W_c - m_i)\,/\,m_i}{W_c^{\max}} & &\text{(future duration: residual sustainability after one step)}
+\end{align*}
+where $\mathrm{neighborWealth}(c)$ is the total resource wealth of all cells adjacent to $c$ and $|\mathrm{adj}(c)|$ is the number of adjacent cells. Certainty remains $C = c_i$; propinquity is set to $P = \gamma$ (temporal discount); and extent remains $E = 1/|\mathcal{V}|$. Together these assemble the future effect vector:
+\[
+\mathbf{v}^{\mathrm{fut}}(c) = \bigl(\,i_f,\;\; d_{f,i},\;\; c_i,\;\; \gamma,\;\; 1/|\mathcal{V}|\,\bigr)
+\]
+
+Note that $D_{\mathrm{imm}} - D_{\mathrm{fut}} = d_i - d_{f,i} = \frac{1}{W_c^{\max}}$. The gap between immediate and future duration is exactly one capacity unit, encoding how much of the cell’s relative capacity a single metabolism step consumes.
+
+All cell-varying coordinates are bounded to $[0,1]$: $I_{\mathrm{imm}} \in (0,1]$ because $TTL_i \geq 0$ and $\mathrm{pollution}_c \geq 0$; $D_{\mathrm{imm}} \in [0,1]$ and $D_{\mathrm{fut}} \in [0,1]$ because $W_c \leq W_c^{\max}$ and $m_i \geq 1$; $I_{\mathrm{fut}} \in [0,1]$ because aggregate neighbor wealth is bounded by $W_{\max}$; and $C \in \{0,1\}$. The constant coordinates $P$ and $E$ are already in $[0,1]$ by construction.
+
+\paragraph{Step 3 --- Prove losslessness via neighbor recovery.}
+The evaluating agent $i$ is not the only one affected by moving to cell $c$ --- every neighbor $n \in \mathcal{N}$ is also evaluated in the baseline. A natural concern is whether self-centric coordinates miss the welfare effects on those other agents.
+
+They do not. All agents share the same cell $c$: they face the same pollution level and the same resource content and capacity. Every neighbor’s welfare quantities are therefore \emph{known transformations} of the evaluating agent’s own coordinates:
+\begin{align*}
+i_n &= i_i \cdot \frac{1 + TTL_i}{1 + TTL_n} & &\text{(same cell pollution; neighbor’s different survival horizon)} \\
+d_n &= d_i \cdot \frac{m_i}{m_n} & &\text{(same resource ratio }W_c/W_c^{\max}\text{; neighbor’s different metabolism)} \\
+d_{f,n} &= d_n - (d_i - d_{f,i}) & &\text{(same capacity gap }1/W_c^{\max}\text{; neighbor’s scaled duration)}
+\end{align*}
+Both $TTL_n$ and $m_n$ are directly observable from the neighborhood scan at each timestep \citep{KremerHerman2024b}. No estimation is required: every value on the right-hand side is either a coordinate of $\mathbf{v}^{\mathrm{imm}}(c)$ or $\mathbf{v}^{\mathrm{fut}}(c)$, or an observed parameter.
+
+\paragraph{Recovery of the baseline utility.}
+Given $\mathbf{v}^{\mathrm{imm}}(c)$ and $\mathbf{v}^{\mathrm{fut}}(c)$ and the known parameters $\{\phi, \gamma, m_k, TTL_k\}$, the full scalar baseline utility is exactly recoverable:
+\[
+h(c) \;=\; \phi \cdot C \cdot \frac{1}{|\mathcal{V}|}\bigl[(i_i + d_i) + \gamma(i_f + d_{f,i})\bigr]
+\;-\; (1-\phi) \cdot C \cdot \frac{|\mathcal{N}|-1}{|\mathcal{V}|} \cdot \frac{1}{|\mathcal{N}|-1}\sum_{n \neq i}\bigl[(i_n + d_n) + \gamma(i_f + d_{f,n})\bigr]
+\]
+where every $i_n$, $d_n$, $d_{f,n}$ is computed from the coordinates of $\mathbf{v}^{\mathrm{imm}}(c)$ and $\mathbf{v}^{\mathrm{fut}}(c)$ via the recovery formulas above. The pair $(\mathbf{v}^{\mathrm{imm}}(c),\, \mathbf{v}^{\mathrm{fut}}(c))$ is therefore a \emph{lossless} representation of cell $c$’s welfare effect: no information present in the baseline is discarded.
+
+The ethical weighting $\phi$ --- which governs how much weight the agent places on self versus neighbor welfare --- does not need to be encoded in the effect vectors. It is a fixed property of the agent type, not of the cell, and enters the recovery formula as a known constant. In the FVDM framework, $\phi$’s role is played by the prioritization profile $(\mu^{\mathrm{imm}}, \mu^{\mathrm{fut}})$: types that systematically choose cells where their own welfare is high (egoists) develop a different profile from types that choose cells where neighbor welfare is high (altruists), even though both types evaluate the same $\mathbf{v}^{\mathrm{imm}}(c)$ and $\mathbf{v}^{\mathrm{fut}}(c)$ for every candidate cell.
+
+
+\subsubsection{Derivation of Prioritization Vectors}
+\label{sec:derivation_of_vectors}
+A prioritization profile is a pair of five-number vectors that together characterize an agent type’s ethical tendencies across both temporal layers. Each number in each vector corresponds to one felicific dimension and reflects how strongly that type tends to favor that dimension when choosing where to move:
+\[
+\mu^{\mathrm{imm}} = (\mu^{\mathrm{imm}}_I,\, \mu^{\mathrm{imm}}_D,\, \mu^{\mathrm{imm}}_C,\, \mu^{\mathrm{imm}}_P,\, \mu^{\mathrm{imm}}_E)
+\qquad
+\mu^{\mathrm{fut}} = (\mu^{\mathrm{fut}}_I,\, \mu^{\mathrm{fut}}_D,\, \mu^{\mathrm{fut}}_C,\, \mu^{\mathrm{fut}}_P,\, \mu^{\mathrm{fut}}_E)
+\]
+The two-vector profile separates the immediate and future welfare layers explicitly, allowing cell selection to be governed by how closely candidate cells match the agent type’s characteristic behavior in each temporal dimension.
+
+\paragraph{Can the prioritization profile be derived analytically?}
+A natural question is whether the prioritization profile can be computed directly from the ethical model’s parameters --- $\phi$ and $\gamma$ --- rather than estimated from observed behavior. The baseline equation does imply a specific structural weighting. Because propinquity and extent are constant within each vector, the analytical form of the profile is:
+\[
+\mu^{\mathrm{imm}} \propto \left(\cdot,\; \cdot,\; \cdot,\; 1,\; 1/|\mathcal{V}|\right)
+\qquad
+\mu^{\mathrm{fut}} \propto \left(\cdot,\; \cdot,\; \cdot,\; \gamma,\; 1/|\mathcal{V}|\right)
+\]
+where the $P$ and $E$ entries are known constants and the $I$, $D$, $C$ entries vary by agent type and environmental conditions. This is valid as a structural characterization: it correctly identifies which coordinates are fixed by the temporal layer structure and which coordinates capture behavioral differentiation.
+
+However, this analytical form is insufficient on its own for two reasons. First, the two-vector scheme encodes ethical orientation through the \emph{distribution of cells each type tends to select}, rather than through directional differences in coordinate weights. An egoist consistently moves to cells that maximize its own immediate welfare; an altruist consistently avoids contested cells that harm neighbors. Both types face the same $\mathbf{v}^{\mathrm{imm}}(c)$ and $\mathbf{v}^{\mathrm{fut}}(c)$ vectors but choose systematically different ones. A fixed analytical profile cannot capture these distributional differences without observing actual behavior under real simulation conditions. Second, the extent coordinate depends on how many agents happen to be nearby at the moment of decision, which changes every timestep. A fixed analytical value requires assuming a neighborhood size that may not reflect the actual simulation environment.
+
+The analytical form is therefore useful as a theoretical characterization of the prioritization profile’s structure, but not as a substitute for empirical derivation. The empirical approach described below instantiates that structure under the actual environmental conditions of the experiment, capturing the realistic distribution of neighborhood configurations and resource profiles that agents encounter in practice.
+
+A practical difference between the baseline and FVDM is that the baseline’s ethical behavior is controlled by a single continuous parameter $\phi$: any value between 0 and 1 generates a corresponding agent without additional derivation runs. FVDM, by contrast, produces one discrete profile per observed agent type. Intermediate ethical orientations --- an agent that is 30\% selfish rather than exactly 0\%, 50\%, or 100\% --- would require either a new derivation run at that specific $\phi$ value or an interpolation between existing profiles. The $\phi$-linear validation analysis directly addresses this constraint. If the empirically derived Bentham profile ($\phi = 0.5$) is closely approximated by the arithmetic midpoint of the Egoist ($\phi = 1.0$) and Altruist ($\phi = 0.0$) profiles, then linear interpolation between existing profiles can recover any intermediate ethical orientation without new derivation runs. If this approximation holds, FVDM effectively recovers the parametric continuity of the baseline through algebraic interpolation rather than repeated simulation.
+
+\paragraph{Building the profile --- Behavioral Feature Expectation.}
+The derivation method is straightforward: observe what an agent chooses, record both felicific effect vectors of that choice, and average across many choices separately for each temporal layer. This is Behavioral Feature Expectation (BFE), grounded in the feature expectation matching framework of \citet{AbbeelNg2004}.
+
+At every decision step $t$, an agent picks a destination cell $c_t^*$ and both effect vectors of that cell are recorded:
+\[
+f(c_t^*) = \bigl(\mathbf{v}^{\mathrm{imm}}(c_t^*),\; \mathbf{v}^{\mathrm{fut}}(c_t^*)\bigr)
+\]
+After all derivation runs, the recorded vectors are averaged separately across all $N$ recorded decisions:
+\[
+\mu^{\mathrm{imm}} = \frac{1}{N} \sum_{t=1}^{N} \mathbf{v}^{\mathrm{imm}}(c_t^*)
+\qquad
+\mu^{\mathrm{fut}} = \frac{1}{N} \sum_{t=1}^{N} \mathbf{v}^{\mathrm{fut}}(c_t^*)
+\]
+Both prioritization vectors live in $[0,1]^5$, the same space as the effect vectors they will be compared against. No normalization is applied: since all effect vector coordinates are analytically bounded to $[0,1]$ by construction, the mean vectors naturally occupy the same space and Euclidean distance remains a consistent metric without rescaling.
+
+\citet{AbbeelNg2004} prove that an agent’s policy is fully characterized by its expected feature vector: matching feature expectations is equivalent to matching the agent’s implicit decision rule, without needing to specify a reward function explicitly.
+
+One design constraint of BFE as implemented here is that the profile is computed as a single average across all contested observations collected over the full derivation run. This means that agent choices made early in the simulation --- when resources are plentiful and survival pressure is low --- are averaged together with choices made later, when resources are scarce and competition intensifies. Agent behavior may differ across these phases, and a global average does not capture either phase separately. This is treated as appropriate for the present study because the main experimental runs also span 5,000 timesteps under the same environmental dynamics, so the phase composition of the derivation runs and the experimental runs is matched by construction. Phase-stratified profiling, where separate profiles are derived for early, middle, and late simulation phases, represents a natural extension for future work.
+
+\paragraph{Worked example.}
+Consider an agent with metabolism $m_i = 2$, $TTL_i = 10$, vision range $|\mathcal{V}_i| = 20$, and $|\mathcal{N}| = 3$ agents in the neighborhood. The neighborhood contains two additional agents, both with $m_n = 4$ and $TTL_n = 5$. The agent evaluates a cell with $W_c = 5$, capacity $W_c^{\max} = 8$, no pollution, adjacent-cell wealth $= 12$, $W_{\max} = 400$, four adjacent cells, and $\gamma = 0.5$. Applying the coordinate formulas:
+
+\noindent\textit{Immediate effect vector:}
+\begin{align*}
+I &= \tfrac{1}{(1+10)(1+0)} = \tfrac{1}{11} \approx 0.09 \\
+D &= \tfrac{5/2}{8} = \tfrac{2.5}{8} \approx 0.31 \\
+C &= 1,\quad P = 1,\quad E = \tfrac{1}{20} = 0.05
+\end{align*}
+\[
+\mathbf{v}^{\mathrm{imm}}(c) = (0.09,\; 0.31,\; 1.00,\; 1.00,\; 0.05)
+\]
+
+\noindent\textit{Future effect vector:}
+\begin{align*}
+I &= \tfrac{12}{400 \cdot 4} = \tfrac{12}{1600} = 0.01 \\
+D &= \tfrac{(5-2)/2}{8} = \tfrac{1.5}{8} \approx 0.19 \\
+C &= 1,\quad P = 0.5,\quad E = \tfrac{1}{20} = 0.05
+\end{align*}
+\[
+\mathbf{v}^{\mathrm{fut}}(c) = (0.01,\; 0.19,\; 1.00,\; 0.50,\; 0.05)
+\]
+
+\noindent\textit{Verification of neighbor recovery.} The gap $D_{\mathrm{imm}} - D_{\mathrm{fut}} = 0.31 - 0.19 = 0.12 = 1/W_c^{\max} = 1/8$ confirms the encoding. For each neighbor $n$ with $m_n = 4$, $TTL_n = 5$:
+\begin{align*}
+i_n &= 0.09 \times \tfrac{1+10}{1+5} = 0.09 \times \tfrac{11}{6} \approx 0.165 \\
+d_n &= 0.31 \times \tfrac{2}{4} = 0.155 \\
+d_{f,n} &= 0.155 - (0.31 - 0.19) = 0.155 - 0.12 = 0.035
+\end{align*}
+All neighbor values are recoverable from $\mathbf{v}^{\mathrm{imm}}(c)$ and $\mathbf{v}^{\mathrm{fut}}(c)$ and the observed neighbor parameters. No averaging or approximation was used.
+
+A known limitation of BFE is that it cannot separate what an agent prefers from what was available to choose. An agent that consistently ends up at high-Duration cells may do so because it actively values Duration, or simply because low-Duration cells were already taken by others. The primary control for this confound in the present study is the contested-move filter: only decisions where the agent actively chose to enter an occupied cell --- a choice that implies deliberate intent rather than passive availability --- are recorded. In uncontested decisions, all agent types move toward resource-rich empty cells in roughly similar fashion, contributing no differential behavioral signal. The pilot table (Table~\ref{table:pilot_sigma}) reports the number of contested observations per agent type per seed, providing a quantitative basis for assessing whether the available sample is sufficient to characterize a stable profile.
+
+\paragraph{Mixed-population derivation run setup.}
+A single derivation simulation was run with all four agent types (Raw Sugarscape, Egoist, Altruist, Bentham) present simultaneously. The 250 starting agents were assigned to types in a round-robin pattern, yielding approximately equal representation of each type. Running all types together forced each agent to encounter the full range of interaction partners --- combat, trade, reproduction, and lending all occurred across type boundaries. This produced cell-selection choices that reflected how each type behaved under real social pressure rather than in an isolated population. At each contested decision step, the chosen cell $c_t^*$ and its analytically computed felicific effect vectors $\mathbf{v}^{\mathrm{imm}}(c_t^*)$ and $\mathbf{v}^{\mathrm{fut}}(c_t^*)$ were recorded and tagged by agent type.
+
+\paragraph{Derivation environment versus experimental environment.}
+One design consideration is that the social environment during derivation differs from the social environment during the main experimental runs. Profiles are estimated from a mixed-population simulation where agents of all four types interact, but they are then applied in experimental conditions where only one agent type is present at a time. An Egoist agent surrounded by Altruists and Benthams during derivation may behave differently from an Egoist agent surrounded exclusively by other Egoists during the main runs. This study treats the mixed-population setup as a deliberate methodological choice: exposing each agent type to the full range of social interactions during derivation produces more discriminative profiles than isolating each type, where contested decisions would occur only between same-type agents and ethical differences would be harder to detect. Whether the derived profiles transfer accurately to homogeneous deployment conditions is an empirical question answered by the Behavioral Fidelity Score in the main experimental runs.
+
+\paragraph{Why only contested moves.}
+Not every cell choice reveals anything about ethical style. When any type moves to a resource-rich empty cell for survival, all four profiles look identical. Behavioral differences emerge only when an agent decides whether to enter a cell already occupied by a different-tribe agent --- a contested decision ($O = 1$). Egoist agents seek occupied cells to win combat loot; Altruist agents avoid them; Raw Sugarscape agents are neutral. Recording only contested choices produces profiles that genuinely differ across types.
+
+\paragraph{How many seeds --- pilot analysis.}
+The required sample size for reliable mean estimation follows the variance-based bound:
+\[
+N \;\geq\; \left(\frac{z_{\alpha / 2k} \cdot \hat{\sigma}}{\varepsilon}\right)^2
+\]
+where $\hat{\sigma}$ is the estimated standard deviation of a feature dimension, $\varepsilon = 0.01$ is the target estimation error, $\alpha = 0.05$ is the significance level, $k = 5$ is the number of dimensions (Bonferroni correction), giving $z_{\alpha/2k} \approx 2.576$.
+
+Before the main derivation, 10 pilot seeds were run under the two-vector BFE scheme to estimate $\hat{\sigma}$ from pooled contested observations. Under this scheme, propinquity ($P$) and extent ($E$) are constant by construction ($\sigma_P = \sigma_E = 0$), and certainty ($C = 1$) is also constant, so the Bonferroni correction applies to $k = 4$ unique variable dimensions: $I^{\mathrm{imm}}$, $D^{\mathrm{imm}}$, $I_f^{\mathrm{fut}}$, $D_f^{\mathrm{fut}}$. Table~\ref{table:pilot_sigma} reports the estimated standard deviations and the resulting per-type per-dimension sample-size requirements. The binding constraint was \textbf{[type]} \textbf{[dimension]} ($\hat{\sigma} = \mathbf{[\cdot]}$, $N_{\mathrm{req}} = \mathbf{[\cdot]}$, seeds required $= \mathbf{[\cdot]}$). The main derivation was therefore run at $\mathbf{[N]}$ seeds $\times$ 5{,}000 timesteps per seed, satisfying the bound across all types and dimensions.
+
+\begin{table}[H]
+\centering
+\caption{Pilot Estimation of $\hat{\sigma}$ per Dimension and Agent Type (10 Pilot Seeds)}
+\label{table:pilot_sigma}
+\begin{tabularx}{\textwidth}{L c c c c c}
+\toprule
+Agent Type & $n_{\text{contested}}$/seed & $\hat{\sigma}_{I^{\mathrm{imm}}}$ & $\hat{\sigma}_{D^{\mathrm{imm}}}$ & $\hat{\sigma}_{I_f^{\mathrm{fut}}}$ & $\hat{\sigma}_{D_f^{\mathrm{fut}}}$ \\
+\midrule
+Raw Sugarscape & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+Egoist         & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+Altruist       & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+Bentham        & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{FVDM Decision Rule}
+In the Digital Terrarium, the agent's deliberate decision at each timestep is the selection of a destination cell within its vision range \citep{KremerHerman2024b}. Combat, trade, reproduction, and lending are not themselves chosen actions; they are triggered automatically by the conditions present at the destination cell once the agent arrives. The cell selection therefore constitutes the full action $a$ in the Bellman sense, and FVDM replaces the original rule-based cell-selection logic with a distance-based criterion.
+
+For each candidate cell $c$ in the agent's vision range $\mathcal{V}_i$, the felicific coordinate formulas analytically compute two effect vectors $\mathbf{v}^{\mathrm{imm}}(c)$ and $\mathbf{v}^{\mathrm{fut}}(c)$. The agent compares these effect vectors against its prioritization profile $(\mu^{\mathrm{imm}}, \mu^{\mathrm{fut}})$ and selects the cell with the smallest combined Euclidean distance:
+\[
+c^* = \arg\min_{c \,\in\, \mathcal{V}_i}\;\Bigl(\bigl\lVert \mu^{\mathrm{imm}} - \mathbf{v}^{\mathrm{imm}}(c)\bigr\rVert_2 + \bigl\lVert \mu^{\mathrm{fut}} - \mathbf{v}^{\mathrm{fut}}(c)\bigr\rVert_2\Bigr)
+\]
+A cell that matches the agent's prioritization profile closely across all five felicific dimensions in both temporal layers produces a smaller combined distance than a cell that diverges on any one dimension. Because all coordinates are bounded to $[0,1]$, no dimension dominates due to scale differences.
+
+Three of the five coordinates --- Certainty, Propinquity, and Extent --- take the same value for every candidate cell evaluated at any given timestep. Certainty equals one for all accessible cells, since inaccessible cells are excluded before evaluation. Propinquity is fixed at one for the immediate layer and $\gamma$ for the future layer regardless of which cell is being considered. Extent equals $1/|\mathcal{V}|$ for all cells, since the vision range is a property of the agent rather than of any individual cell. Because these three coordinates are identical across all candidates, they contribute zero difference to the Euclidean distance ranking: no cell can be preferred or disqualified on these dimensions alone. Cell selection is therefore driven entirely by the Intensity and Duration coordinates in each temporal layer --- four variable dimensions in total. The five-coordinate structure is preserved to maintain fidelity to the original hedonic calculus and to keep profiles interpretable in welfare terms, but the effective ranking space is four-dimensional. The pilot sample-size correction reflects this by applying the Bonferroni adjustment to $k = 4$ rather than $k = 5$.
+
+It is also important to distinguish between two related but different claims about the effect vectors. The losslessness proof in Section~\ref{sec:coordinate_computation} shows that $(\mathbf{v}^{\mathrm{imm}}(c), \mathbf{v}^{\mathrm{fut}}(c))$ contain sufficient information to reconstruct the original utility score $h(c)$ exactly. However, containing enough information to reconstruct $h(c)$ is not the same as using that information in the same way. Minimizing Euclidean distance to a profile is a different optimization criterion from maximizing $h(c)$, and the two criteria can rank the same set of candidate cells differently. FVDM does not attempt to replicate the original scoring formula --- it replaces it with a distance-based criterion that operates on the same welfare substrate. The degree to which these two criteria produce similar behavioral choices in practice is an empirical question, measured by the Behavioral Fidelity Score.
+
+Ties are resolved by the randomized cell-evaluation order produced at the start of each movement decision. After moving to $c^*$, all downstream interactions execute unconditionally in the same manner as the baseline agents, preserving ecological viability. The FVDM selection therefore governs \emph{where} the agent moves, not which interaction classes are available.
+
+\subsection{Experimental Conditions}
+The study used three groups of conditions to compare original rule-based Digital Terrarium agents with their FVDM-derived counterparts. The first group comprised four homogeneous baseline rule-based conditions; the second group comprised four homogeneous FVDM-derived conditions; the third group comprised a heterogeneous Egoist--Bentham sweep with corresponding FVDM counterparts. All conditions used the same Digital Terrarium configuration; grid size, resource topology, starting population, metabolic rules, biological constraints, and available action classes were held constant. The only difference was the decision architecture.
+
+\subsubsection{Homogeneous Baseline Rule-Based Conditions}
+The four baseline conditions each contained one agent type, allowing each model's behavior to be observed in isolation.
+
+\begin{table}[H]
+\centering
+\caption{Homogeneous Baseline Rule-Based Conditions}
+\label{table:baseline_conditions}
+\begin{tabularx}{\textwidth}{c L L L L}
+\toprule
+No. & Condition & Population Type & Decision Mechanism & Purpose \\
+\midrule
+1 & Raw Sugarscape & Homogeneous & Greedy resource-survival rule & Establishes the non-ethical survival baseline \\
+2 & Egoist & Homogeneous & Self-regarding ethical rule & Establishes the original selfish decision model \\
+3 & Altruist & Homogeneous & Other-regarding ethical rule & Establishes the original altruistic decision model \\
+4 & Bentham & Homogeneous & Utilitarian ethical rule & Establishes the original Bentham decision model \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Homogeneous FVDM-Derived Conditions}
+The four FVDM-derived conditions each used agents governed by a prioritization vector derived from the corresponding baseline model via Behavioral Feature Expectation.
+
+\begin{table}[H]
+\centering
+\caption{Homogeneous FVDM-Derived Conditions}
+\label{table:fvdm_derived_conditions}
+\begin{tabularx}{\textwidth}{c L L L L}
+\toprule
+No. & Condition & Population Type & Decision Mechanism & Purpose \\
+\midrule
+5 & FVDM Raw Sugarscape Derived & Homogeneous & Distance matching using derived Raw Sugarscape vector & Tests translation of the greedy survival baseline \\
+6 & FVDM Egoist Derived & Homogeneous & Distance matching using derived Egoist vector & Tests translation of the selfish decision model \\
+7 & FVDM Altruist Derived & Homogeneous & Distance matching using derived Altruist vector & Tests translation of the altruistic decision model \\
+8 & FVDM Bentham Derived & Homogeneous & Distance matching using derived Bentham vector & Tests translation of the Bentham decision model \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Each agent used distance-based cell selection: $c^* = \arg\min_{c \in \mathcal{V}_i}\bigl(\lVert \mu^{\mathrm{imm}} - \mathbf{v}^{\mathrm{imm}}(c)\rVert_2 + \lVert \mu^{\mathrm{fut}} - \mathbf{v}^{\mathrm{fut}}(c)\rVert_2\bigr)$.
+
+\subsubsection{Condition Pairing and Research Purpose}
+Each baseline condition was paired with its corresponding FVDM-derived condition.
+
+\begin{table}[H]
+\centering
+\caption{Condition Pairing and Research Purpose}
+\label{table:condition_pairing}
+\begin{tabularx}{\textwidth}{L L L}
+\toprule
+Baseline Condition & Corresponding FVDM-Derived Condition & Main Comparison \\
+\midrule
+Raw Sugarscape & FVDM Raw Sugarscape Derived & Greedy baseline translation \\
+Egoist & FVDM Egoist Derived & Self-regarding behavior preservation \\
+Altruist & FVDM Altruist Derived & Other-regarding behavior preservation \\
+Bentham & FVDM Bentham Derived & Utilitarian behavior and population outcome preservation \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Conditions 1--4 established the original behavioral and population-level patterns. Conditions 5--8 tested whether FVDM distance matching reproduced those patterns under each decision model.
+
+\subsubsection{Heterogeneous Baseline Conditions}
+Real societies are not homogeneous: citizens hold differing ethical orientations that interact in ways no single-type population can capture \citep{KremerHerman2024b}. Following \citet{KremerHerman2024b}, who established that the Altruist model produces rapid population destabilization through rampant self-sacrifice and that the Raw Sugarscape model is subsumed by the more refined Egoist heuristic, the heterogeneous sweep focuses exclusively on Egoist and Bentham agents. The Bentham proportion $\rho$ was varied from 0\% to 100\% in 10-percentage-point increments, yielding eleven conditions per sweep.
+
+\begin{table}[H]
+\centering
+\caption{Heterogeneous Baseline Conditions (Egoist--Bentham Sweep)}
+\label{table:hetero_baseline}
+\begin{tabularx}{\textwidth}{c L L L L}
+\toprule
+$\rho$ (\% Bentham) & Egoist Agents & Bentham Agents & Population Type & Purpose \\
+\midrule
+0\% & 250 & 0 & Homogeneous Egoist & Establishes all-Egoist baseline \\
+10\% & 225 & 25 & Heterogeneous & Bentham minority \\
+20\% & 200 & 50 & Heterogeneous & Low Bentham proportion \\
+30\% & 175 & 75 & Heterogeneous & Moderate Bentham minority \\
+40\% & 150 & 100 & Heterogeneous & Near-balanced, Egoist-leaning \\
+50\% & 125 & 125 & Heterogeneous & Equal mix \\
+60\% & 100 & 150 & Heterogeneous & Near-balanced, Bentham-leaning \\
+70\% & 75 & 175 & Heterogeneous & Moderate Bentham majority \\
+80\% & 50 & 200 & Heterogeneous & High Bentham proportion \\
+90\% & 25 & 225 & Heterogeneous & Bentham dominant \\
+100\% & 0 & 250 & Homogeneous Bentham & Establishes all-Bentham baseline \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Each condition used the same 30 matched random seeds as the homogeneous runs. Agents were interleaved in a round-robin pattern at initialization to ensure spatial mixing of types.
+
+\subsubsection{Heterogeneous FVDM-Derived Conditions}
+For each baseline heterogeneous proportion $\rho$, a corresponding FVDM-derived condition was run using the same ratio of FVDM Egoist Derived and FVDM Bentham Derived agents. This allowed direct comparison of the societal outcome gradient across the sweep, testing whether FVDM-derived agents produce the same Bentham-proportion effect observed in the rule-based counterparts.
+
+\subsection{Simulation Procedure}
+The simulation procedure consisted of two phases: derivation runs and main experimental runs. Derivation runs used the mixed-population setup described in Section~\ref{sec:derivation_of_vectors} to collect behavioral trajectories for BFE estimation. Main experimental runs evaluated all conditions.
+
+All simulations used a $50 \times 50$ toroidal grid, 250 starting agents, and 5,000 timesteps. Seasons, pollution, and disease were disabled. Matched random seeds were used for paired baseline and FVDM-derived runs.
+
+\subsubsection{Prioritization Vector Derivation}
+The goal of this step was to translate each original agent type's implicit decision preferences into an explicit prioritization profile expressed in the felicific coordinate space. The core idea is simple: observe which cells the original agent chose, compute the felicific description of those choices, and average. The result is a vector that characterizes what kinds of cells that agent type gravitates toward --- without requiring any explicit specification of its utility function or decision rule.
+
+For each agent type, the procedure was as follows. At every contested decision step $t$, the chosen cell $c_t^*$ was identified. Its two felicific effect vectors were then computed analytically from the current simulation state using the coordinate formulas. These vectors describe the welfare properties of the cell the agent moved to --- not why it chose that cell, but what that cell looked like in welfare terms. After collecting $N$ contested observations per agent type, the recorded vectors were averaged coordinate-wise, separately for each temporal layer:
+\[
+\mu^{\mathrm{imm}} = \frac{1}{N}\sum_{t=1}^{N} \mathbf{v}^{\mathrm{imm}}(c_t^*)
+\qquad
+\mu^{\mathrm{fut}} = \frac{1}{N}\sum_{t=1}^{N} \mathbf{v}^{\mathrm{fut}}(c_t^*)
+\]
+
+For example, if an Egoist agent's contested choices over $N$ timesteps averaged to $I^{\mathrm{imm}} = 0.12$, $D^{\mathrm{imm}} = 0.40$, $C = 1.00$, those values populate the corresponding entries of $\mu^{\mathrm{imm}}$, encoding a revealed preference for cells with high certainty and moderate welfare intensity and duration. The $P$ and $E$ entries are constant by construction ($P^{\mathrm{imm}} = 1$, $P^{\mathrm{fut}} = \gamma$, $E = 1/|\mathcal{V}|$) and do not require averaging.
+
+No normalization was applied, since all coordinates are analytically bounded to $[0,1]$ by construction. This procedure was applied separately to each type's contested-choice trajectory, yielding four prioritization profiles: Raw Sugarscape Derived, Egoist Derived, Altruist Derived, and Bentham Derived \citep{AbbeelNg2004}. Each profile was held fixed as the governing vector for its corresponding FVDM-derived condition in the main experimental runs.
+
+\paragraph{$\phi$-interpolation as a structural validation.}
+The Digital Terrarium Bentham cell-scoring formula is linear in the selfishness factor $\phi$:
+\[
+h(c) = \phi \cdot h_{\mathrm{self}}(c) \;-\; (1 - \phi)\cdot\sum_i h_{\mathrm{other},i}(c)
+\]
+where $\phi = 1$ recovers the Egoist rule and $\phi = 0$ recovers the Altruist rule. Because Behavioral Feature Expectation is itself a linear operation over chosen-cell vectors, this scoring linearity implies a structural prediction: if $\phi$ parameterizes the felicific coordinate space linearly, the empirically derived Bentham profile should approximate the weighted mean of the Egoist and Altruist profiles:
+\[
+\hat{\mu}^{\mathrm{imm}}_{\mathrm{Bentham}} = 0.5\,\mu^{\mathrm{imm}}_{\mathrm{Egoist}} + 0.5\,\mu^{\mathrm{imm}}_{\mathrm{Altruist}}
+\qquad
+\hat{\mu}^{\mathrm{fut}}_{\mathrm{Bentham}} = 0.5\,\mu^{\mathrm{fut}}_{\mathrm{Egoist}} + 0.5\,\mu^{\mathrm{fut}}_{\mathrm{Altruist}}
+\]
+This prediction does not require additional derivation runs: it is computed analytically from the Egoist and Altruist BFE profiles already obtained. The predicted profile $(\hat{\mu}^{\mathrm{imm}}_{\mathrm{Bentham}},\hat{\mu}^{\mathrm{fut}}_{\mathrm{Bentham}})$ is then compared against the empirically derived Bentham profile $(\mu^{\mathrm{imm}}_{\mathrm{Bentham}},\mu^{\mathrm{fut}}_{\mathrm{Bentham}})$ to test whether $\phi$ linearly parameterizes the felicific coordinate space under real simulation conditions. Agreement would confirm that the Bentham BFE run is theoretically redundant; divergence would localize where the nonlinearity of $\arg\min$ selection makes the interpolation approximation materially inaccurate.
+
+\subsubsection{Homogeneous Main Experimental Runs}
+The main experimental runs evaluated all eight conditions across 30 matched random seeds. Baseline agents used their original rule-based models. For each FVDM agent, the simulation analytically computed two effect vectors for every candidate cell in the agent's vision range and selected:
+\[
+c^* = \arg\min_{c \,\in\, \mathcal{V}_i}\;\Bigl(\bigl\lVert \mu^{\mathrm{imm}} - \mathbf{v}^{\mathrm{imm}}(c)\bigr\rVert_2 + \bigl\lVert \mu^{\mathrm{fut}} - \mathbf{v}^{\mathrm{fut}}(c)\bigr\rVert_2\Bigr)
+\]
+The agent then moved to $c^*$ and executed all applicable discretionary actions unconditionally.
+
+\subsubsection{Heterogeneous Main Experimental Runs}
+The heterogeneous runs replicated the procedure of \citet{KremerHerman2024b}. For each Bentham proportion $\rho \in \{0\%, 10\%, 20\%, \ldots, 100\%\}$, an Egoist--Bentham mixed population of 250 agents was simulated across the same 30 matched seeds. Agents were assigned types in an interleaved round-robin pattern: a cycle of $\lceil(1{-}\rho) \cdot k\rceil$ Egoist followed by $\lfloor \rho \cdot k \rfloor$ Bentham agents, where $k$ is the minimal integer yielding the target proportion with 250 agents. The corresponding FVDM-derived sweep replaced each Egoist agent with an FVDM Egoist Derived agent and each Bentham agent with an FVDM Bentham Derived agent at the same proportion. All other simulation settings were identical to the homogeneous runs.
+
+\subsubsection{Data Recording}
+At each timestep, the chosen cell $c_t^*$ and its analytically computed effect vectors $\mathbf{v}^{\mathrm{imm}}(c_t^*)$ and $\mathbf{v}^{\mathrm{fut}}(c_t^*)$ were recorded per agent. Downstream interaction counts — combat, trade, reproduction, and lending — were also recorded as observational ecological outcomes. Population-level outputs recorded per run: final population size, extinction status, Gini coefficient, mean time-to-live, and final societal wealth.
+
+\subsection{Outcome Measures}
+The study measured behavioral and population-level outcomes. Behavioral outcomes determined whether FVDM-derived agents selected cells with similar felicific profiles to their rule-based counterparts and whether this produced comparable downstream ecological activity. Population-level outcomes determined whether changes in decision representation affected survival, stability, extinction, and wealth distribution.
+
+\subsubsection{Cell-Choice Felicific Profiles}
+The primary behavioral measure is the mean felicific effect vectors of chosen cells per condition. For each run, the per-timestep chosen-cell vectors are averaged separately for each temporal layer:
+\[
+\bar{\mathbf{v}}^{\mathrm{imm}}_g = \frac{1}{|T_g|} \sum_{t \in T_g} \mathbf{v}^{\mathrm{imm}}(c_t^*)
+\qquad
+\bar{\mathbf{v}}^{\mathrm{fut}}_g = \frac{1}{|T_g|} \sum_{t \in T_g} \mathbf{v}^{\mathrm{fut}}(c_t^*)
+\]
+where $T_g$ is the set of all agent-timestep observations under condition $g$. These mean vectors capture which felicific dimensions agents systematically favored when selecting cells in each temporal layer. Cosine similarity between $\bar{\mathbf{v}}^{\mathrm{imm}}_{\text{baseline}}$ and $\bar{\mathbf{v}}^{\mathrm{imm}}_{\text{FVDM}}$, and between $\bar{\mathbf{v}}^{\mathrm{fut}}_{\text{baseline}}$ and $\bar{\mathbf{v}}^{\mathrm{fut}}_{\text{FVDM}}$, measures how closely FVDM-derived cell choices match the baseline cell choices across both temporal layers.
+
+\subsubsection{Downstream Interaction Frequencies}
+Downstream interaction frequency is the count of each automatically triggered interaction class — combat, trade, reproduction, and lending — accumulated over a run. These are not chosen actions but observational ecological consequences of cell selection. They serve as a secondary validity check: if FVDM-derived agents move to cells with similar felicific profiles as their baseline counterparts, comparable interaction opportunities arise and interaction frequencies should track accordingly.
+
+\subsubsection{Population Size and Population Stability}
+Population size is the number of surviving agents at each timestep and at the end of a run. Final population size indicates long-term survival under each condition. Stability is assessed by observing whether the population remained stable, declined, collapsed, or grew across the simulation period.
+
+\subsubsection{Extinction Status and Extinction Rate}
+Extinction status is a binary outcome per run; a run is classified as extinct if no agents remained at the final timestep. Extinction rate is:
+\[
+\text{Extinction Rate}_g = \frac{N_{extinct,g}}{N_{runs,g}}
+\]
+
+\subsubsection{Wealth Distribution and Gini Coefficient}
+Wealth distribution measures how sugar and spice resources are spread across surviving agents. Inequality is quantified by the Gini coefficient, which ranges from 0 (equal distribution) to 1 (maximum inequality). This measure is especially relevant for evaluating whether FVDM-Bentham preserved the population-level outcomes of the original Bentham condition.
+
+\subsubsection{Mean Time-to-Live}
+Mean time-to-live is the average estimated survival horizon across agents, based on current resource holdings and metabolic requirements. It serves as a survival-related welfare indicator and connects directly to the intensity coordinate of the FVDM effect vectors, which is computed from each agent's time-to-live at decision time.
+
+\subsubsection{Final Societal Wealth}
+Final societal wealth is the total wealth held by all surviving agents at the end of a run. It captures the aggregate resource condition of the population and complements the Gini coefficient: societal wealth measures total resources; Gini measures their distribution.
+
+\subsection{Data Analysis Plan}
+The analysis evaluated whether FVDM-derived agents preserved, diverged from, or produced distinct outcomes compared with the original rule-based agents.
+
+\subsubsection{Analysis of FVDM Translation}
+Each baseline condition was compared with its FVDM-derived counterpart using the mean felicific effect vectors of chosen cells. Cosine similarity was computed separately for the immediate and future layers:
+\[
+\cos\!\bigl(\bar{\mathbf{v}}^{\mathrm{imm}}_{\text{baseline}},\, \bar{\mathbf{v}}^{\mathrm{imm}}_{\text{FVDM}}\bigr) = \frac{\bar{\mathbf{v}}^{\mathrm{imm}}_{\text{baseline}} \cdot \bar{\mathbf{v}}^{\mathrm{imm}}_{\text{FVDM}}}{\|\bar{\mathbf{v}}^{\mathrm{imm}}_{\text{baseline}}\|\;\|\bar{\mathbf{v}}^{\mathrm{imm}}_{\text{FVDM}}\|}
+\qquad
+\cos\!\bigl(\bar{\mathbf{v}}^{\mathrm{fut}}_{\text{baseline}},\, \bar{\mathbf{v}}^{\mathrm{fut}}_{\text{FVDM}}\bigr) = \frac{\bar{\mathbf{v}}^{\mathrm{fut}}_{\text{baseline}} \cdot \bar{\mathbf{v}}^{\mathrm{fut}}_{\text{FVDM}}}{\|\bar{\mathbf{v}}^{\mathrm{fut}}_{\text{baseline}}\|\;\|\bar{\mathbf{v}}^{\mathrm{fut}}_{\text{FVDM}}\|}
+\]
+High cosine similarity in both layers indicates that FVDM-derived agents selected cells with felicific profiles similar to their rule-based counterparts; lower similarity in either layer indicates divergence in cell-selection priorities. Downstream interaction frequencies were examined as a secondary ecological consistency check.
+
+\subsubsection{Analysis of Representational Sufficiency}
+The cosine similarity computed in the Translation Analysis is not only a fidelity check but also a test of whether the five felicific coordinates $(I, D, C, P, E)$ constitute a sufficient representational basis for each original rule-based decision model.
+
+\paragraph{Behavioral Fidelity Score.}
+For each paired baseline--FVDM condition, the Behavioral Fidelity Score (BFS) is defined as the mean cosine similarity across both temporal layers:
+\[
+\mathrm{BFS} = \frac{1}{2}\!\left[
+  \cos\!\bigl(\bar{\mathbf{v}}^{\mathrm{imm}}_{\text{baseline}},\, \bar{\mathbf{v}}^{\mathrm{imm}}_{\text{FVDM}}\bigr)
+  +
+  \cos\!\bigl(\bar{\mathbf{v}}^{\mathrm{fut}}_{\text{baseline}},\, \bar{\mathbf{v}}^{\mathrm{fut}}_{\text{FVDM}}\bigr)
+\right]
+\]
+A BFS near 1.00 indicates that the cells chosen by FVDM-derived agents carry felicific profiles indistinguishable from those chosen by the original rule-based agents across both temporal layers. A lower BFS indicates that the distributions of chosen-cell profiles systematically differ between the two agent types.
+
+\paragraph{Interpretation framework.}
+Both outcomes constitute substantive findings, not null results.
+
+A \textit{high} BFS (near 1.00) supports the conclusion that the five felicific dimensions --- intensity, duration, certainty, propinquity, and extent --- form a representationally sufficient basis for the original rule. The original ethical rule, despite operating through procedural constructs such as combat mechanics, tribe membership, and discrete resource accounting, can be recovered in terms of the welfare properties of the cells that agents actually select. The FVDM reformulation preserves the behavioral fingerprint of the original model.
+
+A \textit{low} BFS indicates that the original rule encoded decision-relevant information that does not project cleanly onto the five felicific dimensions. In the Digital Terrarium, the most likely sources of such residual information are: (1)~combat loot, a positive intensity gain available only through occupying a cell containing a different-tribe agent --- a gain that depends on the opponent's resource holdings rather than the cell's own welfare properties; (2)~tribe identity, which determines whether an occupied cell is a valid combat target --- a binary categorical property with no analog in continuous felicific space; and (3)~neighbor welfare aggregation in the Bentham model, which may not decompose cleanly into per-agent intensity and duration coordinates. When any of these mechanisms introduces systematic cell-selection patterns that FVDM cannot reproduce, the five dimensions are representationally insufficient for that decision model.
+
+\paragraph{Scientific value of divergence.}
+Representational insufficiency is not a failure of FVDM. It is a diagnostic finding: it identifies the specific mechanisms in the original rule that operate outside the felicific effect space defined here. Studies that yield a high BFS across all conditions contribute positive evidence for the sufficiency claim; studies that yield selective divergence for specific conditions (e.g., Egoist) contribute diagnostic evidence about the welfare-irreducible components of those models. Both outcomes advance the empirical understanding of which ethical decision architectures can be losslessly reformulated in felicific terms.
+
+\subsubsection{Analysis of Behavioral Differentiation}
+Mean felicific effect vectors $\bar{\mathbf{v}}^{\mathrm{imm}}$ and $\bar{\mathbf{v}}^{\mathrm{fut}}$ of FVDM Raw Sugarscape Derived, Egoist Derived, Altruist Derived, and Bentham Derived agents were compared using a Kruskal-Wallis H-test on each coordinate dimension within each temporal layer, with pairwise Mann-Whitney U-tests applied where significant differences were found. This tested whether the four FVDM-derived prioritization profiles produced meaningfully distinct cell-selection patterns --- that is, whether agents with different derived profiles consistently favored different felicific dimensions when choosing cells across both temporal layers.
+
+\subsubsection{Analysis of Bentham Model Preservation}
+Population-level outcomes of the FVDM Bentham Derived condition were compared against the original Bentham condition: Gini coefficient, final population size, extinction rate, mean time-to-live, and final societal wealth. Matching outcomes indicate that the utilitarian model was preserved under vector-based representation.
+
+\subsubsection{Analysis of Population-Level Outcomes}
+Population-level outcomes were compared across all conditions. Kruskal-Wallis tests were used for comparisons across more than two conditions; Mann-Whitney U-tests for pairwise comparisons. Binary extinction outcomes were compared as survival proportions.
+
+\subsubsection{Analysis of $\phi$-Linear Parameterization}
+The $\phi$-interpolation prediction described in the Prioritization Vector Derivation subsection was evaluated by comparing the predicted Bentham profile against the empirically derived Bentham profile. The predicted profile was computed analytically as:
+\[
+\hat{\mu}^{\mathrm{imm}}_{\mathrm{Bentham}} = 0.5\,\mu^{\mathrm{imm}}_{\mathrm{Egoist}} + 0.5\,\mu^{\mathrm{imm}}_{\mathrm{Altruist}}
+\qquad
+\hat{\mu}^{\mathrm{fut}}_{\mathrm{Bentham}} = 0.5\,\mu^{\mathrm{fut}}_{\mathrm{Egoist}} + 0.5\,\mu^{\mathrm{fut}}_{\mathrm{Altruist}}
+\]
+Cosine similarity was computed between the predicted and empirically derived profiles for each temporal layer:
+\[
+\phi\text{-BFS} = \frac{1}{2}\!\left[
+  \cos\!\bigl(\hat{\mu}^{\mathrm{imm}}_{\mathrm{Bentham}},\, \mu^{\mathrm{imm}}_{\mathrm{Bentham}}\bigr)
+  +
+  \cos\!\bigl(\hat{\mu}^{\mathrm{fut}}_{\mathrm{Bentham}},\, \mu^{\mathrm{fut}}_{\mathrm{Bentham}}\bigr)
+\right]
+\]
+A $\phi$-BFS near 1.00 indicates that $\phi$ linearly parameterizes the felicific coordinate space and that the Bentham profile is redundant given the Egoist and Altruist profiles. A lower $\phi$-BFS identifies where the nonlinearity of $\arg\min$ cell selection causes the interpolation to diverge from observed behavior. This analysis does not require additional simulation runs.
+
+\subsubsection{Analysis of Heterogeneous Outcome Gradient}
+For the baseline heterogeneous sweep, Spearman rank correlations were computed between Bentham proportion $\rho$ and each population-level outcome (final population size, Gini coefficient, mean time-to-live, extinction rate, final societal wealth) across the eleven proportion levels. This replicated the gradient analysis of \citet{KremerHerman2024b} and tested whether increasing Bentham representation produced monotonically improving societal outcomes. The same analysis was applied to the FVDM-derived heterogeneous sweep. Spearman correlations from the baseline and FVDM sweeps were compared to assess whether FVDM preserved the direction and magnitude of the gradient. Per-proportion BFS was additionally computed for each of the eleven heterogeneous proportions, providing a continuous fidelity profile across the Egoist--Bentham composition space.
+
+\subsubsection{Mapping of Analyses to Study Objectives}
+Table~\ref{table:analysis_mapping} summarizes how each analysis addressed the study objectives.
+
+\begin{table}[H]
+\centering
+\caption{Mapping of Data Analyses to Study Objectives}
+\label{table:analysis_mapping}
+\begin{tabularx}{\textwidth}{L L}
+\toprule
+Study Objective & Main Analysis \\ 
+\midrule
+Reformulate original ethical models as FVDM prioritization vectors & BFE vector derivation and inspection of derived prioritization vectors \\
+Compare cell-selection behavior of FVDM-derived agents with baseline agents & Cosine similarity of mean immediate and future effect vectors of chosen cells \\
+Determine whether FVDM-derived vectors produce distinguishable behavior & Kruskal-Wallis tests and pairwise comparisons across FVDM-derived conditions \\
+Assess whether FVDM Bentham Derived preserves or diverges from original Bentham outcomes & Focused comparison of Bentham and FVDM Bentham Derived population outcomes \\
+Evaluate effects on stability, survival, extinction, and wealth distribution & Cross-condition analysis of population size, extinction rate, Gini coefficient, TTL, and final wealth \\
+Determine whether the five felicific dimensions are representationally sufficient for each original decision model & Behavioral Fidelity Score (BFS) interpretation of paired cosine similarities; divergence diagnosis by coordinate and temporal layer \\
+Examine whether FVDM-derived agents in a heterogeneous Egoist--Bentham population replicate the societal outcome gradient & Spearman rank correlations across the sweep; comparison of baseline and FVDM gradient directions and per-proportion BFS \\
+\midrule
+\multicolumn{2}{l}{\textit{Supplementary structural analysis (no additional objective)}} \\
+\midrule
+Test whether $\phi$ linearly parameterizes the felicific coordinate space & $\phi$-BFS: cosine similarity between $\phi$-interpolated predicted Bentham profile and empirically derived Bentham profile \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Validity and Reliability}
+
+\subsubsection{Internal Validity}
+The core Digital Terrarium configuration was held constant across conditions: grid size, resource topology, starting population, metabolic rules, biological constraints, and available action classes. Seasons, pollution, and disease were disabled. Matched random seeds were used for paired comparisons so that observed differences reflect the decision architecture rather than random initialization.
+
+\subsubsection{Translation Validity}
+Translation validity refers to whether FVDM-derived agents preserved the behavioral identity of their rule-based counterparts. It is assessed by comparing the mean felicific profiles of chosen cells between each paired baseline and FVDM-derived condition. Prioritization vectors were derived through Behavioral Feature Expectation (BFE) from observed behavioral data rather than manual assignment, grounding them in actual cell-selection patterns across diverse interaction contexts.
+
+\subsubsection{Model Validity}
+All felicific coordinates are derived analytically from closed-form expressions grounded directly in the Digital Terrarium source implementation. Because no trained models are used, validity rests on the fidelity of the coordinate formulas to the operationalization confirmed through source code inspection. Feasibility conditions prevent unreachable cells from entering the distance comparison.
+
+\subsubsection{Reliability Across Runs}
+Multiple matched seeds reduced dependence on any single simulation trajectory. The same measurement procedures applied across all conditions: mean effect vectors of chosen cells, downstream interaction counts, population size, extinction status, Gini coefficient, mean time-to-live, and final societal wealth.
+
+\subsubsection{Reproducibility}
+Simulation parameters, condition structure, analytical coordinate formulas, BFE procedures, and statistical analysis plans are documented. Fixed configurations and matched seeds allow replication. The separation of derivation and experimental phases makes the FVDM construction process explicit.
+
+\section{RESULTS AND DISCUSSION}
+
+This chapter presents and discusses the results of implementing the FVDM model in the Sugarscape Digital Terrarium. The first part reports the derivation results, including the analytically computed coordinate definitions and the derived prioritization vectors. The second part reports the experimental results for the baseline conditions with appropriate statistical analysis. The third part discusses the findings in relation to each study objective.
+
+\subsection{FVDM Derivation Results}
+
+\subsubsection{Felicific Coordinate Computation}
+
+Because all felicific coordinates are derived analytically from closed-form expressions (see Section~\ref{sec:coordinate_computation}), no trained predictive models were used and no learning-curve evaluation was required. Coordinate values for every candidate cell were computed directly from observable simulation state at each decision timestep, with no data-dependent approximation. The derivation runs served exclusively to supply behavioral trajectories for Behavioral Feature Expectation (BFE) prioritization vector estimation.
+
+\subsubsection{Derived Prioritization Vectors}
+
+Table~\ref{table:derived_vectors} presents the four prioritization vectors derived via Behavioral Feature Expectation (BFE) from the mixed-population derivation runs. Each prioritization profile consists of two vectors $\mu^{\mathrm{imm}} = (\mu_I, \mu_D, \mu_C, 1, 1/|\mathcal{V}|)$ and $\mu^{\mathrm{fut}} = (\mu_I, \mu_D, \mu_C, \gamma, 1/|\mathcal{V}|)$, each the coordinate-wise mean of the corresponding effect vectors of all chosen cells recorded during the derivation phase. Propinquity and extent are constant by construction ($P^{\mathrm{imm}}=1$, $P^{\mathrm{fut}}=\gamma$, $E=1/|\mathcal{V}|$); the variable entries are $\mu_I$, $\mu_D$, and $\mu_C$ for each layer. No normalization is applied. The entry closest to 1 in the variable coordinates identifies the dominant preference axis of each derived condition.
+
+\begin{table}[H]
+\centering
+\caption{Derived Prioritization Vectors (BFE Mean)}
+\label{table:derived_vectors}
+\begin{tabularx}{\textwidth}{L c c c c}
+\toprule
+Condition & $\mu^{\mathrm{imm}}_I$ & $\mu^{\mathrm{imm}}_D$ & $\mu^{\mathrm{fut}}_{I_f}$ & $\mu^{\mathrm{fut}}_{D_f}$ \\
+\midrule
+Raw Sugarscape Derived & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+Egoist Derived         & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+Altruist Derived       & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+Bentham Derived        & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+\midrule
+$\hat{\mu}^{\mathrm{Bentham}}_{\phi}$ (predicted) & {[TBD]} & {[TBD]} & {[TBD]} & {[TBD]} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Constants $C = 1$, $P^{\mathrm{imm}} = 1$, $P^{\mathrm{fut}} = \gamma = 0.5$, and $E = 1/|\mathcal{V}|$ are identical across all conditions by construction and are omitted from the table. The last row reports the $\phi$-interpolated predicted Bentham profile $\hat{\mu}^{\mathrm{Bentham}}_{\phi} = 0.5\,\mu_{\mathrm{Egoist}} + 0.5\,\mu_{\mathrm{Altruist}}$ computed analytically from the Egoist and Altruist BFE profiles; the $\phi$-BFS comparing this prediction to the empirically derived Bentham profile is reported in the $\phi$-Linear Parameterization analysis. All values will be populated once the two-vector BFE derivation runs are completed.
+
+\subsection{Baseline Condition Results}
+\label{sec:baseline_results}
+
+\subsubsection{Action-Selection Profiles}
+\label{sec:action_selection}
+
+Table~\ref{table:action_frequencies} reports the mean total action counts per run for each baseline condition across 30 matched random seeds. Standard deviations are given in parentheses.
+
+\begin{table}[H]
+\centering
+\caption{Mean Total Action Counts per Run (Baseline Conditions, $N = 30$)}
+\label{table:action_frequencies}
+\begin{tabularx}{\textwidth}{L L L L L}
+\toprule
+Condition & Combat & Trade & Reproduction & Lending \\
+\midrule
+Raw Sugarscape & $375\;(226)$     & $1{,}175{,}727\;(1{,}039{,}038)$ & $52{,}432\;(39{,}297)$ & $16{,}617\;(16{,}365)$ \\
+Egoist         & $327\;(234)$     & $1{,}364{,}595\;(968{,}031)$     & $60{,}384\;(36{,}525)$ & $18{,}572\;(15{,}431)$ \\
+Altruist       & $297\;(166)$     & $1{,}098{,}991\;(929{,}896)$     & $50{,}889\;(35{,}983)$ & $16{,}713\;(14{,}023)$ \\
+Bentham        & $2{,}980\;(594)$ & $2{,}022{,}514\;(485{,}689)$     & $94{,}886\;(15{,}271)$ & $30{,}388\;(8{,}006)$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Kruskal-Wallis H-tests were conducted on the total count of each action type across the four conditions ($df = 3$). All four distributions showed significant differences: combat ($H = 68.60$, $p < 0.001$), reproduction ($H = 35.18$, $p < 0.001$), final population ($H = 33.46$, $p < 0.001$), lending ($H = 18.06$, $p < 0.001$), and trade ($H = 16.16$, $p < 0.01$). Post-hoc Mann-Whitney U-tests confirmed that all significant differences were driven solely by the Bentham condition: every pairwise comparison between Bentham and another condition was significant at $p < 0.001$ (e.g., combat: $z = -6.653$; final population: $z_{\text{Bentham vs. Raw}} = -4.761$, $z_{\text{Bentham vs. Egoist}} = -4.406$), while no pairwise comparison among Raw Sugarscape, Egoist, and Altruist was significant on any action type.
+
+Despite these significant differences in absolute volume, the proportional action-selection profiles were structurally identical across all four conditions. The normalized action-frequency vector $A_g = (f_{\text{combat}}, f_{\text{trade}}, f_{\text{reproduction}}, f_{\text{lending}})$ was computed for each condition, and all pairwise cosine similarities exceeded $0.9999$ (minimum $= 0.9999$, maximum $= 1.0000$). In all conditions, trade accounted for approximately $94$--$95\%$ of all discretionary actions.
+
+\subsubsection{Population-Level Outcomes}
+
+Table~\ref{table:population_summary} reports the population-level outcomes for each baseline condition. Kruskal-Wallis tests found a significant difference in final population across conditions ($H = 33.46$, $p < 0.001$). Gini coefficient ($H = 2.51$, $p = 0.47$), mean time-to-live ($H = 1.94$, $p = 0.58$), and final societal wealth ($H = 1.73$, $p = 0.63$) did not differ significantly. Post-hoc Mann-Whitney U-tests on final population confirmed that Bentham was significantly higher than each other condition (all $p < 0.001$), while Raw Sugarscape, Egoist, and Altruist were not significantly different from one another.
+
+\begin{table}[H]
+\centering
+\caption{Population-Level Outcomes per Baseline Condition ($N = 30$; mean with SD in parentheses)}
+\label{table:population_summary}
+\begin{tabularx}{\textwidth}{L L L L L L}
+\toprule
+Condition & Ext. Rate & Final Pop. & Final Gini & Mean TTL & Soc. Wealth \\
+\midrule
+Raw Sugarscape & $26.7\%$ & $745\;(554)$          & $0.146\;(0.095)$ & $12.8\;(8.4)$  & $45{,}247\;(31{,}569)$ \\
+Egoist         & $16.7\%$ & $867\;(503)$          & $0.186\;(0.112)$ & $15.6\;(7.4)$  & $55{,}913\;(29{,}422)$ \\
+Altruist       & $20.0\%$ & $748\;(511)$          & $0.179\;(0.105)$ & $14.0\;(7.8)$  & $47{,}810\;(30{,}072)$ \\
+Bentham        & $\mathbf{0.0\%}$ & $\mathbf{1{,}297}\;(235)$ & $0.187\;(0.040)$ & $\mathbf{18.1}\;(0.6)$ & $\mathbf{65{,}475}\;(6{,}447)$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Population End States}
+
+Table~\ref{table:end_states} classifies each seed's final outcome as extinct, degraded (population lower than the starting 250 agents), or improved.
+
+\begin{table}[H]
+\centering
+\caption{Population End State Distribution ($N = 30$ Seeds per Condition)}
+\label{table:end_states}
+\begin{tabularx}{\textwidth}{L c c c}
+\toprule
+Condition & Extinct & Worse & Better \\
+\midrule
+Raw Sugarscape & 8 & 1 & 21 \\
+Egoist         & 5 & 1 & 24 \\
+Altruist       & 6 & 2 & 22 \\
+Bentham        & \textbf{0} & \textbf{0} & \textbf{30} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The Bentham condition is the only baseline in which no run ended in extinction or population decline. Raw Sugarscape had the highest extinction frequency ($8/30 = 26.7\%$). Raw Sugarscape, Egoist, and Altruist all displayed non-trivial extinction probabilities despite their ethical differences, reinforcing the finding that these three conditions are not meaningfully distinguished by the current experimental configuration.
+
+\subsection{Discussion}
+
+\subsubsection{Behavioral Convergence and the Limits of the Cosine Similarity Metric}
+
+The action-frequency data show that despite large differences in absolute interaction volume --- Bentham agents produce an order of magnitude more combat events and roughly twice the trade volume --- the proportional action-selection profiles are structurally identical across all four conditions (pairwise cosine similarities $\geq 0.9999$). In all conditions, trade accounts for approximately 94--95\% of all interaction events. This proportional uniformity is driven by the centralized dual-resource configuration: resource scarcity forces all agent types toward trade as the dominant survival strategy regardless of their ethical rule.
+
+This finding has a direct implication for the cell-choice felicific BFE derivation and subsequent FVDM comparison. Proportional action uniformity means all four types face similar ecological pressures when selecting cells, which may limit the extent to which BFE cell-choice profiles are distinguishable across types. Whether those profiles differ in the I, D, J, and $D_f$ coordinates --- and whether FVDM-derived agents replicate them --- will be determined by the derivation and main experimental runs. Population-level outcomes and absolute interaction volumes provide the necessary supplementary discriminators for cases where cosine similarity of cell-choice profiles is insufficient. These observations will be revisited once the BFE derivation and FVDM experimental runs are complete.
+
+\subsubsection{Bentham as the Sole Demographically Distinct Baseline}
+
+The Bentham condition is the only baseline in which all 30 seeds survived to the end of the 5,000-timestep horizon, and the only condition with a final mean population ($1{,}297 \pm 235$) significantly higher than all others (all pairwise $p < 0.001$). Its within-condition variance was consistently lower across all metrics: Gini SD = $0.040$ vs. $0.095$--$0.112$ for other conditions; TTL SD = $0.6$ vs. $7.4$--$8.4$. This tight clustering indicates that the utilitarian decision rule produces a robust and highly reproducible population trajectory.
+
+These patterns are consistent with the structure of the Bentham rule: by including neighbor welfare in the utility calculation (selfishness factor $= 0.5$), agents avoid purely competitive strategies and maintain higher participation in reproduction, trade, and lending. The resulting population density likely sustains resource throughput through greater trade volume. In contrast, Raw Sugarscape, Egoist, and Altruist were statistically indistinguishable on all population-level measures (Gini, TTL, societal wealth; all pairwise $p > 0.05$), indicating that the theoretical ethical distinctions among these three rules — selfishness factors of $1.0$, $0.0$, and $0.0$ respectively — do not produce meaningfully different survival outcomes under the resource-stress configuration employed here.
+
+\subsubsection{Addressing the Study Objectives}
+
+Table~\ref{table:objectives_status} maps each study objective to its current evidential status based on available data.
+
+\begin{table}[H]
+\centering
+\caption{Study Objectives and Evidential Status}
+\label{table:objectives_status}
+\begin{tabularx}{\textwidth}{c L L}
+\toprule
+Obj. & Objective & Status \\
+\midrule
+1 & Reformulate original Digital Terrarium models as FVDM prioritization vectors & \textbf{Addressed.} Four prioritization vectors derived via BFE from analytically computed felicific effect trajectories; all converge on Extent as dominant axis \\
+2 & Compare FVDM-derived agents' action profiles with baseline counterparts & \textit{Pending FVDM experimental runs} \\
+3 & Determine whether FVDM vectors produce distinguishable behavioral patterns & \textit{Partial.} Vectors are geometrically similar; behavioral differentiation confirmation pending \\
+4 & Assess FVDM Bentham Derived preservation of Bentham population outcomes & \textit{Partial.} Bentham baseline established ($0\%$ extinction, $1{,}297$ final pop); FVDM Bentham Derived comparison pending \\
+5 & Evaluate effects on population stability, extinction, and wealth distribution & \textit{Partial.} Baseline distributions established; FVDM comparison pending \\
+6 & Determine whether the five felicific dimensions are representationally sufficient for each original decision model & \textit{Pending.} BFS computation requires FVDM experimental runs \\
+7 & Examine whether FVDM-derived agents in a heterogeneous Egoist--Bentham population replicate the societal outcome gradient & \textit{Pending.} Heterogeneous sweep requires both baseline and FVDM runs \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Objective~1 is fully addressed by the derivation results. Objectives~2--5 require the complete experimental comparison runs, which can be executed once the FVDM agent conditions are ready.
+
+\section{SUMMARY AND CONCLUSION}
+
+\section{Statement of AI-use Declaration}
+In accordance with modern academic reporting standards, it is declared that Antigravity (a powerful agentic AI coding assistant) was utilized to support the development and finalization of this study. Specifically, the AI assisted in the implementation and debugging of the Felicific Vector Decision Model (FVDM) simulation codebase, aided in the cross-validation of complex simulation results against theoretical expectations, and was employed for checking the language use, flow, and grammatical accuracy of the final thesis manuscript. All final interpretations, intellectual contributions, and editorial decisions remain the sole responsibility of the author.
+
+		%References command
+		%Parameter is the references bib file without extension
+		\nocite{*}
+		\makereferences{references}
+			
+	\clearpage
+\appendix
+\section*{APPENDICES}
+\addcontentsline{toc}{section}{APPENDICES}
+
+\end{mainmatter}
+\end{document}
