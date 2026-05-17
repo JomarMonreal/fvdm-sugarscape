@@ -404,8 +404,11 @@ def run_baseline(args):
         cdir = os.path.join(sim_dir, cname)
         os.makedirs(cdir, exist_ok=True)
         for seed in seeds:
-            log_path       = os.path.join(cdir, f"{cname}_{seed}.json")
-            agent_log_path = os.path.join(cdir, f"{cname}_{seed}_agents.json")
+            log_path = os.path.join(cdir, f"{cname}_{seed}.json")
+            # Agent logs are ~1.7 GB each (250 agents × 5000 ts × full state).
+            # Only enable with --agent-logs; BFE profiles come from derive_vectors.py.
+            agent_log_path = (os.path.join(cdir, f"{cname}_{seed}_agents.json")
+                              if args.agent_logs else "")
             cfg = make_run_config(base_cfg, seed, models, timesteps, num_agents,
                                   log_path, agent_log_path)
             cfg_path = os.path.join(cdir, f"{cname}_{seed}.config")
@@ -680,6 +683,10 @@ def parse_args():
     p.add_argument("--force",       action="store_true", default=False)
     p.add_argument("--delete-logs", action="store_true", default=False,
                    help="Delete raw JSON sim logs after parsing (saves disk space)")
+    p.add_argument("--agent-logs",  action="store_true", default=False,
+                   help="Write per-agent timestep logs (WARNING: ~1.7 GB per seed — "
+                        "only needed if you want per_seed_felicific.csv; "
+                        "BFE profiles come from derive_vectors.py)")
     p.add_argument("--hetero-step", type=int, default=10,
                    help="Percentage-point increment for Egoist--Bentham sweep")
     p.add_argument("--no-hetero",  action="store_true", default=False,
