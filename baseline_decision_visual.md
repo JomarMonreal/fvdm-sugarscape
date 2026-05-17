@@ -23,7 +23,8 @@ The agent does not separately decide to fight, trade, or reproduce. It selects a
 | `d_k` | Duration — how long the cell's resources would sustain agent *k* |
 | `i_f` | Future intensity — resource richness of the cell's immediate neighborhood |
 | `d_f_k` | Future duration — resources remaining at `c` after agent *k* eats one step's worth |
-| `e` | Extent — social density weight: ratio of neighbors to cells in vision range |
+| `e` | Immediate extent — ratio of neighbors visible from the agent's **current** cell to cells in range |
+| `e_f` | Future extent — ratio of neighbors visible from the **candidate** cell to cells in range (varies per candidate) |
 | `γ` | Temporal discount factor — weight given to future welfare vs. immediate welfare |
 
 ---
@@ -176,26 +177,33 @@ AGENT (standing at current position)
 │
 │    Applied per person k, the full per-person welfare score is:
 │
-│           h_k = (c_k × p) × [ e × (i_k + d_k)  +  γ × e × (i_f + d_f_k) ]
+│           h_k = (c_k × p) × [ e × (i_k + d_k)  +  γ × e_f × (i_f + d_f_k) ]
 │                               └──── immediate ────┘  └──── future (discounted) ──┘
 │
 │           where  c_k = 1 if person k can reach c, else 0
 │                  p   = 1  (one-step lookahead, always)
-│                  e   = |neighbors in range| / |cells in range|
+│                  e   = |neighbors visible from current cell| / |cells in range|
+│                  e_f = |neighbors visible from candidate cell c| / |cells in range|
+│                        (e_f is computed fresh per candidate; differs from e)
 │
 │    Numerical example — 🧑 (self) evaluating cell C:
-│    (TTL=3, m=2, |V|=4, 1 neighbor in range, γ=0.5)
+│    (TTL=3, m=2, |V|=4, 1 neighbor visible from current cell,
+│     1 neighbor visible from candidate cell C, γ=0.5)
 │
 │           i_self = 1 / ((1+3)×(1+0))    =  0.250   (TTL=3, pollution=0)
 │           d_self = (5 / 2) / 8           =  0.313   (resources/m / capacity)
 │           i_f    = 10 / (400 × 4)        =  0.006   (adj wealth / globalMax×n_adj)
 │           d_f    = (5 − 2) / (2 × 8)    =  0.188   (residual resources after eating)
-│           e      = 1 / 4                 =  0.250   (neighbors in range / |V|)
+│           e      = 1 / 4                 =  0.250   (neighbors from current cell / |V|)
+│           e_f    = 1 / 4                 =  0.250   (neighbors from candidate cell C / |V|)
+│                                                     (coincidentally equal here; varies in general)
 │
-│           h_self = 0.250 × [(0.250 + 0.313) + 0.5 × (0.006 + 0.188)]
-│                  = 0.250 × [0.563 + 0.097]
-│                  = 0.250 × 0.660
+│           h_self = e × (i_self + d_self)  +  γ × e_f × (i_f + d_f)
+│                  = 0.250 × (0.250 + 0.313)  +  0.5 × 0.250 × (0.006 + 0.188)
+│                  = 0.250 × 0.563            +  0.125 × 0.194
+│                  = 0.141 + 0.024
 │                  = 0.165
+│                  (same result as before because e = e_f in this example)
 │
 │    Numerical example — N1 evaluating cell C:
 │    (TTL=5, m=2, |V|=2, 1 neighbor in range, γ=0.5)
@@ -461,7 +469,11 @@ CELL c  ────────────────────────
         │                                                             one step's worth
         │     Certainty         C      1  (always)
         │     Propinquity       P      γ  (lookahead discount)        Future reward counts less
-        │     Extent            E      1 / |V|
+        │     Extent            E      1 / |V|    (simplified: FVDM uses uniform
+        │                                          1/|V| for both vectors; the h
+        │                                          formula uses projected e_f per
+        │                                          candidate, but the BFE averages
+        │                                          this out across all choices)
 ```
 
 **Variable reference:**
