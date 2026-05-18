@@ -4,23 +4,33 @@ derive_vectors.py
 -----------------
 Prioritization Profile Derivation via Behavioral Feature Expectation (BFE).
 
-Runs a single mixed-population derivation simulation containing all four
-baseline agent types simultaneously.  At each contested decision step
-(chosen cell occupied by a different-tribe agent, bfe_is_contested=True),
-the chosen cell's raw properties are read from the agent log and the two
-felicific effect vectors are computed analytically:
+Runs a mixed-population derivation simulation containing all four baseline
+agent types simultaneously.  At each decision step where at least one
+neighbor agent is present (neighbors > 0), the chosen cell's raw properties
+are read from the agent log and the two felicific effect vectors are computed
+analytically:
 
   v_imm(c) = ( 1/((1+TTL)(1+pollution)),   W_c/(m*W_cmax),      1, 1,     1/|V| )
   v_fut(c)  = ( W_adj/(Wgmax*n_adj),         max(0,W_c-m)/(m*W_cmax), 1, gamma, 1/|V| )
 
-Both vectors are averaged separately across all contested observations per
-agent type, yielding one prioritization profile (mu_imm, mu_fut) per type.
+Both vectors are averaged separately per agent type across all qualifying
+observations, yielding one prioritization profile (mu_imm, mu_fut) per type.
+
+NOTE: sugarscape.py maps the "rawSugarscape" decision model to "none" internally
+(sugarscape.py line ~668).  This script remaps it back when reading logs.
+
+Variance analysis:
+  Per-seed mu vectors are computed first.  Their variance across seeds drives a
+  sample-size estimate: n_seeds >= ceil(z^2 * sigma^2 / epsilon^2) per component.
+  The script reports the required number of seeds and ensures they are run before
+  computing the final pooled profiles.
 
 Output: fvdm_vectors/bfe_profiles.json
 
 Usage:
   python derive_vectors.py [options]
-  python derive_vectors.py --seeds 128 --timesteps 5000 --agents 250 --cores 8
+  python derive_vectors.py --seeds 10 --timesteps 5000 --agents 250 --cores 8
+  python derive_vectors.py --target-se 0.005   # tighter convergence
 """
 
 import argparse
@@ -41,8 +51,23 @@ import pandas as pd
 
 AGENT_TYPES = ["rawSugarscape", "egoist", "altruist", "bentham"]
 
+# sugarscape.py translates "rawSugarscape" -> "none" before storing in the agent.
+# This map lets us look up the correct log value for each agent type.
+DECISIONMODEL_IN_LOG = {
+    "rawSugarscape": "none",
+    "egoist":        "egoist",
+    "altruist":      "altruist",
+    "bentham":       "bentham",
+}
+
 # gamma fallback when decisionModelLookaheadDiscount is not in the agent log
 GAMMA_DEFAULT = 0.5
+
+# Default target standard error for sample-size estimation (per vector component).
+# Components are in [0, 1], so 0.005 ≈ 0.5% precision.
+DEFAULT_TARGET_SE = 0.005
+
+COORD_LABELS = ["I", "D", "C", "P", "E"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -120,36 +145,191 @@ def safe_json_load(path: str):
 # BFE derivation from agent log DataFrame
 # ─────────────────────────────────────────────────────────────────────────────
 
-def agent_log_to_df(path: str) -> pd.DataFrame:
-    """Parse a raw agent JSON log into a flat DataFrame."""
+def agent_log_to_df(path: str, seed_tag=None) -> pd.DataFrame:
+    """Parse a raw agent JSON log into a flat DataFrame.
+
+    seed_tag: if provided, adds a 'seed' column so per-seed variance can be
+    computed after concatenation.
+    """
     data = safe_json_load(path)
     if not data:
         return pd.DataFrame()
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    if seed_tag is not None:
+        df["seed"] = seed_tag
+    return df
 
 
-def derive_profiles_bfe(df: pd.DataFrame,
-                        gamma: float = GAMMA_DEFAULT,
-                        contested_only: bool = True) -> dict:
+def _filter_has_neighbor(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep rows where at least one neighbor was present (neighbors > 0)."""
+    if "neighbors" not in df.columns:
+        return df   # can't filter; return everything
+    return df[df["neighbors"] > 0]
+
+
+def _rows_for_type(df: pd.DataFrame, atype: str) -> pd.DataFrame:
+    """Return rows belonging to atype, accounting for rawSugarscape -> 'none'."""
+    log_model = DECISIONMODEL_IN_LOG.get(atype, atype)
+    return df[df["decisionModel"] == log_model].copy()
+
+
+def _vecs_for_rows(rows: pd.DataFrame, gamma: float):
+    """Compute (imm_vecs, fut_vecs) arrays from a filtered row DataFrame."""
+    imm, fut = [], []
+    for row_dict in rows.to_dict(orient="records"):
+        imm.append(compute_v_imm(row_dict))
+        fut.append(compute_v_fut(row_dict, gamma=gamma))
+    return np.array(imm), np.array(fut)
+
+
+# ── Variance analysis ─────────────────────────────────────────────────────────
+
+def compute_per_seed_stats(df: pd.DataFrame, gamma: float = GAMMA_DEFAULT
+                           ) -> dict:
     """
-    Derive (mu_imm, mu_fut) per agent type from a combined agent log DataFrame.
-
-    Args:
-        df: Combined agent log with columns produced by agent.updateRuntimeStats()
-            plus the bfe_* columns added by this study.
-        gamma: Discount factor for future layer propinquity.
-        contested_only: If True, restrict BFE observations to contested moves
-                        (bfe_is_contested == True).  Falls back to all moves
-                        if a type has zero contested observations.
+    Compute per-seed mu_imm and mu_fut for each agent type.
 
     Returns:
-        dict mapping agent-type string -> {"mu_imm": list[5], "mu_fut": list[5],
-                                            "n_obs": int, "contested_only": bool}
+        dict atype -> {"seed_mus_imm": ndarray(n_seeds, 5),
+                       "seed_mus_fut": ndarray(n_seeds, 5),
+                       "seed_n_obs":   list[int]}
+    """
+    if "seed" not in df.columns:
+        print("  [warn] No 'seed' column — cannot compute per-seed variance.")
+        return {}
+
+    seeds = sorted(df["seed"].unique())
+    result = {atype: {"seed_mus_imm": [], "seed_mus_fut": [], "seed_n_obs": []}
+              for atype in AGENT_TYPES}
+
+    for seed in seeds:
+        seed_df = df[df["seed"] == seed]
+        for atype in AGENT_TYPES:
+            rows = _filter_has_neighbor(_rows_for_type(seed_df, atype))
+            if len(rows) == 0:
+                continue
+            imm_vecs, fut_vecs = _vecs_for_rows(rows, gamma)
+            result[atype]["seed_mus_imm"].append(imm_vecs.mean(axis=0))
+            result[atype]["seed_mus_fut"].append(fut_vecs.mean(axis=0))
+            result[atype]["seed_n_obs"].append(len(rows))
+
+    for atype in AGENT_TYPES:
+        r = result[atype]
+        if r["seed_mus_imm"]:
+            r["seed_mus_imm"] = np.array(r["seed_mus_imm"])
+            r["seed_mus_fut"] = np.array(r["seed_mus_fut"])
+        else:
+            r["seed_mus_imm"] = np.empty((0, 5))
+            r["seed_mus_fut"] = np.empty((0, 5))
+
+    return result
+
+
+def estimate_required_seeds(per_seed_stats: dict,
+                             target_se: float = DEFAULT_TARGET_SE,
+                             z: float = 1.96) -> dict:
+    """
+    For each agent type, estimate how many seeds are needed so that the
+    standard error of every vector component is <= target_se.
+
+    Uses: n_required = ceil((z * sigma / target_se)^2)
+
+    Returns:
+        dict atype -> {"n_current": int,
+                       "n_required": int,
+                       "sigma_imm": ndarray(5),
+                       "sigma_fut": ndarray(5),
+                       "se_imm": ndarray(5),
+                       "se_fut": ndarray(5)}
+    """
+    report = {}
+    for atype, r in per_seed_stats.items():
+        mus_imm = r["seed_mus_imm"]
+        mus_fut = r["seed_mus_fut"]
+        n = len(mus_imm)
+        if n < 2:
+            report[atype] = {"n_current": n, "n_required": None,
+                             "note": "need >= 2 seeds for variance estimate"}
+            continue
+
+        sigma_imm = mus_imm.std(axis=0, ddof=1)
+        sigma_fut = mus_fut.std(axis=0, ddof=1)
+        se_imm    = sigma_imm / np.sqrt(n)
+        se_fut    = sigma_fut / np.sqrt(n)
+
+        # worst-case component (largest sigma)
+        n_req_imm = np.ceil((z * sigma_imm / target_se) ** 2).astype(int)
+        n_req_fut = np.ceil((z * sigma_fut / target_se) ** 2).astype(int)
+        n_required = int(max(n_req_imm.max(), n_req_fut.max()))
+
+        mean_obs_per_seed = (np.mean(r["seed_n_obs"])
+                             if r["seed_n_obs"] else 0)
+        obs_required = int(np.ceil(n_required * mean_obs_per_seed))
+
+        report[atype] = {
+            "n_current":          n,
+            "n_required":         n_required,
+            "obs_required":       obs_required,
+            "mean_obs_per_seed":  round(float(mean_obs_per_seed), 1),
+            "sigma_imm":          sigma_imm,
+            "sigma_fut":          sigma_fut,
+            "se_imm":             se_imm,
+            "se_fut":             se_fut,
+        }
+    return report
+
+
+def print_variance_report(sample_size_report: dict, target_se: float):
+    print(f"\n  Variance Analysis (target SE ≤ {target_se})")
+    print(f"  {'Type':<14} {'n_seeds':>8} {'n_req':>7} "
+          f"{'obs/seed':>9} {'obs_req':>8}  "
+          f"{'max_σ_imm':>10} {'max_σ_fut':>10}  "
+          f"{'max_SE_imm':>11} {'max_SE_fut':>11}")
+    print(f"  {'-'*100}")
+    for atype in AGENT_TYPES:
+        r = sample_size_report.get(atype, {})
+        if not r or r.get("n_required") is None:
+            n_cur = r.get("n_current", 0)
+            print(f"  {atype:<14} {n_cur:>8}  (insufficient seeds for estimate)")
+            continue
+        max_si = float(r["sigma_imm"].max())
+        max_sf = float(r["sigma_fut"].max())
+        max_sei = float(r["se_imm"].max())
+        max_sef = float(r["se_fut"].max())
+        print(f"  {atype:<14} {r['n_current']:>8} {r['n_required']:>7} "
+              f"{r['mean_obs_per_seed']:>9.1f} {r['obs_required']:>8}  "
+              f"{max_si:>10.5f} {max_sf:>10.5f}  "
+              f"{max_sei:>11.5f} {max_sef:>11.5f}")
+
+    global_n_req = max(
+        (r["n_required"] for r in sample_size_report.values()
+         if r.get("n_required") is not None),
+        default=None,
+    )
+    global_obs_req = max(
+        (r["obs_required"] for r in sample_size_report.values()
+         if r.get("obs_required") is not None),
+        default=None,
+    )
+    print(f"\n  → Seeds needed (most demanding type): {global_n_req}")
+    print(f"  → Total observations (max across types): {global_obs_req}")
+    return global_n_req, global_obs_req
+
+
+# ── Final pooled profiles ─────────────────────────────────────────────────────
+
+def derive_profiles_bfe(df: pd.DataFrame, gamma: float = GAMMA_DEFAULT) -> dict:
+    """
+    Derive (mu_imm, mu_fut) per agent type from a combined agent log DataFrame.
+    Includes all moves where neighbors > 0 (not just contested moves).
+    rawSugarscape agents are identified by decisionModel == 'none' in the log.
+
+    Returns:
+        dict atype -> {"mu_imm": list[5], "mu_fut": list[5], "n_obs": int}
     """
     if df.empty:
         return {}
 
-    # Identify agent type from decisionModel column (added by sugarscape)
     if "decisionModel" not in df.columns:
         print("  [warn] 'decisionModel' column missing from agent log.")
         return {}
@@ -157,43 +337,37 @@ def derive_profiles_bfe(df: pd.DataFrame,
     profiles = {}
 
     for atype in AGENT_TYPES:
-        type_df = df[df["decisionModel"] == atype].copy()
+        type_df = _rows_for_type(df, atype)
         if type_df.empty:
-            print(f"  [warn] No log rows for agent type: {atype}")
+            log_model = DECISIONMODEL_IN_LOG.get(atype, atype)
+            print(f"  [warn] No log rows for agent type: {atype} "
+                  f"(looked for decisionModel='{log_model}')")
             continue
 
-        # Filter to contested moves where possible
-        use_contested = contested_only
-        cdf = type_df[type_df["bfe_is_contested"] == True] if "bfe_is_contested" in type_df.columns else pd.DataFrame()
-        if len(cdf) == 0:
-            print(f"  [{atype}] No contested observations; falling back to all moves.")
-            cdf = type_df
-            use_contested = False
+        fdf = _filter_has_neighbor(type_df)
+        n_total = len(type_df)
+        n_filtered = len(fdf)
 
-        print(f"  [{atype}] {len(cdf):,} observations (contested={use_contested})")
+        if n_filtered == 0:
+            print(f"  [{atype}] {n_total:,} total rows but 0 with neighbors>0; "
+                  f"falling back to all rows.")
+            fdf = type_df
 
-        imm_vecs = []
-        fut_vecs = []
-        for _, row in cdf.iterrows():
-            row_dict = row.to_dict()
-            v_imm = compute_v_imm(row_dict)
-            v_fut = compute_v_fut(row_dict, gamma=gamma)
-            imm_vecs.append(v_imm)
-            fut_vecs.append(v_fut)
+        print(f"  [{atype}] {n_filtered:,} / {n_total:,} observations "
+              f"(neighbors>0 filter)")
 
-        mu_imm = np.mean(imm_vecs, axis=0).tolist()
-        mu_fut = np.mean(fut_vecs, axis=0).tolist()
+        imm_vecs, fut_vecs = _vecs_for_rows(fdf, gamma)
+        mu_imm = imm_vecs.mean(axis=0).tolist()
+        mu_fut  = fut_vecs.mean(axis=0).tolist()
 
         profiles[atype] = {
             "mu_imm": [round(x, 6) for x in mu_imm],
-            "mu_fut": [round(x, 6) for x in mu_fut],
-            "n_obs": len(cdf),
-            "contested_only": use_contested,
+            "mu_fut":  [round(x, 6) for x in mu_fut],
+            "n_obs":   len(fdf),
         }
 
-        labels = ["I", "D", "C", "P", "E"]
-        print(f"         mu_imm: {dict(zip(labels, [round(x, 4) for x in mu_imm]))}")
-        print(f"         mu_fut: {dict(zip(labels, [round(x, 4) for x in mu_fut]))}")
+        print(f"         mu_imm: {dict(zip(COORD_LABELS, [round(x, 4) for x in mu_imm]))}")
+        print(f"         mu_fut: {dict(zip(COORD_LABELS, [round(x, 4) for x in mu_fut]))}")
 
     return profiles
 
@@ -294,12 +468,12 @@ def main(args):
             pool.map(run_one_sim, worker_args)
         print()
 
-    # ── Parse agent logs ────────────────────────────────────────────────────
+    # ── Parse agent logs (seed-tagged for variance analysis) ───────────────
     print("  Parsing agent logs …")
     frames = []
     missing = 0
-    for path in agent_log_paths:
-        df = agent_log_to_df(path)
+    for seed, path in zip(seeds, agent_log_paths):
+        df = agent_log_to_df(path, seed_tag=seed)
         if df.empty:
             missing += 1
         else:
@@ -315,9 +489,85 @@ def main(args):
     combined = pd.concat(frames, ignore_index=True)
     print(f"  Combined log: {len(combined):,} agent-timestep records\n")
 
-    # ── Derive BFE profiles ─────────────────────────────────────────────────
+    # ── Variance analysis & sample-size estimation ──────────────────────────
+    print("  Variance analysis …\n")
+    per_seed_stats   = compute_per_seed_stats(combined, gamma=gamma)
+    sample_size_rpt  = estimate_required_seeds(per_seed_stats,
+                                               target_se=args.target_se)
+    global_n_req, global_obs_req = print_variance_report(sample_size_rpt,
+                                                          args.target_se)
+
+    # ── Expand seed pool if required ────────────────────────────────────────
+    if global_n_req is not None and global_n_req > num_seeds:
+        extra_needed = global_n_req - num_seeds
+        print(f"\n  Variance requires {global_n_req} seeds "
+              f"({extra_needed} more than the {num_seeds} run so far).")
+        print(f"  Running {extra_needed} additional seed(s) …\n")
+
+        extra_seeds = []
+        candidate = num_seeds + 1
+        while len(extra_seeds) < extra_needed:
+            random.seed(candidate)
+            s = random.randint(0, sys.maxsize)
+            if s not in seeds and s not in extra_seeds:
+                extra_seeds.append(s)
+            candidate += 1
+
+        extra_pending = []
+        extra_log_paths = []
+        for seed in extra_seeds:
+            cfg = dict(base_cfg)
+            cfg["seed"]               = seed
+            cfg["timesteps"]          = timesteps
+            cfg["startingAgents"]     = num_agents
+            cfg["startingDiseases"]   = 0
+            cfg["headlessMode"]       = True
+            cfg["debugMode"]          = ["none"]
+            cfg["keepAlivePostExtinction"] = False
+            cfg["keepAliveAtEnd"]     = False
+            cfg["screenshots"]        = False
+            cfg["profileMode"]        = False
+            cfg["agentDecisionModels"] = AGENT_TYPES
+
+            log_path       = os.path.join(sim_dir, f"deriv_{seed}.json")
+            agent_log_path = os.path.join(sim_dir, f"deriv_{seed}_agents.json")
+            cfg["logfile"]       = log_path
+            cfg["agentLogfile"]  = agent_log_path
+            cfg["logfileFormat"] = "json"
+
+            cfg_path_out = os.path.join(sim_dir, f"deriv_{seed}.config")
+            with open(cfg_path_out, "w") as f:
+                json.dump(cfg, f)
+
+            extra_log_paths.append(agent_log_path)
+            if not os.path.exists(agent_log_path):
+                extra_pending.append(cfg_path_out)
+
+        if extra_pending:
+            manager2 = multiprocessing.Manager()
+            counter2 = manager2.Value("i", 0)
+            lock2    = manager2.Lock()
+            worker_args2 = [(p, python_alias, counter2, lock2, len(extra_pending))
+                            for p in extra_pending]
+            with multiprocessing.Pool(processes=num_cores) as pool:
+                pool.map(run_one_sim, worker_args2)
+            print()
+
+        for seed, path in zip(extra_seeds, extra_log_paths):
+            df = agent_log_to_df(path, seed_tag=seed)
+            if not df.empty:
+                frames.append(df)
+
+        combined = pd.concat(frames, ignore_index=True)
+        print(f"  Expanded log: {len(combined):,} agent-timestep records\n")
+    else:
+        if global_n_req is not None:
+            print(f"\n  Current {num_seeds} seeds already satisfy target SE "
+                  f"(required {global_n_req}).\n")
+
+    # ── Derive BFE profiles from full (possibly expanded) dataset ──────────
     print("  Computing BFE profiles …\n")
-    profiles = derive_profiles_bfe(combined, gamma=gamma, contested_only=True)
+    profiles = derive_profiles_bfe(combined, gamma=gamma)
 
     # ── φ-linear validation: predict Bentham as 0.5·Egoist + 0.5·Altruist ──
     phi_bfs = None
@@ -410,9 +660,13 @@ def parse_args():
     p.add_argument("-j", "--cores",     type=int, default=1)
     p.add_argument("-g", "--gamma",     type=float, default=0.5,
                    help="Lookahead discount factor (gamma) for future layer.")
-    p.add_argument("--python",          default="python3")
-    p.add_argument("--force", action="store_true", default=False,
+    p.add_argument("--python",     default="python3")
+    p.add_argument("--force",      action="store_true", default=False,
                    help="Re-run all derivation sims even if logs exist.")
+    p.add_argument("--target-se",  type=float, default=DEFAULT_TARGET_SE,
+                   help="Target standard error per vector component for "
+                        "sample-size estimation. Script will run additional "
+                        "seeds automatically if the initial batch is insufficient.")
     return p.parse_args()
 
 

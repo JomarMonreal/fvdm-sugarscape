@@ -65,14 +65,33 @@ def load_per_timestep(input_dir: str) -> pd.DataFrame:
 def derive_extra_metrics(df_seed: pd.DataFrame, df_ts: pd.DataFrame | None):
     """Add deathsPerTimestep and meanAgeAtDeath to df_seed (in-place).
 
-    deathsPerTimestep  — from summary: totalDeaths / finalTimestep
+    deathsPerTimestep  — deaths per timestep as % of mean population,
+                         matching Figure 20 in the paper.
+                         If per_timestep data available: mean(agentDeaths/population)
+                         over all timesteps; else falls back to totalDeaths/finalTimestep
+                         divided by a population estimate.
     meanAgeAtDeath     — from per_timestep (proxy): deaths-weighted mean age
                          of living agents; falls back to NaN if unavailable.
     """
-    # Deaths per timestep from summary
-    df_seed["deathsPerTimestep"] = (
-        df_seed["totalDeaths"] / df_seed["finalTimestep"].replace(0, np.nan)
-    )
+    if df_ts is not None and {"agentDeaths", "population", "condition", "seed"}.issubset(df_ts.columns):
+        # Per-timestep death rate as fraction of population
+        drate = (
+            df_ts.groupby(["condition", "seed"])
+            .apply(
+                lambda g: (
+                    (g["agentDeaths"] / g["population"].replace(0, np.nan))
+                    .mean() * 100   # convert to percentage
+                ),
+                include_groups=False,
+            )
+            .reset_index(name="deathsPerTimestep")
+        )
+        df_seed = df_seed.merge(drate, on=["condition", "seed"], how="left")
+    else:
+        # Fallback: absolute deaths per timestep (less accurate)
+        df_seed["deathsPerTimestep"] = (
+            df_seed["totalDeaths"] / df_seed["finalTimestep"].replace(0, np.nan)
+        )
 
     # Mean age at death proxy from per-timestep data
     if df_ts is not None and {"agentDeaths", "meanAge", "condition", "seed"}.issubset(df_ts.columns):
@@ -106,7 +125,7 @@ FIGURES = [
     ("finalSocietalWealth",  "Total Wealth",           "Total Wealth vs % Bentham"),
     ("finalMeanWealth",      "Mean Wealth",            "Mean Wealth vs % Bentham"),
     ("finalMeanTimeToLive",  "Mean Time to Live",      "Mean TTL vs % Bentham"),
-    ("deathsPerTimestep",    "Mean Deaths/Timestep",   "Deaths per Timestep vs % Bentham"),
+    ("deathsPerTimestep",    "Mean Deaths/Timestep (%pop)", "Deaths per Timestep vs % Bentham"),
     ("meanAgeAtDeath",       "Mean Age at Death",      "Mean Age at Death vs % Bentham"),
 ]
 
