@@ -4,11 +4,21 @@ derive_vectors.py
 -----------------
 Prioritization Profile Derivation via Behavioral Feature Expectation (BFE).
 
-Runs a mixed-population derivation simulation containing all four baseline
-agent types simultaneously.  At each decision step where at least one
-neighbor agent is present (neighbors > 0), the chosen cell's raw properties
-are read from the agent log and the two felicific effect vectors are computed
-analytically:
+Supports two derivation modes:
+
+  Mixed-population (default):
+    All requested agent types run together in each simulation.  Profiles are
+    derived from the combined log.
+
+  Homogeneous (--homogeneous):
+    Each agent type is run in its own isolated simulation batch (one type per
+    sim).  Profiles are derived per type and merged into a single output.
+    This eliminates cross-type competitive bias, which can cause altruistic
+    types to go extinct early when mixed with aggressive types.
+
+At each decision step where at least one neighbor agent is present
+(neighbors > 0), the chosen cell's raw properties are read from the agent log
+and the two felicific effect vectors are computed analytically:
 
   v_imm(c) = ( 1/((1+TTL)(1+pollution)),   W_c/(m*W_cmax),      1, 1,     1/|V| )
   v_fut(c)  = ( W_adj/(Wgmax*n_adj),         max(0,W_c-m)/(m*W_cmax), 1, gamma, 1/|V| )
@@ -29,7 +39,7 @@ Output: fvdm_vectors/bfe_profiles.json
 
 Usage:
   python derive_vectors.py [options]
-  python derive_vectors.py --seeds 10 --timesteps 5000 --agents 250 --cores 8
+  python derive_vectors.py --homogeneous --seeds 10 --timesteps 5000 --agents 250 --cores 8
   python derive_vectors.py --target-se 0.005   # tighter convergence
 """
 
@@ -302,7 +312,7 @@ def print_variance_report(sample_size_report: dict, target_se: float):
           f"{'max_σ_imm':>10} {'max_σ_fut':>10}  "
           f"{'max_SE_imm':>11} {'max_SE_fut':>11}")
     print(f"  {'-'*100}")
-    for atype in AGENT_TYPES:
+    for atype in sample_size_report:
         r = sample_size_report.get(atype, {})
         if not r or r.get("n_required") is None:
             n_cur = r.get("n_current", 0)
@@ -393,16 +403,17 @@ def derive_profiles_bfe(df: pd.DataFrame, gamma: float = GAMMA_DEFAULT) -> dict:
 # and allows raw logs to be deleted immediately after per-seed stats are taken.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def make_accum() -> dict:
+def make_accum(agent_types: list = None) -> dict:
+    types = agent_types if agent_types is not None else AGENT_TYPES
     return {atype: {
         "seed_mus_imm": [], "seed_mus_fut": [], "seed_n_obs": [],
         "sum_imm": np.zeros(5), "sum_fut": np.zeros(5), "total_obs": 0,
-    } for atype in AGENT_TYPES}
+    } for atype in types}
 
 
 def _accum_one_seed(seed_df: pd.DataFrame, gamma: float, accum: dict) -> None:
     """Fold one seed's slim DataFrame into the accumulator (in-place)."""
-    for atype in AGENT_TYPES:
+    for atype in accum:
         rows = _filter_has_neighbor(_rows_for_type(seed_df, atype))
         if len(rows) == 0:
             continue
@@ -419,8 +430,7 @@ def _accum_one_seed(seed_df: pd.DataFrame, gamma: float, accum: dict) -> None:
 def compute_per_seed_stats_from_accum(accum: dict) -> dict:
     """Extract per-seed variance data from a completed accumulator."""
     result = {}
-    for atype in AGENT_TYPES:
-        a = accum[atype]
+    for atype, a in accum.items():
         result[atype] = {
             "seed_mus_imm": np.array(a["seed_mus_imm"]) if a["seed_mus_imm"] else np.empty((0, 5)),
             "seed_mus_fut": np.array(a["seed_mus_fut"]) if a["seed_mus_fut"] else np.empty((0, 5)),
@@ -432,8 +442,7 @@ def compute_per_seed_stats_from_accum(accum: dict) -> dict:
 def derive_profiles_from_accum(accum: dict) -> dict:
     """Compute final observation-weighted BFE profiles from a completed accumulator."""
     profiles = {}
-    for atype in AGENT_TYPES:
-        a = accum[atype]
+    for atype, a in accum.items():
         if a["total_obs"] == 0:
             log_model = DECISIONMODEL_IN_LOG.get(atype, atype)
             print(f"  [warn] No qualifying observations for {atype} "
@@ -484,70 +493,45 @@ def _run_batch_and_accumulate(batch: list, cfg_to_log: dict, python_alias: str,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main pipeline
+# Core derivation batch — runs N seeds for given types, returns accumulator
 # ─────────────────────────────────────────────────────────────────────────────
 
-def main(args):
-    t0 = time.time()
+def _run_derivation_batch(args, target_types: list, sim_dir: str) -> dict:
+    """
+    Run `args.seeds` derivation simulations populated only with `target_types`
+    and return a completed accumulator dict.
 
-    output_dir   = args.output
-    config_path  = args.config
-    num_seeds    = args.seeds
-    timesteps    = args.timesteps
-    num_agents   = args.agents
-    num_cores    = args.cores
-    python_alias = args.python
-    gamma        = args.gamma
-    force        = args.force
+    Handles seed generation, config building, caching, parallel execution,
+    variance analysis, and optional automatic seed expansion.
+    """
+    base_cfg  = load_base_config(args.config)
+    num_cores = min(args.cores, os.cpu_count() or 1)
+    keep_logs = args.keep_logs
 
-    os.makedirs(output_dir, exist_ok=True)
-    sim_dir = os.path.join(output_dir, "derivation_logs")
-    os.makedirs(sim_dir, exist_ok=True)
-
-    max_cores = os.cpu_count() or 1
-    num_cores = min(num_cores, max_cores)
-
-    print(f"\n{'='*60}")
-    print(f"  FVDM Prioritization Profile Derivation (BFE)")
-    print(f"{'='*60}")
-    print(f"  Seeds:      {num_seeds}")
-    print(f"  Timesteps:  {timesteps}")
-    print(f"  Agents:     {num_agents}  (all 4 types, round-robin)")
-    print(f"  Gamma:      {gamma}")
-    print(f"  Cores:      {num_cores}")
-    print(f"  Output:     {output_dir}")
-    print(f"{'='*60}\n")
-
-    base_cfg = load_base_config(config_path)
-
-    # ── Generate matched seeds ──────────────────────────────────────────────
     random.seed(42)
     seeds = []
-    while len(seeds) < num_seeds:
+    while len(seeds) < args.seeds:
         s = random.randint(0, sys.maxsize)
         if s not in seeds:
             seeds.append(s)
 
-    keep_logs = args.keep_logs
-
-    # ── Build per-seed simulation configs (mixed population) ────────────────
-    pending    = []   # cfg paths that still need running
-    cfg_to_log = {}   # cfg_path -> (seed, agent_log_path)
-    cached     = {}   # seed    -> agent_log_path  (already-done seeds)
+    pending    = []
+    cfg_to_log = {}
+    cached     = {}
 
     def _make_seed_cfg(seed):
         cfg = dict(base_cfg)
-        cfg["seed"]               = seed
-        cfg["timesteps"]          = timesteps
-        cfg["startingAgents"]     = num_agents
-        cfg["startingDiseases"]   = 0
-        cfg["headlessMode"]       = True
-        cfg["debugMode"]          = ["none"]
+        cfg["seed"]                    = seed
+        cfg["timesteps"]               = args.timesteps
+        cfg["startingAgents"]          = args.agents
+        cfg["startingDiseases"]        = 0
+        cfg["headlessMode"]            = True
+        cfg["debugMode"]               = ["none"]
         cfg["keepAlivePostExtinction"] = False
-        cfg["keepAliveAtEnd"]     = False
-        cfg["screenshots"]        = False
-        cfg["profileMode"]        = False
-        cfg["agentDecisionModels"] = AGENT_TYPES
+        cfg["keepAliveAtEnd"]          = False
+        cfg["screenshots"]             = False
+        cfg["profileMode"]             = False
+        cfg["agentDecisionModels"]     = target_types
         log_path       = os.path.join(sim_dir, f"deriv_{seed}.json")
         agent_log_path = os.path.join(sim_dir, f"deriv_{seed}_agents.json")
         cfg["logfile"]       = log_path
@@ -561,21 +545,19 @@ def main(args):
     for seed in seeds:
         cfg_path_out, agent_log_path = _make_seed_cfg(seed)
         cfg_to_log[cfg_path_out] = (seed, agent_log_path)
-        already_done = (not force and os.path.exists(agent_log_path)
+        already_done = (not args.force and os.path.exists(agent_log_path)
                         and safe_json_load(agent_log_path))
         if already_done:
             cached[seed] = agent_log_path
         else:
             pending.append(cfg_path_out)
 
-    skip = num_seeds - len(pending)
-    print(f"  {num_seeds} derivation sims: {skip} already done, {len(pending)} queued\n")
+    skip = args.seeds - len(pending)
+    print(f"  {args.seeds} derivation sims: {skip} already done, {len(pending)} queued\n")
 
-    # ── Streaming accumulator — never builds a combined DataFrame ───────────
-    accum    = make_accum()
+    accum     = make_accum(target_types)
     n_missing = 0
 
-    # Load already-done (cached) seeds first
     if cached:
         print(f"  Loading {len(cached)} cached seed(s) …")
         for seed, path in cached.items():
@@ -583,13 +565,12 @@ def main(args):
             if df.empty:
                 n_missing += 1
             else:
-                _accum_one_seed(df, gamma, accum)
+                _accum_one_seed(df, args.gamma, accum)
                 if not keep_logs:
                     try: os.remove(path)
                     except OSError: pass
         print()
 
-    # Run pending seeds in batches of num_cores, process+delete after each batch
     if pending:
         batches = [pending[i:i + num_cores] for i in range(0, len(pending), num_cores)]
         print(f"  Running {len(pending)} simulations ({num_cores} cores, "
@@ -597,14 +578,14 @@ def main(args):
         offset = 0
         for batch in batches:
             n_miss = _run_batch_and_accumulate(
-                batch, cfg_to_log, python_alias, accum, gamma,
+                batch, cfg_to_log, args.python, accum, args.gamma,
                 num_cores, offset, len(pending), keep_logs)
             n_missing += n_miss
             offset += len(batch)
         print()
 
-    n_seeds_done = sum(len(a["seed_n_obs"]) for a in accum.values()
-                       if a["seed_n_obs"]) // max(1, len(AGENT_TYPES))
+    n_seeds_done = (sum(len(a["seed_n_obs"]) for a in accum.values() if a["seed_n_obs"])
+                    // max(1, len(target_types)))
     total_rows = sum(a["total_obs"] for a in accum.values())
     if n_missing:
         print(f"  [warn] {n_missing} log file(s) missing or empty.")
@@ -614,24 +595,20 @@ def main(args):
     print(f"  Accumulated: ~{total_rows:,} qualifying observations "
           f"across {n_seeds_done} seed(s)\n")
 
-    # ── Variance analysis & sample-size estimation ──────────────────────────
     print("  Variance analysis …\n")
     per_seed_stats  = compute_per_seed_stats_from_accum(accum)
-    sample_size_rpt = estimate_required_seeds(per_seed_stats,
-                                              target_se=args.target_se)
-    global_n_req, global_obs_req = print_variance_report(sample_size_rpt,
-                                                         args.target_se)
+    sample_size_rpt = estimate_required_seeds(per_seed_stats, target_se=args.target_se)
+    global_n_req, _ = print_variance_report(sample_size_rpt, args.target_se)
 
-    # ── Expand seed pool if required ────────────────────────────────────────
-    if global_n_req is not None and global_n_req > num_seeds:
-        extra_needed = global_n_req - num_seeds
+    if global_n_req is not None and global_n_req > args.seeds:
+        extra_needed = global_n_req - args.seeds
         print(f"\n  Variance requires {global_n_req} seeds "
-              f"({extra_needed} more than the {num_seeds} run so far).")
+              f"({extra_needed} more than the {args.seeds} run so far).")
         print(f"  Running {extra_needed} additional seed(s) …\n")
 
         all_seen = set(seeds)
         extra_seeds = []
-        candidate = num_seeds + 1
+        candidate = args.seeds + 1
         while len(extra_seeds) < extra_needed:
             random.seed(candidate)
             s = random.randint(0, sys.maxsize)
@@ -647,7 +624,7 @@ def main(args):
             if os.path.exists(agent_log_path) and safe_json_load(agent_log_path):
                 df = agent_log_to_df(agent_log_path, seed_tag=seed, slim=True)
                 if not df.empty:
-                    _accum_one_seed(df, gamma, accum)
+                    _accum_one_seed(df, args.gamma, accum)
                     if not keep_logs:
                         try: os.remove(agent_log_path)
                         except OSError: pass
@@ -662,7 +639,7 @@ def main(args):
             offset = 0
             for batch in batches:
                 n_miss = _run_batch_and_accumulate(
-                    batch, cfg_to_log, python_alias, accum, gamma,
+                    batch, cfg_to_log, args.python, accum, args.gamma,
                     num_cores, offset, len(extra_pending), keep_logs)
                 n_missing += n_miss
                 offset += len(batch)
@@ -672,15 +649,252 @@ def main(args):
         print(f"  Expanded accumulator: ~{total_rows:,} qualifying observations\n")
     else:
         if global_n_req is not None:
-            print(f"\n  Current {num_seeds} seeds already satisfy target SE "
+            print(f"\n  Current {args.seeds} seeds already satisfy target SE "
                   f"(required {global_n_req}).\n")
 
-    # ── Derive BFE profiles from accumulator ────────────────────────────────
-    print("  Computing BFE profiles …\n")
-    profiles = derive_profiles_from_accum(accum)
+    return accum
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Homogeneous parallel runner — all types in one shared pool
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _run_homogeneous_all_parallel(args, target_types: list, sim_dir: str) -> dict:
+    """
+    Run homogeneous derivation for all target_types simultaneously.
+
+    Each type gets its own sim subdirectory.  All N×T configs are queued into
+    one shared worker pool so every available core is used across all types at
+    once instead of running one type at a time.
+    """
+    base_cfg  = load_base_config(args.config)
+    num_cores = min(args.cores, os.cpu_count() or 1)
+    keep_logs = args.keep_logs
+
+    random.seed(42)
+    seeds = []
+    while len(seeds) < args.seeds:
+        s = random.randint(0, sys.maxsize)
+        if s not in seeds:
+            seeds.append(s)
+
+    accum        = make_accum(target_types)
+    cfg_to_meta  = {}  # cfg_path -> (atype, seed, agent_log_path)
+    pending      = []
+    cached_items = []  # (atype, seed, agent_log_path)
+
+    for atype in target_types:
+        type_sim_dir = os.path.join(sim_dir, atype)
+        os.makedirs(type_sim_dir, exist_ok=True)
+        for seed in seeds:
+            cfg = dict(base_cfg)
+            cfg["seed"]                    = seed
+            cfg["timesteps"]               = args.timesteps
+            cfg["startingAgents"]          = args.agents
+            cfg["startingDiseases"]        = 0
+            cfg["headlessMode"]            = True
+            cfg["debugMode"]               = ["none"]
+            cfg["keepAlivePostExtinction"] = False
+            cfg["keepAliveAtEnd"]          = False
+            cfg["screenshots"]             = False
+            cfg["profileMode"]             = False
+            cfg["agentDecisionModels"]     = [atype]
+            agent_log_path = os.path.join(type_sim_dir, f"deriv_{seed}_agents.json")
+            cfg["logfile"]       = os.path.join(type_sim_dir, f"deriv_{seed}.json")
+            cfg["agentLogfile"]  = agent_log_path
+            cfg["logfileFormat"] = "json"
+            cfg_path_out = os.path.join(type_sim_dir, f"deriv_{seed}.config")
+            with open(cfg_path_out, "w") as f:
+                json.dump(cfg, f)
+            cfg_to_meta[cfg_path_out] = (atype, seed, agent_log_path)
+
+            already_done = (not args.force
+                            and os.path.exists(agent_log_path)
+                            and safe_json_load(agent_log_path))
+            if already_done:
+                cached_items.append((atype, seed, agent_log_path))
+            else:
+                pending.append(cfg_path_out)
+
+    total_sims = len(target_types) * args.seeds
+    skip = total_sims - len(pending)
+    print(f"  {total_sims} total sims ({args.seeds} seeds × {len(target_types)} types): "
+          f"{skip} cached, {len(pending)} queued\n")
+
+    n_missing = 0
+
+    if cached_items:
+        print(f"  Loading {len(cached_items)} cached sim(s) …")
+        for atype, seed, path in cached_items:
+            df = agent_log_to_df(path, seed_tag=seed, slim=True)
+            if df.empty:
+                n_missing += 1
+            else:
+                _accum_one_seed(df, args.gamma, accum)
+                if not keep_logs:
+                    try: os.remove(path)
+                    except OSError: pass
+        print()
+
+    if pending:
+        print(f"  Running {len(pending)} simulations across {num_cores} cores …")
+        manager     = multiprocessing.Manager()
+        counter     = manager.Value("i", 0)
+        lock        = manager.Lock()
+        worker_args = [(p, args.python, counter, lock, len(pending)) for p in pending]
+        with multiprocessing.Pool(processes=num_cores) as pool:
+            pool.map(run_one_sim, worker_args)
+        print()
+
+        for cfg_path in pending:
+            atype, seed, agent_log_path = cfg_to_meta[cfg_path]
+            df = agent_log_to_df(agent_log_path, seed_tag=seed, slim=True)
+            if df.empty:
+                n_missing += 1
+            else:
+                _accum_one_seed(df, args.gamma, accum)
+                if not keep_logs:
+                    try: os.remove(agent_log_path)
+                    except OSError: pass
+
+    total_rows = sum(a["total_obs"] for a in accum.values())
+    if n_missing:
+        print(f"  [warn] {n_missing} log file(s) missing or empty.")
+    if total_rows == 0:
+        print("  [error] No agent log data found.  Aborting.")
+        sys.exit(1)
+    print(f"  Accumulated: ~{total_rows:,} qualifying observations "
+          f"across {args.seeds} seed(s) per type\n")
+
+    print("  Variance analysis …\n")
+    per_seed_stats  = compute_per_seed_stats_from_accum(accum)
+    sample_size_rpt = estimate_required_seeds(per_seed_stats, target_se=args.target_se)
+    global_n_req, _ = print_variance_report(sample_size_rpt, args.target_se)
+
+    if global_n_req is not None and global_n_req > args.seeds:
+        extra_needed = global_n_req - args.seeds
+        print(f"\n  Variance requires {global_n_req} seeds "
+              f"({extra_needed} more than the {args.seeds} run so far).")
+        print(f"  Running {extra_needed} extra seeds per type …\n")
+
+        all_seen = set(seeds)
+        extra_seeds = []
+        candidate = args.seeds + 1
+        while len(extra_seeds) < extra_needed:
+            random.seed(candidate)
+            s = random.randint(0, sys.maxsize)
+            if s not in all_seen:
+                extra_seeds.append(s)
+                all_seen.add(s)
+            candidate += 1
+
+        extra_pending    = []
+        extra_cfg_to_meta = {}
+
+        for atype in target_types:
+            type_sim_dir = os.path.join(sim_dir, atype)
+            for seed in extra_seeds:
+                cfg = dict(base_cfg)
+                cfg["seed"]                    = seed
+                cfg["timesteps"]               = args.timesteps
+                cfg["startingAgents"]          = args.agents
+                cfg["startingDiseases"]        = 0
+                cfg["headlessMode"]            = True
+                cfg["debugMode"]               = ["none"]
+                cfg["keepAlivePostExtinction"] = False
+                cfg["keepAliveAtEnd"]          = False
+                cfg["screenshots"]             = False
+                cfg["profileMode"]             = False
+                cfg["agentDecisionModels"]     = [atype]
+                agent_log_path = os.path.join(type_sim_dir, f"deriv_{seed}_agents.json")
+                cfg["logfile"]       = os.path.join(type_sim_dir, f"deriv_{seed}.json")
+                cfg["agentLogfile"]  = agent_log_path
+                cfg["logfileFormat"] = "json"
+                cfg_path_out = os.path.join(type_sim_dir, f"deriv_{seed}.config")
+
+                if os.path.exists(agent_log_path) and safe_json_load(agent_log_path):
+                    df = agent_log_to_df(agent_log_path, seed_tag=seed, slim=True)
+                    if not df.empty:
+                        _accum_one_seed(df, args.gamma, accum)
+                        if not keep_logs:
+                            try: os.remove(agent_log_path)
+                            except OSError: pass
+                else:
+                    with open(cfg_path_out, "w") as f:
+                        json.dump(cfg, f)
+                    extra_cfg_to_meta[cfg_path_out] = (atype, seed, agent_log_path)
+                    extra_pending.append(cfg_path_out)
+
+        if extra_pending:
+            print(f"  Running {len(extra_pending)} extra simulations across {num_cores} cores …")
+            manager     = multiprocessing.Manager()
+            counter     = manager.Value("i", 0)
+            lock        = manager.Lock()
+            worker_args = [(p, args.python, counter, lock, len(extra_pending))
+                           for p in extra_pending]
+            with multiprocessing.Pool(processes=num_cores) as pool:
+                pool.map(run_one_sim, worker_args)
+            print()
+
+            for cfg_path in extra_pending:
+                atype, seed, agent_log_path = extra_cfg_to_meta[cfg_path]
+                df = agent_log_to_df(agent_log_path, seed_tag=seed, slim=True)
+                if not df.empty:
+                    _accum_one_seed(df, args.gamma, accum)
+                    if not keep_logs:
+                        try: os.remove(agent_log_path)
+                        except OSError: pass
+
+        total_rows = sum(a["total_obs"] for a in accum.values())
+        print(f"  Expanded: ~{total_rows:,} qualifying observations\n")
+    else:
+        if global_n_req is not None:
+            print(f"\n  Current {args.seeds} seeds already satisfy target SE "
+                  f"(required {global_n_req}).\n")
+
+    return accum
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+
+def main(args):
+    t0 = time.time()
+
+    output_dir = args.output
+    num_cores  = min(args.cores, os.cpu_count() or 1)
+
+    os.makedirs(output_dir, exist_ok=True)
+    sim_dir = os.path.join(output_dir, "derivation_logs")
+    os.makedirs(sim_dir, exist_ok=True)
+
+    seeds_label = f"{args.seeds} per type" if args.homogeneous else str(args.seeds)
+    mode_label  = "homogeneous (one type per sim)" if args.homogeneous else "mixed population"
+
+    print(f"\n{'='*60}")
+    print(f"  FVDM Prioritization Profile Derivation (BFE)")
+    print(f"{'='*60}")
+    print(f"  Seeds:      {seeds_label}")
+    print(f"  Timesteps:  {args.timesteps}")
+    print(f"  Agents:     {args.agents}  ({', '.join(args.agent_types)})")
+    print(f"  Mode:       {mode_label}")
+    print(f"  Gamma:      {args.gamma}")
+    print(f"  Cores:      {num_cores}")
+    print(f"  Output:     {output_dir}")
+    print(f"{'='*60}\n")
+
+    profiles = {}
+
+    if args.homogeneous:
+        accum    = _run_homogeneous_all_parallel(args, args.agent_types, sim_dir)
+        profiles = derive_profiles_from_accum(accum)
+    else:
+        accum    = _run_derivation_batch(args, args.agent_types, sim_dir)
+        profiles = derive_profiles_from_accum(accum)
 
     # ── φ-linear validation: predict Bentham as 0.5·Egoist + 0.5·Altruist ──
-    phi_bfs = None
+    phi_bfs  = None
     phi_pred = None
     if "egoist" in profiles and "altruist" in profiles and "bentham" in profiles:
         mu_e_imm = np.array(profiles["egoist"]["mu_imm"])
@@ -721,12 +935,13 @@ def main(args):
             "fut": ["J (future intensity)", "Df (future duration)", "C (certainty)", "P=gamma (propinquity)", "E=1/|V| (extent)"],
         },
         "derivation_config": {
-            "seeds": num_seeds,
-            "timesteps": timesteps,
-            "agents": num_agents,
-            "gamma": gamma,
+            "seeds": args.seeds,
+            "timesteps": args.timesteps,
+            "agents": args.agents,
+            "gamma": args.gamma,
             "filter": "neighbors_gt_0",
-            "agent_types": AGENT_TYPES,
+            "agent_types": args.agent_types,
+            "mode": "homogeneous" if args.homogeneous else "mixed",
         },
         "profiles": {k: {kk: vv for kk, vv in v.items()} for k, v in profiles.items()},
         "phi_linear_validation": phi_pred,
@@ -763,13 +978,21 @@ def parse_args():
     p.add_argument("-c", "--config",    default="config.json")
     p.add_argument("-o", "--output",    default="fvdm_vectors")
     p.add_argument("-s", "--seeds",     type=int, default=128,
-                   help="Number of mixed-population derivation seeds.")
+                   help="Number of derivation seeds (per type in homogeneous mode).")
+    p.add_argument("-T", "--agent-types", nargs="+", default=AGENT_TYPES,
+                   choices=AGENT_TYPES, dest="agent_types",
+                   help="Agent type(s) to simulate and profile. "
+                        "Pass a single type with -T to derive only that type.")
     p.add_argument("-a", "--agents",    type=int, default=250,
-                   help="Starting agents (round-robin across 4 types).")
+                   help="Starting agents per simulation.")
     p.add_argument("-t", "--timesteps", type=int, default=5000)
     p.add_argument("-j", "--cores",     type=int, default=1)
     p.add_argument("-g", "--gamma",     type=float, default=0.5,
                    help="Lookahead discount factor (gamma) for future layer.")
+    p.add_argument("--homogeneous", action="store_true", default=False,
+                   help="Run each agent type in its own isolated simulation batch. "
+                        "Eliminates cross-type competitive bias. "
+                        "Recommended for robust profile derivation.")
     p.add_argument("--python",     default="python3")
     p.add_argument("--force",      action="store_true", default=False,
                    help="Re-run all derivation sims even if logs exist.")
