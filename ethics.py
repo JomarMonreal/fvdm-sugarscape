@@ -477,12 +477,13 @@ class FVDMAgent(agent.Agent):
             return
         import json, os
         cls._PROFILES = {}
-        if os.path.exists(cls._PROFILE_PATH):
-            with open(cls._PROFILE_PATH) as f:
+        path = os.environ.get("FVDM_PROFILE_PATH", cls._PROFILE_PATH)
+        if os.path.exists(path):
+            with open(path) as f:
                 data = json.load(f)
             cls._PROFILES = data.get("profiles", {})
         else:
-            print(f"[FVDMAgent] Warning: profile file not found at {cls._PROFILE_PATH}. "
+            print(f"[FVDMAgent] Warning: profile file not found at {path}. "
                   "Run derive_vectors.py first. Using zero vectors as fallback.")
 
     # ── Analytical effect vector computation ────────────────────────────────

@@ -1,0 +1,49 @@
+{
+  "description": "Test vector configurations to isolate which BFE coordinates drive FVDM extinction. Each entry replaces the standard empirical profile with a controlled vector.",
+  "coordinate_labels": {
+    "imm": ["I (intensity)", "D (duration)", "C (certainty)", "P=1 (propinquity)", "E=1/|V| (extent)"],
+    "fut": ["J (future intensity)", "Df (future duration)", "C (certainty)", "P=gamma (propinquity)", "E=1/|V| (extent)"]
+  },
+  "profiles": {
+    "all_ones": {
+      "_note": "All coordinates = 1. Variable scoring: D + J + Df (constants cancel). Prediction: EXTINCT — J equally weighted with D.",
+      "mu_imm": [1.0, 1.0, 1.0, 1.0, 1.0],
+      "mu_fut": [1.0, 1.0, 1.0, 1.0, 1.0]
+    },
+    "imm_maxed": {
+      "_note": "Immediate = all-ones, future = zeros. Variable scoring: D only (I, C, P, E constant per agent). Prediction: SURVIVE — pure greedy equivalent.",
+      "mu_imm": [1.0, 1.0, 1.0, 1.0, 1.0],
+      "mu_fut": [0.0, 0.0, 0.0, 0.0, 0.0]
+    },
+    "fut_maxed": {
+      "_note": "Future = all-ones, immediate = zeros. Variable scoring: J + Df. Prediction: EXTINCT — J maximised, agents crowd wealthy-neighbour areas.",
+      "mu_imm": [0.0, 0.0, 0.0, 0.0, 0.0],
+      "mu_fut": [1.0, 1.0, 1.0, 1.0, 1.0]
+    },
+    "extent_maxed": {
+      "_note": "Only E coordinate non-zero. E = 1/|V| is constant across all cells for one agent → random tiebreaking. Prediction: random walk, ~50% survival.",
+      "mu_imm": [0.0, 0.0, 0.0, 0.0, 1.0],
+      "mu_fut": [0.0, 0.0, 0.0, 0.0, 1.0]
+    },
+    "d_only": {
+      "_note": "Pure D scorer. Equivalent to greedy argmax(sugar+spice). Prediction: SURVIVE — should match baseline.",
+      "mu_imm": [0.0, 1.0, 0.0, 0.0, 0.0],
+      "mu_fut": [0.0, 0.0, 0.0, 0.0, 0.0]
+    },
+    "j_only": {
+      "_note": "Pure J scorer. Agent always moves to cell adjacent to wealthiest neighbours. Prediction: EXTINCT — follows crowds into depleted areas.",
+      "mu_imm": [0.0, 0.0, 0.0, 0.0, 0.0],
+      "mu_fut": [1.0, 0.0, 0.0, 0.0, 0.0]
+    },
+    "d_and_j_equal": {
+      "_note": "D and J equally weighted. Prediction: BORDERLINE — J half as strong as D, may starve in dense environments.",
+      "mu_imm": [0.0, 1.0, 0.0, 0.0, 0.0],
+      "mu_fut": [1.0, 0.0, 0.0, 0.0, 0.0]
+    },
+    "egoist": {
+      "_note": "Empirical egoist profile (control — should replicate extinction seen before).",
+      "mu_imm": [0.045763, 0.286138, 1.0, 1.0, 0.056665],
+      "mu_fut": [0.154376, 0.041556, 1.0, 0.5, 0.056665]
+    }
+  }
+}
