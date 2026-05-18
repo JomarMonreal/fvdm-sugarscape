@@ -554,3 +554,76 @@ class FVDMAgent(agent.Agent):
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return FVDMAgent(childID, birthday, cell, configuration)
+
+
+class FVDMPhiAgent(Bentham):
+    """
+    φ-Welfare FVDM agent (FVDM as measurement framework, not decision prescription).
+
+    Cell selection uses the originating Bentham welfare rule — identical to the
+    egoist/altruist/bentham baseline — so agents survive and behave correctly.
+    After each move, v_imm and v_fut are recorded for the chosen cell, enabling
+    post-hoc BFS verification: does the observed BFE match the derived profile?
+
+    Decision:    c* = argmax φ·h_self(c) + (1−φ)·h_neighbors(c)   [Bentham]
+    Measurement: μ_obs = mean(v_imm), mean(v_fut)  →  BFS vs. derived profile
+    """
+
+    _PHI_MAP = {
+        "phiraw":      1.0,
+        "phiegoist":   1.0,
+        "phialtruist": 0.0,
+        "phibentham":  0.5,
+    }
+
+    def __init__(self, agentID, birthday, cell, configuration):
+        super().__init__(agentID, birthday, cell, configuration)
+        dm = configuration.get("decisionModel", "").lower()
+        for substr, phi_val in self._PHI_MAP.items():
+            if substr in dm:
+                self.selfishnessFactor = phi_val
+                break
+        self._chosen_v_imm = np.zeros(5)
+        self._chosen_v_fut = np.zeros(5)
+
+    def _compute_v_imm(self, cell) -> np.ndarray:
+        ttl  = max(0.0, self.findTimeToLive())
+        poll = max(0.0, float(cell.pollution))
+        m    = max(1.0, float(self.findSugarMetabolism() + self.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        v       = max(1,   len(self.cellsInRange))
+        I = 1.0 / ((1.0 + ttl) * (1.0 + poll))
+        D = min(1.0, w_c / (m * w_c_max))
+        return np.array([I, D, 1.0, 1.0, 1.0 / v])
+
+    def _compute_v_fut(self, cell) -> np.ndarray:
+        m       = max(1.0, float(self.findSugarMetabolism() + self.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        v       = max(1,   len(self.cellsInRange))
+        env        = cell.environment
+        w_glob_max = max(1.0, float(env.globalMaxSugar + env.globalMaxSpice))
+        w_adj      = float(cell.findNeighborWealth())
+        n_adj      = max(1, len(cell.neighbors))
+        gamma = float(self.decisionModelLookaheadDiscount) if self.decisionModelLookaheadDiscount else 0.5
+        J  = w_adj / (w_glob_max * n_adj)
+        Df = max(0.0, w_c - m) / (m * w_c_max)
+        return np.array([J, Df, 1.0, gamma, 1.0 / v])
+
+    def findBestEthicalCell(self, cells, greedyBestCell=None):
+        chosen = super().findBestEthicalCell(cells, greedyBestCell)
+        if chosen is not None:
+            self._chosen_v_imm = self._compute_v_imm(chosen)
+            self._chosen_v_fut = self._compute_v_fut(chosen)
+        return chosen
+
+    def updateRuntimeStats(self):
+        super().updateRuntimeStats()
+        labels = ["I", "D", "C", "P", "E"]
+        for i, lbl in enumerate(labels):
+            self.runtimeStats[f"v_imm_{lbl}"] = round(float(self._chosen_v_imm[i]), 6)
+            self.runtimeStats[f"v_fut_{lbl}"] = round(float(self._chosen_v_fut[i]), 6)
+
+    def spawnChild(self, childID, birthday, cell, configuration):
+        return FVDMPhiAgent(childID, birthday, cell, configuration)
