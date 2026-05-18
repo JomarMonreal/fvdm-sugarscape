@@ -520,38 +520,21 @@ class FVDMAgent(agent.Agent):
     # ── Cell selection override ──────────────────────────────────────────────
 
     def findBestEthicalCell(self, cells, greedyBestCell=None):
-        """Select the candidate cell minimising ||mu_imm - v_imm||₂ + ||mu_fut - v_fut||₂.
-
-        Applies the argmin only over cells where D > 0 (the cell holds at least
-        some resources above the agent's metabolic floor).  If no such cell
-        exists, the full candidate set is used as a fallback so the agent always
-        moves rather than starving in place.
-        """
+        """Select the candidate cell maximising μ^imm·v^imm(c) + μ^fut·v^fut(c)."""
         if not cells:
             return greedyBestCell
 
-        m = max(1.0, float(self.findSugarMetabolism() + self.findSpiceMetabolism()))
+        best_cell  = None
+        best_score = float("-inf")
 
-        def _d(cell):
-            w_c     = max(0.0, float(cell.sugar + cell.spice))
-            w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
-            return min(1.0, w_c / (m * w_c_max))
-
-        viable = [cd for cd in cells if _d(cd["cell"]) > 0.0]
-        candidates = viable if viable else cells
-
-        best_cell = None
-        best_dist = float("inf")
-
-        for cell_dict in candidates:
+        for cell_dict in cells:
             c     = cell_dict["cell"]
             v_imm = self._compute_v_imm(c)
             v_fut = self._compute_v_fut(c)
-            dist  = float(np.linalg.norm(self.mu_imm - v_imm) +
-                          np.linalg.norm(self.mu_fut - v_fut))
-            if dist < best_dist:
-                best_dist = dist
-                best_cell = c
+            score = float(np.dot(self.mu_imm, v_imm) + np.dot(self.mu_fut, v_fut))
+            if score > best_score:
+                best_score = score
+                best_cell  = c
                 self._chosen_v_imm = v_imm
                 self._chosen_v_fut = v_fut
 
