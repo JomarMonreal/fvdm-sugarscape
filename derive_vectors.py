@@ -69,6 +69,17 @@ DEFAULT_TARGET_SE = 0.02
 
 COORD_LABELS = ["I", "D", "C", "P", "E"]
 
+# Only the columns needed to compute v_imm / v_fut.  Everything else is
+# discarded immediately on load so raw JSON logs can be deleted right after
+# per-seed stats are extracted, keeping peak disk usage to one batch at a time.
+BFE_COLUMNS = frozenset([
+    "decisionModel", "neighbors",
+    "timeToLive", "bfe_pollution",
+    "sugarMetabolism", "spiceMetabolism",
+    "bfe_w_c", "bfe_w_c_max", "bfe_cells_in_range",
+    "bfe_adj_wealth", "bfe_num_adj", "globalMaxWealth",
+])
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Analytical felicific coordinate computation
@@ -145,16 +156,21 @@ def safe_json_load(path: str):
 # BFE derivation from agent log DataFrame
 # ─────────────────────────────────────────────────────────────────────────────
 
-def agent_log_to_df(path: str, seed_tag=None) -> pd.DataFrame:
+def agent_log_to_df(path: str, seed_tag=None, slim: bool = True) -> pd.DataFrame:
     """Parse a raw agent JSON log into a flat DataFrame.
 
-    seed_tag: if provided, adds a 'seed' column so per-seed variance can be
-    computed after concatenation.
+    slim:     if True (default) keep only BFE_COLUMNS, discarding everything
+              else immediately to minimise memory.  The raw JSON file can then
+              be deleted right after this call.
+    seed_tag: if provided, adds a 'seed' column for per-seed variance.
     """
     data = safe_json_load(path)
     if not data:
         return pd.DataFrame()
     df = pd.DataFrame(data)
+    if slim:
+        keep = [c for c in df.columns if c in BFE_COLUMNS]
+        df = df[keep]
     if seed_tag is not None:
         df["seed"] = seed_tag
     return df
@@ -373,6 +389,101 @@ def derive_profiles_bfe(df: pd.DataFrame, gamma: float = GAMMA_DEFAULT) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Streaming accumulator — avoids keeping the full combined DataFrame in memory
+# and allows raw logs to be deleted immediately after per-seed stats are taken.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def make_accum() -> dict:
+    return {atype: {
+        "seed_mus_imm": [], "seed_mus_fut": [], "seed_n_obs": [],
+        "sum_imm": np.zeros(5), "sum_fut": np.zeros(5), "total_obs": 0,
+    } for atype in AGENT_TYPES}
+
+
+def _accum_one_seed(seed_df: pd.DataFrame, gamma: float, accum: dict) -> None:
+    """Fold one seed's slim DataFrame into the accumulator (in-place)."""
+    for atype in AGENT_TYPES:
+        rows = _filter_has_neighbor(_rows_for_type(seed_df, atype))
+        if len(rows) == 0:
+            continue
+        imm_vecs, fut_vecs = _vecs_for_rows(rows, gamma)
+        n = len(rows)
+        accum[atype]["seed_mus_imm"].append(imm_vecs.mean(axis=0))
+        accum[atype]["seed_mus_fut"].append(fut_vecs.mean(axis=0))
+        accum[atype]["seed_n_obs"].append(n)
+        accum[atype]["sum_imm"]   += imm_vecs.sum(axis=0)
+        accum[atype]["sum_fut"]   += fut_vecs.sum(axis=0)
+        accum[atype]["total_obs"] += n
+
+
+def compute_per_seed_stats_from_accum(accum: dict) -> dict:
+    """Extract per-seed variance data from a completed accumulator."""
+    result = {}
+    for atype in AGENT_TYPES:
+        a = accum[atype]
+        result[atype] = {
+            "seed_mus_imm": np.array(a["seed_mus_imm"]) if a["seed_mus_imm"] else np.empty((0, 5)),
+            "seed_mus_fut": np.array(a["seed_mus_fut"]) if a["seed_mus_fut"] else np.empty((0, 5)),
+            "seed_n_obs":   a["seed_n_obs"],
+        }
+    return result
+
+
+def derive_profiles_from_accum(accum: dict) -> dict:
+    """Compute final observation-weighted BFE profiles from a completed accumulator."""
+    profiles = {}
+    for atype in AGENT_TYPES:
+        a = accum[atype]
+        if a["total_obs"] == 0:
+            log_model = DECISIONMODEL_IN_LOG.get(atype, atype)
+            print(f"  [warn] No qualifying observations for {atype} "
+                  f"(log value '{log_model}')")
+            continue
+        mu_imm = a["sum_imm"] / a["total_obs"]
+        mu_fut = a["sum_fut"] / a["total_obs"]
+        profiles[atype] = {
+            "mu_imm": [round(x, 6) for x in mu_imm],
+            "mu_fut":  [round(x, 6) for x in mu_fut],
+            "n_obs":   a["total_obs"],
+        }
+        print(f"  [{atype}] {a['total_obs']:,} qualifying observations")
+        print(f"         mu_imm: {dict(zip(COORD_LABELS, [round(x, 4) for x in mu_imm]))}")
+        print(f"         mu_fut:  {dict(zip(COORD_LABELS, [round(x, 4) for x in mu_fut]))}")
+    return profiles
+
+
+def _run_batch_and_accumulate(batch: list, cfg_to_log: dict, python_alias: str,
+                               accum: dict, gamma: float, num_cores: int,
+                               counter_offset: int, total_pending: int,
+                               keep_logs: bool) -> int:
+    """Run one batch of simulations, accumulate stats, optionally delete logs.
+
+    Returns the number of missing/empty logs in the batch.
+    """
+    manager = multiprocessing.Manager()
+    counter = manager.Value("i", counter_offset)
+    lock    = manager.Lock()
+    worker_args = [(p, python_alias, counter, lock, total_pending) for p in batch]
+    with multiprocessing.Pool(processes=num_cores) as pool:
+        pool.map(run_one_sim, worker_args)
+
+    n_missing = 0
+    for cfg_path in batch:
+        seed, agent_log_path = cfg_to_log[cfg_path]
+        df = agent_log_to_df(agent_log_path, seed_tag=seed, slim=True)
+        if df.empty:
+            n_missing += 1
+        else:
+            _accum_one_seed(df, gamma, accum)
+            if not keep_logs:
+                try:
+                    os.remove(agent_log_path)
+                except OSError:
+                    pass
+    return n_missing
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -417,11 +528,14 @@ def main(args):
         if s not in seeds:
             seeds.append(s)
 
-    # ── Build per-seed simulation configs (mixed population) ────────────────
-    pending = []
-    agent_log_paths = []
+    keep_logs = args.keep_logs
 
-    for seed in seeds:
+    # ── Build per-seed simulation configs (mixed population) ────────────────
+    pending    = []   # cfg paths that still need running
+    cfg_to_log = {}   # cfg_path -> (seed, agent_log_path)
+    cached     = {}   # seed    -> agent_log_path  (already-done seeds)
+
+    def _make_seed_cfg(seed):
         cfg = dict(base_cfg)
         cfg["seed"]               = seed
         cfg["timesteps"]          = timesteps
@@ -433,69 +547,80 @@ def main(args):
         cfg["keepAliveAtEnd"]     = False
         cfg["screenshots"]        = False
         cfg["profileMode"]        = False
-        # Mixed population: all four types in round-robin
         cfg["agentDecisionModels"] = AGENT_TYPES
-
         log_path       = os.path.join(sim_dir, f"deriv_{seed}.json")
         agent_log_path = os.path.join(sim_dir, f"deriv_{seed}_agents.json")
         cfg["logfile"]       = log_path
         cfg["agentLogfile"]  = agent_log_path
         cfg["logfileFormat"] = "json"
-
         cfg_path_out = os.path.join(sim_dir, f"deriv_{seed}.config")
         with open(cfg_path_out, "w") as f:
             json.dump(cfg, f)
+        return cfg_path_out, agent_log_path
 
-        agent_log_paths.append(agent_log_path)
-
-        if not force and os.path.exists(agent_log_path):
-            existing = safe_json_load(agent_log_path)
-            if existing and len(existing) > 0:
-                continue
-        pending.append(cfg_path_out)
+    for seed in seeds:
+        cfg_path_out, agent_log_path = _make_seed_cfg(seed)
+        cfg_to_log[cfg_path_out] = (seed, agent_log_path)
+        already_done = (not force and os.path.exists(agent_log_path)
+                        and safe_json_load(agent_log_path))
+        if already_done:
+            cached[seed] = agent_log_path
+        else:
+            pending.append(cfg_path_out)
 
     skip = num_seeds - len(pending)
     print(f"  {num_seeds} derivation sims: {skip} already done, {len(pending)} queued\n")
 
-    # ── Run simulations ─────────────────────────────────────────────────────
-    if pending:
-        manager = multiprocessing.Manager()
-        counter = manager.Value("i", 0)
-        lock    = manager.Lock()
-        worker_args = [(p, python_alias, counter, lock, len(pending)) for p in pending]
-        print(f"  Running {len(pending)} simulations ({num_cores} cores) …")
-        with multiprocessing.Pool(processes=num_cores) as pool:
-            pool.map(run_one_sim, worker_args)
+    # ── Streaming accumulator — never builds a combined DataFrame ───────────
+    accum    = make_accum()
+    n_missing = 0
+
+    # Load already-done (cached) seeds first
+    if cached:
+        print(f"  Loading {len(cached)} cached seed(s) …")
+        for seed, path in cached.items():
+            df = agent_log_to_df(path, seed_tag=seed, slim=True)
+            if df.empty:
+                n_missing += 1
+            else:
+                _accum_one_seed(df, gamma, accum)
+                if not keep_logs:
+                    try: os.remove(path)
+                    except OSError: pass
         print()
 
-    # ── Parse agent logs (seed-tagged for variance analysis) ───────────────
-    print("  Parsing agent logs …")
-    frames = []
-    missing = 0
-    for seed, path in zip(seeds, agent_log_paths):
-        df = agent_log_to_df(path, seed_tag=seed)
-        if df.empty:
-            missing += 1
-        else:
-            frames.append(df)
+    # Run pending seeds in batches of num_cores, process+delete after each batch
+    if pending:
+        batches = [pending[i:i + num_cores] for i in range(0, len(pending), num_cores)]
+        print(f"  Running {len(pending)} simulations ({num_cores} cores, "
+              f"{len(batches)} batch(es)) …")
+        offset = 0
+        for batch in batches:
+            n_miss = _run_batch_and_accumulate(
+                batch, cfg_to_log, python_alias, accum, gamma,
+                num_cores, offset, len(pending), keep_logs)
+            n_missing += n_miss
+            offset += len(batch)
+        print()
 
-    if not frames:
+    n_seeds_done = sum(len(a["seed_n_obs"]) for a in accum.values()
+                       if a["seed_n_obs"]) // max(1, len(AGENT_TYPES))
+    total_rows = sum(a["total_obs"] for a in accum.values())
+    if n_missing:
+        print(f"  [warn] {n_missing} log file(s) missing or empty.")
+    if total_rows == 0:
         print("  [error] No agent log data found.  Aborting.")
         sys.exit(1)
-
-    if missing:
-        print(f"  [warn] {missing} log file(s) missing or empty.")
-
-    combined = pd.concat(frames, ignore_index=True)
-    print(f"  Combined log: {len(combined):,} agent-timestep records\n")
+    print(f"  Accumulated: ~{total_rows:,} qualifying observations "
+          f"across {n_seeds_done} seed(s)\n")
 
     # ── Variance analysis & sample-size estimation ──────────────────────────
     print("  Variance analysis …\n")
-    per_seed_stats   = compute_per_seed_stats(combined, gamma=gamma)
-    sample_size_rpt  = estimate_required_seeds(per_seed_stats,
-                                               target_se=args.target_se)
+    per_seed_stats  = compute_per_seed_stats_from_accum(accum)
+    sample_size_rpt = estimate_required_seeds(per_seed_stats,
+                                              target_se=args.target_se)
     global_n_req, global_obs_req = print_variance_report(sample_size_rpt,
-                                                          args.target_se)
+                                                         args.target_se)
 
     # ── Expand seed pool if required ────────────────────────────────────────
     if global_n_req is not None and global_n_req > num_seeds:
@@ -504,70 +629,55 @@ def main(args):
               f"({extra_needed} more than the {num_seeds} run so far).")
         print(f"  Running {extra_needed} additional seed(s) …\n")
 
+        all_seen = set(seeds)
         extra_seeds = []
         candidate = num_seeds + 1
         while len(extra_seeds) < extra_needed:
             random.seed(candidate)
             s = random.randint(0, sys.maxsize)
-            if s not in seeds and s not in extra_seeds:
+            if s not in all_seen:
                 extra_seeds.append(s)
+                all_seen.add(s)
             candidate += 1
 
         extra_pending = []
-        extra_log_paths = []
         for seed in extra_seeds:
-            cfg = dict(base_cfg)
-            cfg["seed"]               = seed
-            cfg["timesteps"]          = timesteps
-            cfg["startingAgents"]     = num_agents
-            cfg["startingDiseases"]   = 0
-            cfg["headlessMode"]       = True
-            cfg["debugMode"]          = ["none"]
-            cfg["keepAlivePostExtinction"] = False
-            cfg["keepAliveAtEnd"]     = False
-            cfg["screenshots"]        = False
-            cfg["profileMode"]        = False
-            cfg["agentDecisionModels"] = AGENT_TYPES
-
-            log_path       = os.path.join(sim_dir, f"deriv_{seed}.json")
-            agent_log_path = os.path.join(sim_dir, f"deriv_{seed}_agents.json")
-            cfg["logfile"]       = log_path
-            cfg["agentLogfile"]  = agent_log_path
-            cfg["logfileFormat"] = "json"
-
-            cfg_path_out = os.path.join(sim_dir, f"deriv_{seed}.config")
-            with open(cfg_path_out, "w") as f:
-                json.dump(cfg, f)
-
-            extra_log_paths.append(agent_log_path)
-            if not os.path.exists(agent_log_path):
+            cfg_path_out, agent_log_path = _make_seed_cfg(seed)
+            cfg_to_log[cfg_path_out] = (seed, agent_log_path)
+            if os.path.exists(agent_log_path) and safe_json_load(agent_log_path):
+                df = agent_log_to_df(agent_log_path, seed_tag=seed, slim=True)
+                if not df.empty:
+                    _accum_one_seed(df, gamma, accum)
+                    if not keep_logs:
+                        try: os.remove(agent_log_path)
+                        except OSError: pass
+            else:
                 extra_pending.append(cfg_path_out)
 
         if extra_pending:
-            manager2 = multiprocessing.Manager()
-            counter2 = manager2.Value("i", 0)
-            lock2    = manager2.Lock()
-            worker_args2 = [(p, python_alias, counter2, lock2, len(extra_pending))
-                            for p in extra_pending]
-            with multiprocessing.Pool(processes=num_cores) as pool:
-                pool.map(run_one_sim, worker_args2)
+            batches = [extra_pending[i:i + num_cores]
+                       for i in range(0, len(extra_pending), num_cores)]
+            print(f"  Running {len(extra_pending)} extra simulations "
+                  f"({num_cores} cores, {len(batches)} batch(es)) …")
+            offset = 0
+            for batch in batches:
+                n_miss = _run_batch_and_accumulate(
+                    batch, cfg_to_log, python_alias, accum, gamma,
+                    num_cores, offset, len(extra_pending), keep_logs)
+                n_missing += n_miss
+                offset += len(batch)
             print()
 
-        for seed, path in zip(extra_seeds, extra_log_paths):
-            df = agent_log_to_df(path, seed_tag=seed)
-            if not df.empty:
-                frames.append(df)
-
-        combined = pd.concat(frames, ignore_index=True)
-        print(f"  Expanded log: {len(combined):,} agent-timestep records\n")
+        total_rows = sum(a["total_obs"] for a in accum.values())
+        print(f"  Expanded accumulator: ~{total_rows:,} qualifying observations\n")
     else:
         if global_n_req is not None:
             print(f"\n  Current {num_seeds} seeds already satisfy target SE "
                   f"(required {global_n_req}).\n")
 
-    # ── Derive BFE profiles from full (possibly expanded) dataset ──────────
+    # ── Derive BFE profiles from accumulator ────────────────────────────────
     print("  Computing BFE profiles …\n")
-    profiles = derive_profiles_bfe(combined, gamma=gamma)
+    profiles = derive_profiles_from_accum(accum)
 
     # ── φ-linear validation: predict Bentham as 0.5·Egoist + 0.5·Altruist ──
     phi_bfs = None
@@ -663,6 +773,9 @@ def parse_args():
     p.add_argument("--python",     default="python3")
     p.add_argument("--force",      action="store_true", default=False,
                    help="Re-run all derivation sims even if logs exist.")
+    p.add_argument("--keep-logs",  action="store_true", default=False,
+                   help="Keep raw agent JSON logs after processing (default: "
+                        "delete immediately to save disk space).")
     p.add_argument("--target-se",  type=float, default=DEFAULT_TARGET_SE,
                    help="Target standard error per vector component for "
                         "sample-size estimation. Script will run additional "
