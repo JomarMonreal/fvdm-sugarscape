@@ -70,14 +70,24 @@ def _build_profile_file(test_profiles, profile_key):
 
 
 def run_one(args):
-    cfg_path, profile_file, seed, profile_key = args
+    cfg_path, profile_file, seed, profile_key, counter, lock, total = args
     env = os.environ.copy()
     env["FVDM_PROFILE_PATH"] = profile_file
-    result = subprocess.run(
+    t0 = time.time()
+    subprocess.run(
         [PYTHON, "sugarscape.py", "--conf", cfg_path],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         env=env,
     )
+    dur = time.time() - t0
+    with lock:
+        counter.value += 1
+        n = counter.value
+        bar_filled = int(30 * n / total)
+        bar = "█" * bar_filled + "░" * (30 - bar_filled)
+        pct = n / total * 100
+        print(f"\r  [{bar}] {n:>3}/{total}  {pct:5.1f}%  {profile_key:<22} seed={seed}  ({dur:.1f}s)",
+              end="", flush=True)
     return cfg_path, seed, profile_key
 
 
@@ -132,23 +142,31 @@ def main(args):
             cfg_meta[cfg_path] = (pkey, seed, log_path)
 
     total = len(worker_args)
+    n_configs = sum(1 for k in test_profiles if not k.startswith("_"))
     print(f"\n{'='*60}")
     print(f"  Vector Config Survival Test")
-    print(f"  Configs: {len(test_profiles)}  Seeds: {args.seeds}  "
+    print(f"  Configs: {n_configs}  Seeds: {args.seeds}  "
           f"Timesteps: {args.timesteps}  Total runs: {total}")
     print(f"  Survival threshold: past timestep {SURVIVAL_MIN_TIMESTEP}")
     print(f"{'='*60}\n")
 
+    mgr     = multiprocessing.Manager()
+    counter = mgr.Value("i", 0)
+    lock    = mgr.Lock()
+    worker_args = [(cfg, pf, s, pk, counter, lock, total)
+                   for (cfg, pf, s, pk) in worker_args]
+
     cores = min(args.cores, total)
     t0 = time.time()
     with multiprocessing.Pool(processes=cores) as pool:
-        pool.map(run_one, worker_args)
+        for _ in pool.imap_unordered(run_one, worker_args):
+            pass
     elapsed = time.time() - t0
-    print(f"\n  Done in {elapsed:.1f}s\n")
+    print(f"\n\n  Done in {elapsed:.1f}s\n")
 
     # Aggregate results
     results = {}   # profile_key -> list of (pop, survived)
-    for (cfg_path, profile_file, seed, pkey) in worker_args:
+    for (cfg_path, pf, seed, pkey, *_rest) in worker_args:
         _, _, log_path = cfg_meta[cfg_path]
         pop, survived = check_survival(log_path, SURVIVAL_MIN_TIMESTEP)
         results.setdefault(pkey, []).append((pop, survived))
