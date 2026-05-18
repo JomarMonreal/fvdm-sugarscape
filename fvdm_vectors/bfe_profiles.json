@@ -1,0 +1,121 @@
+{
+  "description": "BFE prioritization profiles for FVDM agent types",
+  "coordinate_labels": {
+    "imm": [
+      "I (intensity)",
+      "D (duration)",
+      "C (certainty)",
+      "P=1 (propinquity)",
+      "E=1/|V| (extent)"
+    ],
+    "fut": [
+      "J (future intensity)",
+      "Df (future duration)",
+      "C (certainty)",
+      "P=gamma (propinquity)",
+      "E=1/|V| (extent)"
+    ]
+  },
+  "derivation_config": {
+    "seeds": 37,
+    "timesteps": 5000,
+    "agents": 250,
+    "gamma": 0.5,
+    "filter": "neighbors_gt_0",
+    "agent_types": [
+      "rawSugarscape",
+      "egoist",
+      "altruist",
+      "bentham"
+    ]
+  },
+  "profiles": {
+    "rawSugarscape": {
+      "mu_imm": [
+        0.05103,
+        0.28444,
+        1.0,
+        1.0,
+        0.055597
+      ],
+      "mu_fut": [
+        0.153119,
+        0.03883,
+        1.0,
+        0.5,
+        0.055597
+      ],
+      "n_obs": 62950718
+    },
+    "egoist": {
+      "mu_imm": [
+        0.045763,
+        0.286138,
+        1.0,
+        1.0,
+        0.056665
+      ],
+      "mu_fut": [
+        0.154376,
+        0.041556,
+        1.0,
+        0.5,
+        0.056665
+      ],
+      "n_obs": 60721619
+    },
+    "altruist": {
+      "mu_imm": [
+        0.049114,
+        0.285266,
+        1.0,
+        1.0,
+        0.061604
+      ],
+      "mu_fut": [
+        0.162631,
+        0.050184,
+        1.0,
+        0.5,
+        0.061604
+      ],
+      "n_obs": 34702486
+    },
+    "bentham": {
+      "mu_imm": [
+        0.071025,
+        0.264039,
+        1.0,
+        1.0,
+        0.084871
+      ],
+      "mu_fut": [
+        0.267081,
+        0.052607,
+        1.0,
+        0.5,
+        0.084871
+      ],
+      "n_obs": 3247704
+    }
+  },
+  "phi_linear_validation": {
+    "mu_imm": [
+      0.047438,
+      0.285702,
+      1.0,
+      1.0,
+      0.059134
+    ],
+    "mu_fut": [
+      0.158504,
+      0.04587,
+      1.0,
+      0.5,
+      0.059134
+    ],
+    "cos_imm": 0.999596,
+    "cos_fut": 0.995402,
+    "phi_bfs": 0.997499
+  }
+}
