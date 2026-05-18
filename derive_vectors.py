@@ -21,7 +21,7 @@ NOTE: sugarscape.py maps the "rawSugarscape" decision model to "none" internally
 
 Variance analysis:
   Per-seed mu vectors are computed first.  Their variance across seeds drives a
-  sample-size estimate: n_seeds >= ceil(z^2 * sigma^2 / epsilon^2) per component.
+  sample-size estimate: n_seeds >= ceil(sigma^2 / epsilon^2) per component.
   The script reports the required number of seeds and ensures they are run before
   computing the final pooled profiles.
 
@@ -65,7 +65,7 @@ GAMMA_DEFAULT = 0.5
 
 # Default target standard error for sample-size estimation (per vector component).
 # Components are in [0, 1], so 0.005 ≈ 0.5% precision.
-DEFAULT_TARGET_SE = 0.005
+DEFAULT_TARGET_SE = 0.02
 
 COORD_LABELS = ["I", "D", "C", "P", "E"]
 
@@ -232,7 +232,7 @@ def estimate_required_seeds(per_seed_stats: dict,
     For each agent type, estimate how many seeds are needed so that the
     standard error of every vector component is <= target_se.
 
-    Uses: n_required = ceil((z * sigma / target_se)^2)
+    Uses: n_required = ceil((sigma / target_se)^2)
 
     Returns:
         dict atype -> {"n_current": int,
@@ -258,8 +258,8 @@ def estimate_required_seeds(per_seed_stats: dict,
         se_fut    = sigma_fut / np.sqrt(n)
 
         # worst-case component (largest sigma)
-        n_req_imm = np.ceil((z * sigma_imm / target_se) ** 2).astype(int)
-        n_req_fut = np.ceil((z * sigma_fut / target_se) ** 2).astype(int)
+        n_req_imm = np.ceil((sigma_imm / target_se) ** 2).astype(int)
+        n_req_fut = np.ceil((sigma_fut / target_se) ** 2).astype(int)
         n_required = int(max(n_req_imm.max(), n_req_fut.max()))
 
         mean_obs_per_seed = (np.mean(r["seed_n_obs"])
@@ -615,7 +615,7 @@ def main(args):
             "timesteps": timesteps,
             "agents": num_agents,
             "gamma": gamma,
-            "contested_only": True,
+            "filter": "neighbors_gt_0",
             "agent_types": AGENT_TYPES,
         },
         "profiles": {k: {kk: vv for kk, vv in v.items()} for k, v in profiles.items()},

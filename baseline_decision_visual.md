@@ -545,7 +545,13 @@ STEP 1: Run mixed-population simulations
 │
 │   A single simulation contains all four baseline agent types
 │   (rawSugarscape, egoist, bentham, altruist) in a round-robin mix.
-│   Many seeds are run to reduce variance.
+│   Round-robin means agents are assigned types in a cycling sequence:
+│   agent 1 → rawSugarscape, agent 2 → egoist, agent 3 → altruist,
+│   agent 4 → bentham, agent 5 → rawSugarscape, … and so on.
+│   With 250 starting agents this yields ~62–63 of each type,
+│   evenly distributed across the grid from the start.
+│   Many seeds are run to measure variance and determine the
+│   minimum number of seeds needed for a stable profile estimate.
 │
 │   ┌───────────────────────────────────────────────┐
 │   │  Sim seed 1  →  agent log (all timesteps)     │
@@ -554,21 +560,28 @@ STEP 1: Run mixed-population simulations
 │   │  Sim seed N  →  agent log (all timesteps)     │
 │   └───────────────────────────────────────────────┘
 
-STEP 2: Filter to contested moves only
+STEP 2: Filter to moves where at least one neighbor is present
 │
-│   A move is contested when the chosen cell was occupied by an
-│   agent of a different tribe. These moments reveal the agent's
-│   true preference under conflict — the ethically meaningful case.
-│   Uncontested moves are excluded (the agent had no real choice).
+│   A qualifying move is any timestep where the agent had at least
+│   one other living agent within its vision range (neighbors > 0).
+│   These moments capture decisions made in a social context —
+│   the agent's choice was shaped by the presence of others, making
+│   it ethically meaningful regardless of whether the destination
+│   cell was occupied.
+│
+│   Contested moves (destination cell occupied by a rival) are a
+│   subset of this filter and are included automatically.
+│   Uncontested moves in empty neighborhoods are excluded because
+│   the agent had no real social choice to make.
 │
 │   All timesteps:  ████░████░░███░████░░░████░░██
-│                         ↑   ↑        ↑   ↑  ↑
-│   Contested only:       ●   ●        ●   ●  ●
-│                   (only these rows enter the derivation)
+│                   ↑↑↑↑ ↑↑↑↑    ↑↑↑ ↑↑↑↑   ↑↑↑↑
+│   neighbors > 0:  ● ●● ●●●     ● ● ●●●●   ●●●●
+│                   (these rows enter the derivation)
 
-STEP 3: Compute effect vectors for each contested observation
+STEP 3: Compute effect vectors for each qualifying observation
 │
-│   For every qualifying row in the agent log:
+│   For every row that passed the neighbors > 0 filter:
 │
 │     row  →  compute v_imm(c)  =  [I,  D,  1,  1,   1/|V|]
 │          →  compute v_fut(c)  =  [J,  Df, 1,  γ,   1/|V|]
@@ -603,7 +616,8 @@ STEP 5: Save profiles to bfe_profiles.json
 
 **Optional validation — φ-linearity check:**
 Because the baseline Bentham agent is defined as φ = 0.5 (exactly halfway
-between Egoist and Altruist), a consistency check tests whether:
+between Egoist and Altruist), a consistency check tests whether the profiles
+derived from observed neighbor-present moves satisfy:
 
 ```
   mu_bentham  ≈  0.5 × mu_egoist  +  0.5 × mu_altruist
@@ -708,11 +722,11 @@ OFFLINE (run once, before experiments)            ONLINE (each simulation timest
  Baseline sims (mixed population)                 FVDM agent stands at current cell
          │                                                 │
          ▼                                                 ▼
- Filter contested moves                           Load profile (mu_imm, mu_fut)
+ Filter: neighbors > 0                            Load profile (mu_imm, mu_fut)
          │                                                 │
          ▼                                                 ▼
  Compute v_imm(c), v_fut(c)                       For each candidate cell c:
- per contested observation                          compute v_imm(c), v_fut(c)
+ per qualifying observation                          compute v_imm(c), v_fut(c)
          │                                                 │
          ▼                                                 ▼
  Average per agent type                           dist(c) = ‖mu_imm−v_imm‖
@@ -924,14 +938,18 @@ measure or control this behavioral drift. It only knows the design parameter φ.
 A single simulation with all four agent types at once:
   rawSugarscape : egoist : altruist : bentham  (round-robin mix)
 
-For every timestep, for every agent that moves to a contested cell:
+  Round-robin: 250 agents assigned types cyclically →
+  ~62–63 of each type, evenly distributed from the start.
+
+For every timestep, for every agent that had at least one neighbor
+in its vision range (neighbors > 0):
   → record the chosen cell's welfare fingerprint (v_imm, v_fut)
 ```
 
 **What we compute:**
 
 ```
-Across all observations, per agent type:
+Across all qualifying observations (neighbors > 0), per agent type:
 
   Egoist agents chose cells with fingerprints:
       obs 1: [0.31, 0.28, 1, 1, 0.20]  ← v_imm
@@ -942,12 +960,19 @@ Across all observations, per agent type:
       mu_imm_egoist = [0.27, 0.31, 1, 1, 0.21]  ← the profile
 
   Same process for Altruist, Bentham, rawSugarscape.
+
+Variance analysis:
+  Per-seed mu vectors are computed before pooling.
+  Their variance across seeds determines the minimum number of seeds
+  needed: n_req = ceil((z * sigma / epsilon)^2) per component.
+  Additional seeds are run automatically if the initial batch
+  is insufficient, ensuring the final profile is statistically stable.
 ```
 
 **What this reveals:**
 
 Each agent type has a characteristic *kind of cell* it moves toward when
-competing for resources. That characteristic is stable across seeds, across
+other agents are nearby. That characteristic is stable across seeds, across
 timesteps, and across different starting conditions. It is an empirical
 fingerprint derived purely from observed behavior — no φ value is assumed or
 required to compute it.
