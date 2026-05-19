@@ -198,7 +198,9 @@ class Sugarscape:
 
             # If using a different decision model, replace new agent with instance of child class
             dm_lower = agentConfiguration["decisionModel"].lower()
-            if "fvdmphi" in dm_lower:
+            if "phibfe" in dm_lower:
+                a = ethics.FVDMBFEAgent(agentID, self.timestep, placementCell, agentConfiguration)
+            elif "fvdmphi" in dm_lower:
                 a = ethics.FVDMPhiAgent(agentID, self.timestep, placementCell, agentConfiguration)
             elif "fvdm" in dm_lower:
                 a = ethics.FVDMAgent(agentID, self.timestep, placementCell, agentConfiguration)

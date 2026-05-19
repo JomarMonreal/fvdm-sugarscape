@@ -627,3 +627,131 @@ class FVDMPhiAgent(Bentham):
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return FVDMPhiAgent(childID, birthday, cell, configuration)
+
+
+class FVDMBFEAgent(Bentham):
+    """
+    Corrected BFE derivation agent.
+
+    Decision rule: identical to Bentham — c* = argmax φ·h_self + (1-φ)·h_neighbors.
+
+    After each move, computes the net felicific feature vector:
+      v_net = φ × v_self(c*) − (1−φ) × mean_k( v_k(c*) )
+
+    where v_k(c*) is the feature vector neighbour k WOULD have gotten from c*
+    (the value denied to them by taking the cell).  This correctly encodes the
+    opportunity-cost term of the welfare function into the BFE profile.
+
+    Logs: bfe_v_imm_[I,D,C,P,E] and bfe_v_fut_[I,D,C,P,E] as net vectors so
+    derive_vectors_phi.py can average them into corrected profiles.
+    """
+
+    _PHI_MAP = {
+        "phibferaw":      1.0,
+        "phibfeegoist":   1.0,
+        "phibfealtruist": 0.0,
+        "phibfebentham":  0.5,
+    }
+
+    def __init__(self, agentID, birthday, cell, configuration):
+        super().__init__(agentID, birthday, cell, configuration)
+        dm = configuration.get("decisionModel", "").lower()
+        for substr, phi_val in self._PHI_MAP.items():
+            if substr in dm:
+                self.selfishnessFactor = phi_val
+                break
+        self._bfe_v_imm = np.zeros(5)
+        self._bfe_v_fut = np.zeros(5)
+
+    # ── Per-agent feature vector computation ─────────────────────────────────
+
+    def _v_imm_for(self, a, cell) -> np.ndarray:
+        """Immediate BFE vector for agent a at candidate cell."""
+        ttl  = max(0.0, a.findTimeToLive())
+        poll = max(0.0, float(cell.pollution))
+        m    = max(1.0, float(a.findSugarMetabolism() + a.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        try:
+            v = max(1, len(a.cellsInRange))
+        except Exception:
+            v = 1
+        I = 1.0 / ((1.0 + ttl) * (1.0 + poll))
+        D = min(1.0, w_c / (m * w_c_max))
+        return np.array([I, D, 1.0, 1.0, 1.0 / v])
+
+    def _v_fut_for(self, a, cell) -> np.ndarray:
+        """Future BFE vector for agent a at candidate cell."""
+        m       = max(1.0, float(a.findSugarMetabolism() + a.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        try:
+            v = max(1, len(a.cellsInRange))
+        except Exception:
+            v = 1
+        env        = cell.environment
+        w_glob_max = max(1.0, float(env.globalMaxSugar + env.globalMaxSpice))
+        w_adj      = float(cell.findNeighborWealth())
+        n_adj      = max(1, len(cell.neighbors))
+        try:
+            gamma = float(a.decisionModelLookaheadDiscount) if a.decisionModelLookaheadDiscount else 0.5
+        except Exception:
+            gamma = 0.5
+        J  = w_adj / (w_glob_max * n_adj)
+        Df = max(0.0, w_c - m) / (m * w_c_max)
+        return np.array([J, Df, 1.0, gamma, 1.0 / v])
+
+    # ── Cell selection with v_net computation ────────────────────────────────
+
+    def findBestEthicalCell(self, cells, greedyBestCell=None):
+        chosen = super().findBestEthicalCell(cells, greedyBestCell)
+        if chosen is None:
+            return chosen
+
+        phi        = float(self.selfishnessFactor)
+        v_self_imm = self._v_imm_for(self, chosen)
+        v_self_fut = self._v_fut_for(self, chosen)
+
+        # Pure egoist: opportunity cost term is zero
+        if phi >= 1.0 - 1e-9 or not self.neighborhood:
+            self._bfe_v_imm = v_self_imm
+            self._bfe_v_fut = v_self_fut
+            return chosen
+
+        # Collect feature vectors of reachable neighbours (those who could have
+        # taken this cell — the agents whose opportunity is being denied)
+        other_imm, other_fut = [], []
+        for k in self.neighborhood:
+            if k is self:
+                continue
+            try:
+                if not k.canReachCell(chosen):
+                    continue
+            except Exception:
+                continue
+            other_imm.append(self._v_imm_for(k, chosen))
+            other_fut.append(self._v_fut_for(k, chosen))
+
+        if other_imm:
+            mean_other_imm = np.mean(other_imm, axis=0)
+            mean_other_fut = np.mean(other_fut, axis=0)
+            self._bfe_v_imm = phi * v_self_imm - (1.0 - phi) * mean_other_imm
+            self._bfe_v_fut = phi * v_self_fut - (1.0 - phi) * mean_other_fut
+        else:
+            # No reachable neighbours: self vector only
+            self._bfe_v_imm = v_self_imm
+            self._bfe_v_fut = v_self_fut
+
+        return chosen
+
+    # ── Runtime stats ─────────────────────────────────────────────────────────
+
+    def updateRuntimeStats(self):
+        super().updateRuntimeStats()
+        labels = ["I", "D", "C", "P", "E"]
+        for i, lbl in enumerate(labels):
+            self.runtimeStats[f"bfe_v_imm_{lbl}"] = round(float(self._bfe_v_imm[i]), 6)
+            self.runtimeStats[f"bfe_v_fut_{lbl}"] = round(float(self._bfe_v_fut[i]), 6)
+
+    def spawnChild(self, childID, birthday, cell, configuration):
+        return FVDMBFEAgent(childID, birthday, cell, configuration)
