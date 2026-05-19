@@ -755,3 +755,169 @@ class FVDMBFEAgent(Bentham):
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return FVDMBFEAgent(childID, birthday, cell, configuration)
+
+
+class FVDMArgminAgent(Bentham):
+    """
+    FVDM with consistent argmin in v_net (opportunity-cost) space.
+
+    At each timestep, for every candidate cell c:
+
+      v_net_imm(c) = φ · v_imm_self(c)  −  (1−φ) · mean_k[ v_imm_k(c) ]
+      v_net_fut(c) = φ · v_fut_self(c)  −  (1−φ) · mean_k[ v_fut_k(c) ]
+
+      dist(c) = ‖ μ_imm − v_net_imm(c) ‖₂  +  ‖ μ_fut − v_net_fut(c) ‖₂
+
+    c* = argmin dist(c)
+
+    Both the target (μ from bfe_profiles_phi.json) and the candidates (v_net(c))
+    live in the same opportunity-cost space — the comparison is consistent.
+
+    Agent types (decisionModel substrings → φ, profile):
+      fvdmArgminRaw      → φ=1.0, "rawSugarscape"
+      fvdmArgminEgoist   → φ=1.0, "egoist"
+      fvdmArgminAltruist → φ=0.0, "altruist"
+      fvdmArgminBentham  → φ=0.5, "bentham"
+    """
+
+    _PROFILES    = None
+    _PROFILE_PATH = "fvdm_vectors/bfe_profiles_phi.json"
+
+    _PHI_MAP = {
+        "fvdmargminraw":      (1.0, "rawSugarscape"),
+        "fvdmargminegoist":   (1.0, "egoist"),
+        "fvdmargminaltruist": (0.0, "altruist"),
+        "fvdmargminbentham":  (0.5, "bentham"),
+    }
+
+    @classmethod
+    def _load_profiles(cls):
+        if cls._PROFILES is not None:
+            return
+        import json, os
+        cls._PROFILES = {}
+        path = os.environ.get("FVDM_PHI_PROFILE_PATH", cls._PROFILE_PATH)
+        if os.path.exists(path):
+            with open(path) as f:
+                data = json.load(f)
+            cls._PROFILES = data.get("profiles", {})
+        else:
+            print(f"[FVDMArgminAgent] Profile not found at {path}. "
+                  "Run derive_vectors_phi.py --homogeneous first. Using zero fallback.")
+
+    def __init__(self, agentID, birthday, cell, configuration):
+        super().__init__(agentID, birthday, cell, configuration)
+        self._load_profiles()
+        dm = configuration.get("decisionModel", "").lower()
+        phi, profile_key = 0.5, "bentham"
+        for substr, (pv, pk) in self._PHI_MAP.items():
+            if substr in dm:
+                phi, profile_key = pv, pk
+                break
+        self._phi = phi
+        self.selfishnessFactor = phi
+        profile = self._PROFILES.get(profile_key, {})
+        self.mu_imm = np.array(profile.get("mu_imm", [0.0] * 5), dtype=float)
+        self.mu_fut = np.array(profile.get("mu_fut", [0.0] * 5), dtype=float)
+        self._chosen_v_net_imm = np.zeros(5)
+        self._chosen_v_net_fut = np.zeros(5)
+
+    # ── Per-agent feature vectors ─────────────────────────────────────────────
+
+    def _v_imm_for(self, a, cell) -> np.ndarray:
+        ttl  = max(0.0, a.findTimeToLive())
+        poll = max(0.0, float(cell.pollution))
+        m    = max(1.0, float(a.findSugarMetabolism() + a.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        try:
+            v = max(1, len(a.cellsInRange))
+        except Exception:
+            v = 1
+        I = 1.0 / ((1.0 + ttl) * (1.0 + poll))
+        D = min(1.0, w_c / (m * w_c_max))
+        return np.array([I, D, 1.0, 1.0, 1.0 / v])
+
+    def _v_fut_for(self, a, cell) -> np.ndarray:
+        m       = max(1.0, float(a.findSugarMetabolism() + a.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        try:
+            v = max(1, len(a.cellsInRange))
+        except Exception:
+            v = 1
+        env        = cell.environment
+        w_glob_max = max(1.0, float(env.globalMaxSugar + env.globalMaxSpice))
+        w_adj      = float(cell.findNeighborWealth())
+        n_adj      = max(1, len(cell.neighbors))
+        try:
+            gamma = float(a.decisionModelLookaheadDiscount) if a.decisionModelLookaheadDiscount else 0.5
+        except Exception:
+            gamma = 0.5
+        J  = w_adj / (w_glob_max * n_adj)
+        Df = max(0.0, w_c - m) / (m * w_c_max)
+        return np.array([J, Df, 1.0, gamma, 1.0 / v])
+
+    # ── v_net for a single candidate cell ────────────────────────────────────
+
+    def _v_net_for_cell(self, cell):
+        """v_net(c) = φ·v_self(c) − (1−φ)·mean_k[v_k(c)], k = reachable neighbours."""
+        phi        = self._phi
+        v_self_imm = self._v_imm_for(self, cell)
+        v_self_fut = self._v_fut_for(self, cell)
+
+        if phi >= 1.0 - 1e-9 or not self.neighborhood:
+            return v_self_imm, v_self_fut
+
+        other_imm, other_fut = [], []
+        for k in self.neighborhood:
+            if k is self:
+                continue
+            try:
+                if not k.canReachCell(cell):
+                    continue
+            except Exception:
+                continue
+            other_imm.append(self._v_imm_for(k, cell))
+            other_fut.append(self._v_fut_for(k, cell))
+
+        if other_imm:
+            mean_imm = np.mean(other_imm, axis=0)
+            mean_fut = np.mean(other_fut, axis=0)
+            return (phi * v_self_imm - (1.0 - phi) * mean_imm,
+                    phi * v_self_fut - (1.0 - phi) * mean_fut)
+        return v_self_imm, v_self_fut
+
+    # ── Cell selection: argmin ||μ − v_net(c)|| ──────────────────────────────
+
+    def findBestEthicalCell(self, cells, greedyBestCell=None):
+        if not cells:
+            return greedyBestCell
+
+        best_cell = None
+        best_dist = float("inf")
+
+        for cell_dict in cells:
+            c = cell_dict["cell"]
+            v_net_imm, v_net_fut = self._v_net_for_cell(c)
+            dist = (np.linalg.norm(self.mu_imm - v_net_imm) +
+                    np.linalg.norm(self.mu_fut  - v_net_fut))
+            if dist < best_dist:
+                best_dist = dist
+                best_cell = c
+                self._chosen_v_net_imm = v_net_imm
+                self._chosen_v_net_fut = v_net_fut
+
+        return best_cell if best_cell is not None else greedyBestCell
+
+    # ── Runtime stats ─────────────────────────────────────────────────────────
+
+    def updateRuntimeStats(self):
+        super().updateRuntimeStats()
+        labels = ["I", "D", "C", "P", "E"]
+        for i, lbl in enumerate(labels):
+            self.runtimeStats[f"argmin_v_imm_{lbl}"] = round(float(self._chosen_v_net_imm[i]), 6)
+            self.runtimeStats[f"argmin_v_fut_{lbl}"] = round(float(self._chosen_v_net_fut[i]), 6)
+
+    def spawnChild(self, childID, birthday, cell, configuration):
+        return FVDMArgminAgent(childID, birthday, cell, configuration)

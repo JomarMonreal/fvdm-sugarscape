@@ -200,6 +200,8 @@ class Sugarscape:
             dm_lower = agentConfiguration["decisionModel"].lower()
             if "phibfe" in dm_lower:
                 a = ethics.FVDMBFEAgent(agentID, self.timestep, placementCell, agentConfiguration)
+            elif "fvdmargmin" in dm_lower:
+                a = ethics.FVDMArgminAgent(agentID, self.timestep, placementCell, agentConfiguration)
             elif "fvdmphi" in dm_lower:
                 a = ethics.FVDMPhiAgent(agentID, self.timestep, placementCell, agentConfiguration)
             elif "fvdm" in dm_lower:
