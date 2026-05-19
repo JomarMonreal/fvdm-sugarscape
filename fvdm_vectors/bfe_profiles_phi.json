@@ -1,0 +1,96 @@
+{
+  "description": "Corrected BFE profiles from h(c) = \u03c6\u00b7h_self \u2212 (1\u2212\u03c6)\u00b7\u03a3 h_k. v_net = \u03c6\u00b7v_self(c*) \u2212 (1\u2212\u03c6)\u00b7mean_k(v_k(c*)) averaged over qualifying timesteps (neighbors > 0).",
+  "coordinate_labels": {
+    "imm": [
+      "I_net",
+      "D_net",
+      "C_net",
+      "P_net",
+      "E_net"
+    ],
+    "fut": [
+      "J_net",
+      "Df_net",
+      "C_net",
+      "Pgamma_net",
+      "E_net"
+    ]
+  },
+  "derivation_config": {
+    "method": "phi_opportunity_cost",
+    "mode": "homogeneous",
+    "seeds": 10,
+    "timesteps": 1000,
+    "agents": 250
+  },
+  "profiles": {
+    "rawSugarscape": {
+      "mu_imm": [
+        0.043467,
+        0.296781,
+        1.0,
+        1.0,
+        0.066354
+      ],
+      "mu_fut": [
+        0.175303,
+        0.062742,
+        1.0,
+        0.5,
+        0.066354
+      ],
+      "n_obs": 4502296
+    },
+    "egoist": {
+      "mu_imm": [
+        0.043467,
+        0.296781,
+        1.0,
+        1.0,
+        0.066354
+      ],
+      "mu_fut": [
+        0.175303,
+        0.062742,
+        1.0,
+        0.5,
+        0.066354
+      ],
+      "n_obs": 4502296
+    },
+    "altruist": {
+      "mu_imm": [
+        -0.045564,
+        -0.258216,
+        -0.921918,
+        -0.921918,
+        -0.062239
+      ],
+      "mu_fut": [
+        -0.17151,
+        -0.052092,
+        -0.921918,
+        -0.460959,
+        -0.062239
+      ],
+      "n_obs": 3251346
+    },
+    "bentham": {
+      "mu_imm": [
+        0.017688,
+        0.118627,
+        0.332333,
+        0.332333,
+        0.058455
+      ],
+      "mu_fut": [
+        0.067875,
+        0.030671,
+        0.332333,
+        0.166166,
+        0.058455
+      ],
+      "n_obs": 7565126
+    }
+  }
+}
