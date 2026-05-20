@@ -660,8 +660,13 @@ class FVDMBFEAgent(Bentham):
             if substr in dm:
                 self.selfishnessFactor = phi_val
                 break
-        self._bfe_v_imm = np.zeros(5)
-        self._bfe_v_fut = np.zeros(5)
+        self._bfe_v_imm  = np.zeros(5)
+        self._bfe_v_fut   = np.zeros(5)
+        self._self_v_imm  = np.zeros(5)
+        self._self_v_fut   = np.zeros(5)
+        self._nbr_v_imm   = np.zeros(5)
+        self._nbr_v_fut    = np.zeros(5)
+        self._has_nbrs    = False
 
     # ── Per-agent feature vector computation ─────────────────────────────────
 
@@ -712,35 +717,44 @@ class FVDMBFEAgent(Bentham):
         v_self_imm = self._v_imm_for(self, chosen)
         v_self_fut = self._v_fut_for(self, chosen)
 
-        # Pure egoist: opportunity cost term is zero
-        if phi >= 1.0 - 1e-9 or not self.neighborhood:
-            self._bfe_v_imm = v_self_imm
-            self._bfe_v_fut = v_self_fut
-            return chosen
+        # Store φ-scaled self vectors for factored derivation
+        self._self_v_imm = phi * v_self_imm
+        self._self_v_fut  = phi * v_self_fut
 
-        # Collect feature vectors of reachable neighbours (those who could have
-        # taken this cell — the agents whose opportunity is being denied)
+        # Collect feature vectors of reachable neighbours (always, for factored
+        # derivation and the opportunity-cost v_net term)
         other_imm, other_fut = [], []
-        for k in self.neighborhood:
-            if k is self:
-                continue
-            try:
-                if not k.canReachCell(chosen):
+        if self.neighborhood:
+            for k in self.neighborhood:
+                if k is self:
                     continue
-            except Exception:
-                continue
-            other_imm.append(self._v_imm_for(k, chosen))
-            other_fut.append(self._v_fut_for(k, chosen))
+                try:
+                    if not k.canReachCell(chosen):
+                        continue
+                except Exception:
+                    continue
+                other_imm.append(self._v_imm_for(k, chosen))
+                other_fut.append(self._v_fut_for(k, chosen))
 
         if other_imm:
-            mean_other_imm = np.mean(other_imm, axis=0)
-            mean_other_fut = np.mean(other_fut, axis=0)
-            self._bfe_v_imm = phi * v_self_imm - (1.0 - phi) * mean_other_imm
-            self._bfe_v_fut = phi * v_self_fut - (1.0 - phi) * mean_other_fut
+            mean_other_imm  = np.mean(other_imm, axis=0)
+            mean_other_fut  = np.mean(other_fut, axis=0)
+            nbr_weight      = 1.0 - phi
+            self._nbr_v_imm = nbr_weight * mean_other_imm
+            self._nbr_v_fut  = nbr_weight * mean_other_fut
+            self._has_nbrs  = True
         else:
-            # No reachable neighbours: self vector only
+            self._nbr_v_imm = np.zeros(5)
+            self._nbr_v_fut  = np.zeros(5)
+            self._has_nbrs  = False
+
+        # v_net for backward-compatible BFE profile (opportunity-cost formulation)
+        if phi >= 1.0 - 1e-9 or not other_imm:
             self._bfe_v_imm = v_self_imm
-            self._bfe_v_fut = v_self_fut
+            self._bfe_v_fut  = v_self_fut
+        else:
+            self._bfe_v_imm = phi * v_self_imm - (1.0 - phi) * mean_other_imm
+            self._bfe_v_fut  = phi * v_self_fut - (1.0 - phi) * mean_other_fut
 
         return chosen
 
@@ -750,8 +764,13 @@ class FVDMBFEAgent(Bentham):
         super().updateRuntimeStats()
         labels = ["I", "D", "C", "P", "E"]
         for i, lbl in enumerate(labels):
-            self.runtimeStats[f"bfe_v_imm_{lbl}"] = round(float(self._bfe_v_imm[i]), 6)
-            self.runtimeStats[f"bfe_v_fut_{lbl}"] = round(float(self._bfe_v_fut[i]), 6)
+            self.runtimeStats[f"bfe_v_imm_{lbl}"]      = round(float(self._bfe_v_imm[i]),  6)
+            self.runtimeStats[f"bfe_v_fut_{lbl}"]       = round(float(self._bfe_v_fut[i]),   6)
+            self.runtimeStats[f"bfe_self_v_imm_{lbl}"] = round(float(self._self_v_imm[i]),  6)
+            self.runtimeStats[f"bfe_self_v_fut_{lbl}"]  = round(float(self._self_v_fut[i]),   6)
+            self.runtimeStats[f"bfe_nbr_v_imm_{lbl}"]  = round(float(self._nbr_v_imm[i]),   6)
+            self.runtimeStats[f"bfe_nbr_v_fut_{lbl}"]   = round(float(self._nbr_v_fut[i]),    6)
+        self.runtimeStats["bfe_has_nbrs"] = int(self._has_nbrs)
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return FVDMBFEAgent(childID, birthday, cell, configuration)

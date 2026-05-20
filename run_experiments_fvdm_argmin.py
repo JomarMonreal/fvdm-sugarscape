@@ -364,10 +364,21 @@ def main(args):
     # ── BFS vs derived ────────────────────────────────────────────────────────
     bfs_rows = compute_bfs_vs_derived(felicific_rows, PROFILE_PATH)
 
+    # ── Flatten felicific rows for CSV (mu_imm/mu_fut lists → columns) ────────
+    flat_felicific = []
+    for r in felicific_rows:
+        row = {"condition": r["condition"], "seed": r["seed"], "n_obs": r["n_obs"]}
+        for i, lbl in enumerate(IMM_LABELS):
+            row[f"mu_imm_{lbl}"] = round(float(r["mu_imm"][i]), 6)
+        for i, lbl in enumerate(FUT_LABELS):
+            row[f"mu_fut_{lbl}"] = round(float(r["mu_fut"][i]), 6)
+        flat_felicific.append(row)
+
     # ── Write CSVs ────────────────────────────────────────────────────────────
     write_csv(os.path.join(OUTPUT_DIR, "per_seed_summary.csv"),    summary_rows)
     write_csv(os.path.join(OUTPUT_DIR, "condition_aggregates.csv"), aggregate_summaries(summary_rows))
     write_csv(os.path.join(OUTPUT_DIR, "bfs_vs_derived.csv"),       bfs_rows)
+    write_csv(os.path.join(OUTPUT_DIR, "per_seed_felicific.csv"),   flat_felicific)
 
     # ── Print summary table ───────────────────────────────────────────────────
     agg = aggregate_summaries(summary_rows)

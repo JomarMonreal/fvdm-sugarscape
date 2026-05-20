@@ -425,38 +425,34 @@ The Altruist returns a **negative score** for this cell. Moving here would harm 
 
 ## What Changes from the Baseline
 
-The baseline agent scores every candidate cell by computing a happiness value `h(c)` through the hedonic formula and picks the cell that maximises it. The selfishness factor φ determines how much the agent weights its own gain versus the welfare of others — but φ is a design parameter set by the researcher, not something measurable from observed behaviour.
-
-FVDM does not replace the φ-welfare decision rule. Instead, it adds a **measurement layer**: it records the *net welfare fingerprint* of every decision and computes an empirical profile of what kind of moves each agent type characteristically makes in social contexts. That profile — the **Behavioral Feature Expectation (BFE)** — is a post-hoc verification instrument.
+The baseline agent scores every candidate cell by computing a happiness value
+`h(c)` through the hedonic formula, then picks the highest-scoring cell.
+FVDM replaces that scoring rule with **distance matching in opportunity-cost
+space**: instead of asking "which cell gives me the most welfare?", it asks
+"which cell's welfare fingerprint most closely matches my derived profile?"
 
 ```
-BASELINE AGENT                    FVDM AGENT  (φ-Welfare + BFE Measurement)
-──────────────────────────────    ────────────────────────────────────────────
+BASELINE AGENT                    FVDM AGENT  (Consistent Argmin in v_net space)
+──────────────────────────────    ────────────────────────────────────────────────
 For each candidate cell c:        For each candidate cell c:
 
-  Compute h(c) via hedonic           Compute h(c) via hedonic formula using
-  formula with designer-set φ        agent-type φ (set at initialisation):
-                                       phiEgoist   → φ = 1.0  (only own gain)
-  Pick c* = argmax h(c)               phiAltruist → φ = 0.0  (only others)
-                                       phiBentham  → φ = 0.5  (balanced)
+  Compute h(c) via hedonic           Compute net fingerprint v_net(c):
+  formula with designer-set φ          v_net_imm(c) = φ·v_imm_self(c)
+                                                     − (1−φ)·mean_k[v_imm_k(c)]
+  Pick c* = argmax h(c)               v_net_fut(c) = φ·v_fut_self(c)
+                                                     − (1−φ)·mean_k[v_fut_k(c)]
 
-                                     Pick c* = argmax h(c)  ← same rule
+                                     dist(c) = ‖μ_imm − v_net_imm(c)‖₂
+                                             + ‖μ_fut  − v_net_fut(c)‖₂
 
-                                     THEN record net fingerprint of c*:
-                                       v_net_imm(c*) = φ·v_imm_self(c*)
-                                                     − (1−φ)·mean_k[v_imm_k(c*)]
-                                       v_net_fut(c*) = φ·v_fut_self(c*)
-                                                     − (1−φ)·mean_k[v_fut_k(c*)]
-                                       (logged every timestep for BFS computation)
+                                     Pick c* = argmin dist(c)
 ```
 
-The **BFE profile** `(mu_imm, mu_fut)` is the mean of these net fingerprints over all
-socially-contextual decisions (timesteps where at least one neighbour was present).
-The **Behavioral Fidelity Score (BFS)** — cosine similarity between the observed
-empirical profile and the derived target profile — then confirms whether the agent
-actually behaved as its ethical type predicts.
-
----
+The profile `(μ_imm, μ_fut)` is derived offline from the same v_net formula
+applied to a baseline agent's observed choices. Because the target (μ) and
+the candidates (v_net(c)) both use the same opportunity-cost decomposition,
+the comparison is in a **consistent space** — unlike earlier argmin attempts
+that compared a v_net profile against a raw v_self candidate.
 
 ## Part 1 — The Felicific Effect Vectors
 
@@ -541,290 +537,346 @@ The two vectors together form the cell's **welfare fingerprint**.
 
 ## Part 2 — Deriving the BFE Profiles (Opportunity-Cost Formulation)
 
-The BFE profile `(mu_imm, mu_fut)` for each agent type is derived offline,
-before any FVDM experiment runs.
+The BFE profile `(mu_imm, mu_fut)` is derived **offline**, before any FVDM
+experiment runs. The derivation agent is a **FVDMBFEAgent** — it decides
+exactly like a normal hedonic agent (argmax h(c)), and after each move it
+logs the net opportunity-cost fingerprint of the chosen cell.
 
-The core idea: instead of averaging the raw cell fingerprint (what does the
-chosen cell offer the agent?), we average the **net opportunity-cost fingerprint**
-— what the chosen cell offers *net of what it costs neighbours*. This decomposition
-comes directly from the hedonic formula itself:
-
-```
-  h(c)  =  φ × h_self(c)  −  (1−φ) × Σ_k h_other_k(c)
-
-Decomposing into immediate and future effect vectors:
-
-  v_net_imm(c*)  =  φ × v_imm_self(c*)  −  (1−φ) × mean_k[ v_imm_k(c*) ]
-  v_net_fut(c*)  =  φ × v_fut_self(c*)  −  (1−φ) × mean_k[ v_fut_k(c*) ]
-
-where k ranges over all neighbours that could reach cell c*.
-```
-
-Averaging `v_net` across all qualifying observations gives the BFE profile —
-the characteristic opportunity-cost signature of that agent type.
-
-**Why this formulation, not raw v_self?**
-
-Recording only `v_self(c*)` would capture what the agent gains but ignore what
-it costs others by choosing that cell. An egoist with φ=1.0 has `v_net = v_self`
-(the cost term vanishes), so the two are equivalent for pure egoists. But for
-Bentham (φ=0.5) or Altruist (φ=0.0), the profile without the cost term is
-incomplete — it misses the half of the decision that concerned others.
+Six steps take it from a simulation run to a stored profile.
 
 ```
-CORRECTED DERIVATION PIPELINE  (derive_vectors_phi.py)
-────────────────────────────────────────────────────────────────────────────
-
-STEP 1: Run homogeneous simulations (one agent type per batch)
-│
-│   Each derivation run contains only one agent type at a time.
-│   Homogeneous means: no cross-type competitive pressure. The profile
-│   reflects how the type behaves among its own kind.
-│
-│   Agent type used:  FVDMBFEAgent  (decides by φ-welfare, logs v_net)
-│
-│   ┌──────────────────────────────────────────────────┐
-│   │  Type: phiBfeEgoist  (φ = 1.0)                   │
-│   │    Seed 1  →  agent log (all timesteps)           │
-│   │    Seed 2  →  agent log                           │
-│   │    ...  Seed N                                    │
-│   │                                                   │
-│   │  Type: phiBfeAltruist  (φ = 0.0)                 │
-│   │    Seed 1 … Seed N                                │
-│   │                                                   │
-│   │  Type: phiBfeBentham  (φ = 0.5)                  │
-│   │    Seed 1 … Seed N                                │
-│   └──────────────────────────────────────────────────┘
-
-STEP 2: Filter to socially-contextual moves (neighbours > 0)
-│
-│   A qualifying move is any timestep where the FVDMBFEAgent had at
-│   least one other living agent within its vision range.
-│   Moves in empty neighbourhoods are excluded — no social choice was made.
-│
-│   All timesteps:  ████░████░░███░████░░░████░░██
-│                   ↑↑↑↑ ↑↑↑↑    ↑↑↑ ↑↑↑↑   ↑↑↑↑
-│   neighbours > 0: ● ●● ●●●     ● ● ●●●●   ●●●●
-│                   (these rows enter the derivation)
-
-STEP 3: Read pre-logged v_net from agent log
-│
-│   FVDMBFEAgent computes and logs v_net at every decision:
-│
-│     bfe_v_imm_I, bfe_v_imm_D, bfe_v_imm_C, bfe_v_imm_P, bfe_v_imm_E
-│     bfe_v_fut_I, bfe_v_fut_D, bfe_v_fut_C, bfe_v_fut_P, bfe_v_fut_E
-│
-│   derive_vectors_phi.py reads these columns directly.
-│   No post-hoc cell re-computation is required.
-
-STEP 4: Accumulate and average per agent type
-│
-│                       qualifying observations
-│   egoist    :   v_net_1   v_net_2  ...  v_net_N
-│                 ────────────────────────────────
-│                 mean → mu_imm_egoist  (5D vector)
-│                         mu_fut_egoist  (5D vector)
-│
-│   altruist  :   same procedure → mu_imm_altruist,  mu_fut_altruist
-│   bentham   :   same procedure → mu_imm_bentham,   mu_fut_bentham
-│   rawSugar  :   same procedure → mu_imm_raw,       mu_fut_raw
-
-STEP 5: Save profiles to bfe_profiles_phi.json
-│
-│   {
-│     "profiles": {
-│       "egoist":    { "mu_imm": [I, D, C, P, E],
-│                      "mu_fut":  [I, D, C, P, E] },
-│       "altruist":  { ... },
-│       "bentham":   { ... },
-│       "rawSugarscape": { ... }
-│     }
-│   }
-│
-│   These profiles are the learned opportunity-cost fingerprints.
-│   One profile per agent type. Each profile is two 5D net vectors.
+FVDM BFE AGENT (standing at current position, deciding each timestep)
+|
++--- STEP 1: Pick the best cell by ph-welfare  (normal hedonic rule)
+|
+|    FVDMBFEAgent scores every candidate cell with the same formula
+|    the baseline agent uses:
+|
+|         h(c)  =  ph x h_self(c)  -  (1-ph) x SUM_k h_other_k(c)
+|
+|    c* = argmax h(c)   -- the agent moves to c*.
+|    No profile is consulted. The derivation agent behaves
+|    identically to the standard Egoist / Bentham / Altruist.
+|
+|    Four types are derived separately, each in its own homogeneous batch:
+|
+|      phiBfeEgoist    ph = 1.0   ->  profile key "egoist"
+|      phiBfeBentham   ph = 0.5   ->  profile key "bentham"
+|      phiBfeAltruist  ph = 0.0   ->  profile key "altruist"
+|
+|
++--- STEP 2: Compute feature vectors for self and every reachable neighbour
+|
+|    After the agent moves to c*, it computes the immediate and future
+|    feature vectors that c* offers to every person k who could have
+|    reached c*. These are the same five-dimensional vectors from Part 1.
+|
+|    For each person k that CAN reach c*:
+|
+|         v_imm_k(c*)  =  [ I_k,  D_k,  1.0,  1.0,  E_k  ]
+|         v_fut_k(c*)  =  [ J,    Df_k, 1.0,  gamma, E_f_k ]
+|
+|    Numerical example -- Bentham agent (ph=0.5) chose c* = cell C.
+|    (Same cell as the baseline example:
+|     resources=5, capacity=8, pollution=0,
+|     adj. wealth=10 over 4 cells, W_gmax=400, gamma=0.5)
+|
+|    +-------------------------------------------------------------+
+|    |  SELF   (TTL=3, m=2, |V|=4, 1 neighbour from current cell) |
+|    |    I_self  =  1 / ((1+3)x(1+0))   =  0.250                 |
+|    |    D_self  =  (5/2) / 8            =  0.313                 |
+|    |    J       =  10 / (400x4)         =  0.006  (cell's nbrs)  |
+|    |    Df_self =  max(0, 5-2) / (2x8) =  0.188                 |
+|    |    E       =  1/4  =  0.250  (neighbours from current cell) |
+|    |    E_f     =  1/4  =  0.250  (neighbours from cell C)       |
+|    |                                                             |
+|    |    v_imm_self  =  [0.250, 0.313, 1.0, 1.0, 0.250]          |
+|    |    v_fut_self  =  [0.006, 0.188, 1.0, 0.5, 0.250]          |
+|    +-------------------------------------------------------------+
+|    |  N1  (TTL=5, m=3, range=1, |V|=3, CAN reach c*)            |
+|    |    I_N1   =  1 / ((1+5)x(1+0))   =  0.167  (less urgent)   |
+|    |    D_N1   =  (5/3) / 8            =  0.208  (higher m)      |
+|    |    J      =  10 / (400x4)         =  0.006  (same cell)     |
+|    |    Df_N1  =  max(0, 5-3) / (3x8) =  0.083  (higher m)      |
+|    |    E_N1   =  1/3  =  0.333  (range=1: only 3 cells in range)|
+|    |    E_f_N1 =  1/3  =  0.333  (same |V| applies to fut too)   |
+|    |                                                             |
+|    |    v_imm_N1    =  [0.167, 0.208, 1.0, 1.0, 0.333]          |
+|    |    v_fut_N1    =  [0.006, 0.083, 1.0, 0.5, 0.333]          |
+|    +-------------------------------------------------------------+
+|    |  N2  (CANNOT reach c* -- range < distance)  -> skipped     |
+|    +-------------------------------------------------------------+
+|
+|    One reachable neighbour (N1). mean_k[v_k] = v_N1.
+|
+|
++--- STEP 3: Compute v_net(c*) = ph x v_self  -  (1-ph) x mean_k[v_k]
+|
+|    This is the hedonic formula h(c) written coordinate-by-coordinate.
+|    Instead of collapsing to a scalar, we keep all five dimensions.
+|
+|    For Bentham (ph = 0.5), immediate vectors:
+|
+|    Dim    ph x self          (1-ph) x mean_k     v_net_imm
+|    -----  ------------------  ------------------  ----------
+|    I      0.5 x 0.250 = 0.125  0.5 x 0.167 = 0.083  +0.042
+|    D      0.5 x 0.313 = 0.156  0.5 x 0.208 = 0.104  +0.052
+|    C      0.5 x 1.000 = 0.500  0.5 x 1.000 = 0.500  +0.000
+|    P      0.5 x 1.000 = 0.500  0.5 x 1.000 = 0.500  +0.000
+|    E      0.5 x 0.250 = 0.125  0.5 x 0.333 = 0.167  -0.042
+|
+|         v_net_imm(c*)  =  [+0.042, +0.052, +0.000, +0.000, -0.042]
+|
+|    Future vectors (N1 has m=3 and |V|=3, so Df and E_f now differ):
+|
+|    Dim    ph x self          (1-ph) x mean_k     v_net_fut
+|    -----  ------------------  ------------------  ----------
+|    J      0.5 x 0.006 = 0.003  0.5 x 0.006 = 0.003  +0.000
+|    Df     0.5 x 0.188 = 0.094  0.5 x 0.083 = 0.042  +0.052
+|    C      0.5 x 1.000 = 0.500  0.5 x 1.000 = 0.500  +0.000
+|    P      0.5 x 0.500 = 0.250  0.5 x 0.500 = 0.250  +0.000
+|    E_f    0.5 x 0.250 = 0.125  0.5 x 0.333 = 0.167  -0.042
+|
+|         v_net_fut(c*)  =  [+0.000, +0.052, +0.000, +0.000, -0.042]
+|
+|    Reading the result:
+|      I_net   = +0.042  ->  self more urgently needs this cell (TTL=3 vs 5)
+|      D_net   = +0.052  ->  cell sustains self longer per metabolism unit
+|                            (self m=2: sustenance=0.313; N1 m=3: sustenance=0.208)
+|      C_net   =  0.000  ->  certainty cancels -- both can definitely reach c*
+|      P_net   =  0.000  ->  propinquity cancels -- both one timestep away
+|      E_net   = -0.042  ->  N1 has fewer candidate cells (|V|=3 vs 4); the
+|                            opportunity cost to N1 is socially amplified
+|      J_net   =  0.000  ->  neighbourhood richness depends only on the cell,
+|                            not on the agent asking
+|      Df_net  = +0.052  ->  more residual resources remain after self eats
+|                            (3 units / 16 capacity) vs N1 (2 units / 24 capacity)
+|      E_f_net = -0.042  ->  same |V| effect: N1's candidate space is narrower,
+|                            amplifying its social signal from cell C
+|
+|    For comparison -- what Egoist and Altruist would log at this step:
+|
+|      Egoist   (ph=1.0):  v_net = v_self = [0.250, 0.313, 1.0, 1.0, 0.250]
+|                           opportunity-cost term drops out entirely
+|
+|      Altruist (ph=0.0):  v_net = -mean_k = -[0.167, 0.208, 1.0, 1.0, 0.333]
+|                           = [-0.167, -0.208, -1.0, -1.0, -0.333]
+|                           records only the cost imposed on N1
+|
+|
++--- STEP 4: Check neighbours > 0 -- keep or discard this row
+|
+|    This agent had 1 living neighbour in range (N=1 > 0) -> INCLUDED.
+|
+|    If the agent were isolated (no neighbours at all), v_net carries
+|    no social signal and the row is excluded from the derivation.
+|    This filter keeps only socially-contextual moves.
+|
+|    +------------------------------------------------------+
+|    |  neighbours  =  0  ->  DISCARD (no social context)   |
+|    |  neighbours  >  0  ->  INCLUDE (social choice made)  |
+|    +------------------------------------------------------+
+|
+|    Note: even with neighbours > 0, the code may fall back to logging
+|    v_self if none of those neighbours can actually reach c*. This
+|    happens in ~4% of altruist rows and ~33% of bentham rows, slightly
+|    inflating the C and P coordinates away from their theoretical values
+|    (-1.0 for altruist, 0.0 for bentham). The actual profile reflects
+|    this mix -- it is the empirical average, not a theoretical prediction.
+|
+|
++--- STEP 5: Repeat across all timesteps and seeds; accumulate
+|
+|    Each qualifying timestep adds one (v_net_imm, v_net_fut) pair.
+|    The pipeline maintains a running sum and count per agent type.
+|
+|    timestep t1:  v_net_imm = [+0.042, +0.052, +0.000, +0.000, -0.042]
+|    timestep t2:  v_net_imm = [+0.031, +0.018, +0.000, +0.000, +0.002]
+|    timestep t3:  v_net_imm = [+0.012, +0.044, +0.000, +0.000, +0.000]
+|    ...
+|    timestep tN:  v_net_imm = [+0.028, +0.011, +0.000, +0.000, +0.001]
+|
+|    sum_imm  (after N qualifying steps, Bentham example):
+|      [ sum(I), sum(D), sum(C), sum(P), sum(E) ]
+|
+|    Run 10 seeds x ~1000 timesteps each, filter to neighbours > 0:
+|      Bentham  ->  ~7.57 million qualifying observations
+|      Altruist ->  ~3.25 million  (fewer: population dies faster at ph=0)
+|      Egoist   ->  ~4.50 million
+|
+|
++--- STEP 6: Divide sum by count -- the profile
+|
+|    mu_imm  =  sum_imm / N_qualifying
+|    mu_fut  =  sum_fut  / N_qualifying
+|
+|    These two 5D vectors are the BFE profile for this agent type.
+|    Stored in bfe_profiles_phi.json under the type's key.
+|
+|    Actual values from the current derivation (10 seeds, 1000 timesteps):
+|
+|    Profile      mu_imm[ I ]   mu_imm[ D ]   mu_imm[ C ]   mu_imm[ P ]
+|    -----------  -----------   -----------   -----------   -----------
+|    egoist        +0.043        +0.297        +1.000        +1.000
+|    bentham       +0.018        +0.119        +0.332        +0.332
+|    altruist      -0.046        -0.258        -0.922        -0.922
+|
+|    Why bentham C,P ~ 0.332 (not 0.0):  at ph=0.5 the C coordinate
+|    should cancel to 0 when a reachable neighbour exists. But ~33% of
+|    qualifying rows had no reachable neighbour for c* and fell back to
+|    v_self (C=+1.0). The average of 0 and +1.0 weighted 67/33 gives
+|    ~0.33. Same effect explains P ~ 0.332.
+|
+|    Why altruist C,P ~ -0.922 (not -1.0):  at ph=0.0 the formula
+|    gives C = -1.0 when a reachable neighbour exists. About 4% of
+|    rows fell back to v_self (C=+1.0). The average of -1.0 and +1.0
+|    weighted 96/4 gives ~-0.92.
 ```
 
-**Interpreting the net vectors:**
-
-The D (Duration) coordinate illustrates the difference most clearly:
+**Connection to the h(c) formula — why v_net is not a new idea:**
 
 ```
-  v_net_imm_D  =  φ × D_self(c*)  −  (1−φ) × mean_k[ D_k(c*) ]
+Scalar form:  h(c)  =  ph x h_self(c)   -   (1-ph) x SUM_k h_k(c)
+                              |                              |
+                     one scalar per cell           one scalar per neighbour
 
-  Egoist   (φ=1.0):  v_net_D  =  D_self           > 0  (positive: gain)
-  Bentham  (φ=0.5):  v_net_D  =  0.5×D_self − 0.5×D_k ≈ 0  (balanced)
-  Altruist (φ=0.0):  v_net_D  =  −mean_k[D_k]      < 0  (negative: cost)
+Vector form:  v_net(c*)  =  ph x v_self(c*)  -  (1-ph) x mean_k[v_k(c*)]
+                               |                                |
+                    five-dim vector per cell        five-dim vector per neighbour
 ```
 
-The egoist's profile has positive D — it characteristically moves to cells with
-high personal resource gain. The altruist's profile has negative D — it tends
-toward cells that *cost* others less, i.e., cells that are not contested.
-The Bentham profile sits near zero because gain and cost roughly cancel.
+h(c) collapses the five dimensions into a single score for the argmax.
+v_net(c*) keeps the five-dimensional structure, enabling the derivation
+to average it across thousands of observations and recover a stable
+characteristic fingerprint per agent type.
 
 **Script:** `python3 derive_vectors_phi.py --homogeneous -s 10 -t 5000 -a 250 -j 30`
 **Output:** `fvdm_vectors/bfe_profiles_phi.json`
 
 ---
 
-## Part 3 — FVDM as Measurement Framework
+## Part 3 — FVDM Action Selection (Consistent Argmin)
 
-FVDM is not an alternative decision rule — it is a verification instrument.
-The decision itself uses φ-welfare argmax (the same formula as the baseline).
-The measurement records the opportunity-cost fingerprint of each decision,
-accumulates it into an empirical BFE, and computes a **Behavioral Fidelity
-Score (BFS)** that quantifies how faithfully the agent's behaviour matches
-its declared ethical type.
+At runtime the FVDM agent replaces the baseline h(c) scoring with
+distance-minimising matching against its loaded prioritization profile.
+Both the profile and the candidates are expressed as v_net vectors —
+the opportunity-cost decomposition of the welfare formula — so the
+comparison is in the same space.
 
 ```
-FVDM AGENT — DECISION AND MEASUREMENT PROCEDURE
+FVDM AGENT — DECISION PROCEDURE  (FVDMArgminAgent)
 ────────────────────────────────────────────────────────────────────────────
 
-At startup: set φ for this agent's type
-              phiEgoist   → φ = 1.0
-              phiBentham  → φ = 0.5
-              phiAltruist → φ = 0.0
+At startup:
+  Load profile (μ_imm, μ_fut) from bfe_profiles_phi.json
+  Set φ for this agent's type:
+    fvdmArgminEgoist   → φ = 1.0,  profile = "egoist"
+    fvdmArgminBentham  → φ = 0.5,  profile = "bentham"
+    fvdmArgminAltruist → φ = 0.0,  profile = "altruist"
 
-Each timestep (FVDMPhiAgent):
+Each timestep, for every candidate cell c:
 
-  DECISION  ─────────────────────────────────────────────────────────────
-  │
-  │  For each candidate cell c:
-  │    score(c)  =  φ × h_self(c)  −  (1−φ) × Σ_k h_k(c)
-  │
-  │  Pick  c* = argmax score(c)    ← φ-welfare, identical to Bentham
-  │
-  MEASUREMENT  ──────────────────────────────────────────────────────────
-  │
-  │  Identify reachable neighbours k (agents that can reach c*)
-  │
-  │  Compute net fingerprint of chosen cell:
-  │    v_net_imm  =  φ × v_imm_self(c*)  −  (1−φ) × mean_k[ v_imm_k(c*) ]
-  │    v_net_fut  =  φ × v_fut_self(c*)  −  (1−φ) × mean_k[ v_fut_k(c*) ]
-  │
-  │  Log v_net_imm and v_net_fut to agent log
-  │  (only when neighbours > 0 — otherwise no social context)
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  1. Identify reachable neighbours k (agents that can reach c)    │
+  │                                                                  │
+  │  2. Compute net fingerprint of c for this agent:                 │
+  │       v_net_imm(c) = φ·v_imm_self(c) − (1−φ)·mean_k[v_imm_k(c)]│
+  │       v_net_fut(c) = φ·v_fut_self(c) − (1−φ)·mean_k[v_fut_k(c)]│
+  │                                                                  │
+  │  3. Compute distance to profile:                                 │
+  │       dist(c) = ‖μ_imm − v_net_imm(c)‖₂                        │
+  │               + ‖μ_fut  − v_net_fut(c)‖₂                        │
+  │                                                                  │
+  │  4. Pick c* = argmin dist(c)                                     │
+  └──────────────────────────────────────────────────────────────────┘
 
-POST-HOC VERIFICATION  ─────────────────────────────────────────────────
-
-  After all simulations finish, for each condition:
-
-  1. Read agent logs → collect all logged v_net (neighbours > 0 rows)
-  2. Compute empirical BFE:
-       mu_obs_imm  =  mean( v_net_imm  over all qualifying observations )
-       mu_obs_fut  =  mean( v_net_fut  over all qualifying observations )
-
-  3. Load derived target profile from bfe_profiles_phi.json:
-       mu_profile_imm,  mu_profile_fut
-
-  4. BFS  =  cosine_similarity( [mu_obs_imm, mu_obs_fut],
-                                 [mu_profile_imm, mu_profile_fut] )
-
-  BFS ≈ 1.0  →  observed behaviour matches derived profile  (faithful)
-  BFS < 0.9  →  behavioural drift — agent behaved differently
-                from its profile's derivation context
+After moving to c*, log v_net of the chosen cell:
+  argmin_v_imm_[I,D,C,P,E]  and  argmin_v_fut_[I,D,C,P,E]
+  (enables post-hoc BFS: does the observed mean match the profile?)
 ```
 
-**Why φ-welfare and not argmin distance?**
+**Why this comparison is consistent:**
 
-A profile is a *mean* over many observations. Argmin distance to the mean
-finds cells that are *average-looking* — cells whose fingerprint is
-closest to the middle of the distribution. But an egoist's characteristic
-behaviour is to pick the *best* available cell, not an average one. Forcing
-the egoist toward average cells starves it: it systematically avoids the
-richest options.
-
-The same failure occurs for J (future neighbourhood wealth). The mean J is
-non-zero because occupied, resource-rich areas are common during derivation.
-A profile-matching rule therefore pulls agents toward population-dense,
-resource-depleted areas — the exact ecological trap that caused extinction
-in earlier argmin experiments.
-
-φ-welfare avoids the trap because it directly maximises the agent's welfare
-function. The profile is only used after the fact, to ask: *given the cells
-the agent actually picked by φ-welfare, does the resulting fingerprint match
-what we expect from that ethical type?*
-
-**What BFS tells you:**
+The profile μ was derived by averaging v_net(c*) logged by FVDMBFEAgent
+during homogeneous baseline runs. At decision time, FVDMArgminAgent
+computes v_net(c) using the same formula for every candidate cell. So
+both sides of the distance computation use the same opportunity-cost
+decomposition. Compare with earlier attempts:
 
 ```
-Condition               BFS vs derived   Interpretation
-─────────────────────── ────────────     ──────────────────────────────────
-phiBenthamDerived       ≈ 0.997          φ=0.5 balanced rule produces a
-                                         fingerprint very close to its own
-                                         derivation — robust across population
-                                         compositions
+Earlier attempt (INCONSISTENT):
+  Profile μ   derived from v_net(c*)        ← opportunity-cost space
+  Candidate   v_self(c) or v_imm(c)         ← raw gain space
+  → comparing apples to oranges → extinction
 
-phiEgoistDerived        ≈ 0.83           φ=1.0 profile is ecologically
-phiAltruistDerived      ≈ 0.83           contingent: derivation context (who
-                                         else was in the population) shapes
-                                         the profile more than for Bentham
+Current approach (CONSISTENT):
+  Profile μ   derived from v_net(c*)        ← opportunity-cost space
+  Candidate   v_net(c) = φ·v_self(c)−...   ← same space
+  → argmin is a valid distance in a shared space
 ```
 
-Bentham's near-perfect BFS is not coincidental: because φ=0.5 weights own
-gain and others' cost equally, the profile averages out contextual variation.
-Egoist and altruist profiles are more sensitive to who else is present during
-derivation.
+### Worked Example — Egoist FVDMArgminAgent Choosing Between Three Cells
 
-### Worked Example — Egoist φ-Welfare Agent Choosing Between Three Cells
+Loaded profile (φ=1.0, egoist):
+```
+  μ_imm  =  [+0.27,  +0.31,  +1.0,  +1.0,  +0.21]
+  μ_fut  =  [+0.04,  +0.12,  +1.0,  +0.50, +0.21]
+```
 
-The agent has φ = 1.0. It computes h(c) = h_self(c) for each cell.
+For egoist (φ=1.0): v_net(c) = v_self(c) — cost term vanishes.
+
+Three candidate cells:
 
 ```
-  h_self(c)  =  Σ[ v_imm_self(c)_dim × w_dim ]   (hedonic sum)
-
-  Cell A  (rich, low pollution, low neighbours):
-    v_imm_self  =  [ 0.25, 0.31, 1.00, 1.00, 0.15 ]
-    h_self(A)   ≈  0.542
+  Cell A  (resource-rich):
+    v_net_imm  =  [ 0.25, 0.31, 1.00, 1.00, 0.25 ]
+    v_net_fut  =  [ 0.006, 0.19, 1.00, 0.50, 0.25 ]
+    dist(A)    =  ‖[−0.02, 0.00, 0, 0, +0.04]‖ + ‖[−0.034, +0.07, 0, 0, +0.04]‖
+               ≈  0.045 + 0.090  =  0.135
 
   Cell B  (depleted):
-    v_imm_self  =  [ 0.25, 0.05, 1.00, 1.00, 0.15 ]
-    h_self(B)   ≈  0.290
+    v_net_imm  =  [ 0.25, 0.05, 1.00, 1.00, 0.25 ]
+    dist(B)    ≈  0.263 + 0.190  =  0.453
 
-  Cell C  (crowded, resource-depleted):
-    v_imm_self  =  [ 0.25, 0.02, 1.00, 1.00, 0.40 ]
-    h_self(C)   ≈  0.274
+  Cell C  (polluted):
+    v_net_imm  =  [ 0.12, 0.09, 1.00, 1.00, 0.25 ]
+    dist(C)    ≈  0.228 + 0.170  =  0.398
 ```
 
-**Decision:** c* = Cell A  (highest h_self)
-
-**Measurement (v_net, φ=1.0, so cost term = 0):**
-```
-  v_net_imm  =  1.0 × v_imm_self(A)  −  0.0 × mean_k[...]
-             =  [ 0.25, 0.31, 1.00, 1.00, 0.15 ]   (same as v_self for egoist)
-```
-
-This pair is logged. After thousands of such decisions, the mean of logged
-v_net_imm is the empirical BFE. BFS measures how close it is to the
-pre-derived egoist profile.
-
----
+**Result:** c* = Cell A  (smallest distance to the egoist profile).
+The agent moves to the resource-rich cell — matching the egoist profile
+which is anchored at high positive D and I values.
 
 ## Full Pipeline Summary
 
 ```
-OFFLINE: BFE DERIVATION                           ONLINE: EXPERIMENT + VERIFICATION
-(derive_vectors_phi.py, run once)                 (run_experiments_fvdm_phi.py)
+OFFLINE: BFE DERIVATION                           ONLINE: DECISION + LOGGING
+(derive_vectors_phi.py, run once)                 (run_experiments_fvdm_argmin.py)
 ──────────────────────────────────────────────    ──────────────────────────────────
 
- Homogeneous sims per agent type                  FVDMPhiAgent starts at current cell
+ Homogeneous sims per agent type                  FVDMArgminAgent starts at cell
  (FVDMBFEAgent, one type per batch)                        │
          │                                                 ▼
-         ▼                                        φ-welfare decision:
- Filter: neighbours > 0                             score(c) = φ·h_self(c) − (1−φ)·Σh_k(c)
-         │                                          c* = argmax score(c)
+         ▼                                        For each candidate cell c:
+ Filter: neighbours > 0                             compute v_net(c) = φ·v_self(c)
+         │                                                 − (1−φ)·mean_k[v_k(c)]
          ▼                                                 │
- FVDMBFEAgent logs v_net per move:                         ▼
-   v_net = φ·v_self(c*) − (1−φ)·mean_k[v_k(c*)]  Measure v_net of chosen c*
-         │                                          log v_net_imm, v_net_fut
+ FVDMBFEAgent logs v_net(c*):                              ▼
+   v_net = φ·v_self(c*) − (1−φ)·mean_k[v_k(c*)]  dist(c) = ‖μ_imm − v_net_imm(c)‖
+         │                                                + ‖μ_fut  − v_net_fut(c)‖
          ▼                                                 │
  Average logged v_net per type                             ▼
-         │                                        POST-HOC (after all seeds):
-         ▼                                          mu_obs = mean(logged v_net)
- Save mu_imm, mu_fut                                BFS = cosine_sim(mu_obs, mu_profile)
- → bfe_profiles_phi.json                            → bfs_vs_derived.csv
-                                                    → bfs_vs_baseline.csv
+         │                                        c* = argmin dist(c)
+         ▼                                                 │
+ Save μ_imm, μ_fut                                         ▼
+ → bfe_profiles_phi.json                          Log v_net(c*) for BFS
+
+                                                  POST-HOC:
+                                                    μ_obs = mean(logged v_net)
+                                                    BFS = cosine_sim(μ_obs, μ_profile)
+                                                    → bfs_vs_derived.csv
 ```
+
 
 ---
 
@@ -1029,7 +1081,6 @@ Four separate batches — one per agent type:
   phiBfeEgoist   (φ=1.0): 250 agents, all egoist
   phiBfeAltruist (φ=0.0): 250 agents, all altruist
   phiBfeBentham  (φ=0.5): 250 agents, all bentham
-  phiBfeRaw      (φ=1.0): 250 agents, all raw
 
   N seeds per type (e.g. 10 seeds × 5000 timesteps).
   Each FVDMBFEAgent decides by φ-welfare and logs v_net every timestep.
@@ -1091,22 +1142,23 @@ egoist profile? to the altruist profile?* That question was previously unanswera
 
 ---
 
-## Experiment 5 — FVDM φ-Welfare Agents + BFS Verification
+## Experiment 5 — Consistent-Argmin FVDM Agents
 
-**Script:** `run_experiments_fvdm_phi.py` (4 conditions, 30 seeds each)
+**Script:** `run_experiments_fvdm_argmin.py` (4 conditions, 30 seeds each)
 
 **What we run:**
 
 ```
-Condition 1:  phiRawDerived      — FVDMPhiAgent φ=1.0  (raw/greedy)
-Condition 2:  phiEgoistDerived   — FVDMPhiAgent φ=1.0  (egoist)
-Condition 3:  phiAltruistDerived — FVDMPhiAgent φ=0.0  (altruist)
-Condition 4:  phiBenthamDerived  — FVDMPhiAgent φ=0.5  (bentham)
+Condition 1:  argminRaw       — FVDMArgminAgent φ=1.0  (raw/greedy)
+Condition 2:  argminEgoist    — FVDMArgminAgent φ=1.0  (egoist)
+Condition 3:  argminAltruist  — FVDMArgminAgent φ=0.0  (altruist)
+Condition 4:  argminBentham   — FVDMArgminAgent φ=0.5  (bentham)
 
 30 seeds × 5000 timesteps × 250 agents each.
+Profile loaded from bfe_profiles_phi.json (corrected opportunity-cost profiles).
 
 Command:
-  python3 run_experiments_fvdm_phi.py -s 30 -t 5000 -a 250 -j 30
+  python3 run_experiments_fvdm_argmin.py -s 30 -t 5000 -a 250 -j 30
 ```
 
 **What we observe:**
@@ -1114,89 +1166,52 @@ Command:
 ```
 Primary outputs:
 
-  bfs_vs_derived.csv   — BFS of each condition against its own derived
-                         profile from bfe_profiles_phi.json
-                         (verification: does the agent behave as its
-                          profile predicts?)
-
-  bfs_vs_baseline.csv  — BFS of each phi-agent against the corresponding
-                         baseline condition's empirical BFE
-                         (integrity check: does phi-welfare reproduce
-                          the same behavioral fingerprint as the original
-                          baseline agent?)
+  bfs_vs_derived.csv  — BFS(μ_obs, μ_profile) per condition
+                        (does the argmin agent's observed fingerprint
+                         match the profile it was matching against?)
 
 Secondary outputs:
 
-  Societal metrics per seed:
-    extinction rate, final population, mean wealth, Gini, mean TTL
-
-  per_seed_felicific.csv  — timestep-level logs for BFS computation
+  per_seed_summary.csv     — extinction rate, final pop, mean wealth, Gini, TTL
+  condition_aggregates.csv — mean ± sd across seeds
 ```
 
 **What this reveals — the three comparison tests:**
 
 ```
-TEST A — BFS vs. Derived Profile  (behavioral consistency check)
+TEST A — Does consistent argmin produce the correct behavioral fingerprint?
 
-  Expected: BFS ≈ 1.0 for all conditions.
-  The phi-welfare agent uses the same decision function that generated
-  the profile, so the empirical fingerprint should closely match the
-  derived target.
-
-  Preliminary result (500-timestep pilot, 3 seeds):
-
-  Condition              BFS vs derived
-  ─────────────────────  ──────────────
-  phiBenthamDerived      0.997   ← near-perfect
-  phiEgoistDerived       0.83
-  phiAltruistDerived     0.83
-
-  Bentham's near-perfect BFS reflects that φ=0.5 balanced weighting
-  produces a composition-robust fingerprint (gain and cost cancel out
-  context-specific variation). Egoist and altruist profiles are more
-  sensitive to the population composition present during derivation.
+  If the agent matches profile μ_egoist by argmin, its observed choices
+  should also have a mean v_net close to μ_egoist → BFS ≈ 1.0.
+  A low BFS would mean the argmin pulls agents toward cells whose v_net
+  differs from the profile (e.g. "average" cells rather than
+  characteristically egoist cells).
 
   ┌─────────────────────────────────────────────────────────────────┐
-  │  Panel asks: "Why not just set φ=1?"                            │
-  │  Answer: φ is a design parameter. BFS is a measurement.         │
-  │  High BFS confirms the agent actually behaved like its type,    │
-  │  not just that it was labeled that type. Those differ when the  │
-  │  population composition changes — BFS catches it; φ does not.   │
+  │  Expected: BFS close to 1.0 for all conditions.                 │
+  │  If BFS < 0.9: the argmin rule finds cells that are "close to   │
+  │  the profile" by distance but whose average fingerprint         │
+  │  drifts from μ — the "average cell" effect.                     │
   └─────────────────────────────────────────────────────────────────┘
 
 
-TEST B — Societal Outcomes vs. Baseline  (ecological viability check)
+TEST B — Do agents survive?
 
-  Societal outcomes from pilot run (500 timesteps, 3 seeds each):
-
-  Condition              Extinction %   Avg final pop   Mean TTL
-  ─────────────────────  ────────────   ─────────────   ────────
-  phiRawDerived          0%             ?               ?
-  phiEgoistDerived       16.7%          ?               ?
-  phiAltruistDerived     ?              ?               ?
-  phiBenthamDerived      0%             1049            19.30
-
-  *(Full 30-seed × 5000-timestep results pending.)*
-
-  phiBenthamDerived shows 0% extinction and the highest observed
-  final population — consistent with Experiment 1, where Bentham
-  balanced populations outperform pure egoists over long runs.
+  Extinction rate and final population tell us whether consistent
+  argmin in v_net space is ecologically viable.
 
   ┌─────────────────────────────────────────────────────────────────┐
-  │  Panel asks: "Does that make FVDM better or just different?"    │
-  │  Answer: The φ-welfare decision rule (FVDM's engine) is the     │
-  │  same as the baseline — so outcomes should replicate. The added  │
-  │  value of FVDM is the BFS measurement layer: it tells you        │
-  │  whether the agent behaved as intended, not just what happened.  │
+  │  If high extinction: consistent argmin still fails ecologically. │
+  │  If low extinction: argmin is a viable decision rule and the     │
+  │  "average cell" concern was overstated.                          │
   └─────────────────────────────────────────────────────────────────┘
 
 
 TEST C — Can FVDM detect ethical equivalence the baseline misses?
 
   Find two φ values from Experiment 2 that produce identical societal
-  outcomes (same final population, same mean wealth). Compute their BFE
-  profiles. Show they are measurably different in v_net space even
-  though the outcome metrics are identical.
+  outcomes. Compute their BFE profiles. Show they are measurably
+  different in v_net space even though outcome metrics are identical.
 
   ┌─────────────────────────────────────────────────────────────────┐
   │  Panel asks: "So what? If outcomes are the same, who cares?"    │
@@ -1228,13 +1243,13 @@ Plot one point per agent type — derived profile vs. observed empirical BFE.
   │  Altruist ●                        ← derived profile (bfe_profiles_phi.json)
   │             ╲
   │              ╲
-  │    phiAltruistDerived ★            ← empirical BFE from experiment
+  │    argminAltruist ★                ← empirical BFE from experiment
   │
   │             Bentham ●
-  │           phiBenthamDerived ★      ← BFS 0.997: tightly clustered
+  │           argminBentham ★          ← expected: tightly clustered
   │
   │                        Egoist ●
-  │                      phiEgoistDerived ★
+  │                      argminEgoist ★
   │
   └─────────────────────────────────── PC1
 
@@ -1279,10 +1294,10 @@ Experiment 4:  CAN WE CHARACTERIZE BEHAVIOR WITHOUT φ?
                → YES. Each agent type has a stable opportunity-cost fingerprint
                  derivable from observed choices alone.
 
-Experiment 5:  DOES φ-WELFARE FVDM VERIFY ITS OWN BEHAVIORAL PROFILE?
-               run_experiments_fvdm_phi.py + BFS verification.
-               → BFS ≈ 1.0 for Bentham (Test A) — behavior matches profile.
-               → Outcomes replicate baseline (Test B) — φ-welfare is sound.
+Experiment 5:  DOES CONSISTENT ARGMIN FVDM WORK?
+               run_experiments_fvdm_argmin.py + BFS verification.
+               → BFS tells us if argmin agents produce the expected fingerprint.
+               → Extinction rate tells us if argmin is ecologically viable.
                → BFE profiles distinguish ethical stances with same outcomes (Test C).
 
 Experiment 6:  CAN WE SEE THE FRAMEWORK WORKING?
