@@ -940,3 +940,181 @@ class FVDMArgminAgent(Bentham):
 
     def spawnChild(self, childID, birthday, cell, configuration):
         return FVDMArgminAgent(childID, birthday, cell, configuration)
+
+
+class FVDMArgminFactoredAgent(Bentham):
+    """
+    FVDM with factored four-vector profiles derived from BFE.
+
+    Profiles come from derive_vectors_factored.py and encode:
+      μ_self_imm = mean(φ · v_self_imm(c*))
+      μ_self_fut  = mean(φ · v_self_fut(c*))
+      μ_nbr_imm  = mean((1−φ) · v_nbr_imm(c*))
+      μ_nbr_fut   = mean((1−φ) · v_nbr_fut(c*))
+
+    At each timestep, cell selection:
+      score(c) = ‖ φ·v_self_imm(c) − μ_self_imm ‖₂ + ‖ φ·v_self_fut(c) − μ_self_fut ‖₂
+               + ‖ (1−φ)·v_nbr_imm(c) − μ_nbr_imm ‖₂ + ‖ (1−φ)·v_nbr_fut(c) − μ_nbr_fut ‖₂
+      c* = argmin score(c)
+
+    Because φ=1 makes μ_nbr ≈ 0 and (1−φ)·v_nbr(c) = 0, the neighbor terms
+    vanish for egoist agents — no extinction from low-resource profile values.
+
+    Agent types (decisionModel substrings → φ, profile):
+      fvdmFactoredRaw      → φ=1.0, "rawSugarscape"
+      fvdmFactoredEgoist   → φ=1.0, "egoist"
+      fvdmFactoredAltruist → φ=0.0, "altruist"
+      fvdmFactoredBentham  → φ=0.5, "bentham"
+    """
+
+    _PROFILES     = None
+    _PROFILE_PATH = "fvdm_vectors/bfe_profiles_factored.json"
+
+    _PHI_MAP = {
+        "fvdmfactoredraw":      (1.0, "rawSugarscape"),
+        "fvdmfactoredegoist":   (1.0, "egoist"),
+        "fvdmfactoredaltruist": (0.0, "altruist"),
+        "fvdmfactoredbentham":  (0.5, "bentham"),
+    }
+
+    @classmethod
+    def _load_profiles(cls):
+        if cls._PROFILES is not None:
+            return
+        import json as _json, os as _os
+        cls._PROFILES = {}
+        path = _os.environ.get("FVDM_FACTORED_PROFILE_PATH", cls._PROFILE_PATH)
+        if _os.path.exists(path):
+            with open(path) as f:
+                data = _json.load(f)
+            cls._PROFILES = data.get("profiles", {})
+        else:
+            print(f"[FVDMArgminFactoredAgent] Profile not found at {path}. "
+                  "Run derive_vectors_factored.py --homogeneous first. Using zero fallback.")
+
+    def __init__(self, agentID, birthday, cell, configuration):
+        super().__init__(agentID, birthday, cell, configuration)
+        self._load_profiles()
+        dm = configuration.get("decisionModel", "").lower()
+        phi, profile_key = 0.5, "bentham"
+        for substr, (pv, pk) in self._PHI_MAP.items():
+            if substr in dm:
+                phi, profile_key = pv, pk
+                break
+        self._phi = phi
+        self.selfishnessFactor = phi
+        profile = self._PROFILES.get(profile_key, {})
+        self.mu_self_imm = np.array(profile.get("mu_self_imm", [0.0] * 5), dtype=float)
+        self.mu_self_fut  = np.array(profile.get("mu_self_fut",  [0.0] * 5), dtype=float)
+        self.mu_nbr_imm  = np.array(profile.get("mu_nbr_imm",  [0.0] * 5), dtype=float)
+        self.mu_nbr_fut   = np.array(profile.get("mu_nbr_fut",   [0.0] * 5), dtype=float)
+        self._chosen_self_imm = np.zeros(5)
+        self._chosen_self_fut  = np.zeros(5)
+        self._chosen_nbr_imm  = np.zeros(5)
+        self._chosen_nbr_fut   = np.zeros(5)
+
+    # ── Per-agent feature vectors ─────────────────────────────────────────────
+
+    def _v_imm_for(self, a, cell) -> np.ndarray:
+        ttl  = max(0.0, a.findTimeToLive())
+        poll = max(0.0, float(cell.pollution))
+        m    = max(1.0, float(a.findSugarMetabolism() + a.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        try:
+            v = max(1, len(a.cellsInRange))
+        except Exception:
+            v = 1
+        I = 1.0 / ((1.0 + ttl) * (1.0 + poll))
+        D = min(1.0, w_c / (m * w_c_max))
+        return np.array([I, D, 1.0, 1.0, 1.0 / v])
+
+    def _v_fut_for(self, a, cell) -> np.ndarray:
+        m       = max(1.0, float(a.findSugarMetabolism() + a.findSpiceMetabolism()))
+        w_c     = max(0.0, float(cell.sugar + cell.spice))
+        w_c_max = max(1.0, float(cell.maxSugar + cell.maxSpice))
+        try:
+            v = max(1, len(a.cellsInRange))
+        except Exception:
+            v = 1
+        env        = cell.environment
+        w_glob_max = max(1.0, float(env.globalMaxSugar + env.globalMaxSpice))
+        w_adj      = float(cell.findNeighborWealth())
+        n_adj      = max(1, len(cell.neighbors))
+        try:
+            gamma = float(a.decisionModelLookaheadDiscount) if a.decisionModelLookaheadDiscount else 0.5
+        except Exception:
+            gamma = 0.5
+        J  = w_adj / (w_glob_max * n_adj)
+        Df = max(0.0, w_c - m) / (m * w_c_max)
+        return np.array([J, Df, 1.0, gamma, 1.0 / v])
+
+    # ── Cell selection: argmin factored distance ──────────────────────────────
+
+    def findBestEthicalCell(self, cells, greedyBestCell=None):
+        if not cells:
+            return greedyBestCell
+
+        phi     = self._phi
+        nbr_w   = 1.0 - phi
+        best_cell = None
+        best_dist = float("inf")
+
+        for cell_dict in cells:
+            c = cell_dict["cell"]
+
+            # φ-scaled self vectors
+            si = phi * self._v_imm_for(self, c)
+            sf = phi * self._v_fut_for(self, c)
+
+            # (1−φ)-scaled mean neighbour vectors
+            if nbr_w > 1e-9 and self.neighborhood:
+                other_imm, other_fut = [], []
+                for k in self.neighborhood:
+                    if k is self:
+                        continue
+                    try:
+                        if not k.canReachCell(c):
+                            continue
+                    except Exception:
+                        continue
+                    other_imm.append(self._v_imm_for(k, c))
+                    other_fut.append(self._v_fut_for(k, c))
+                if other_imm:
+                    ni = nbr_w * np.mean(other_imm, axis=0)
+                    nf = nbr_w * np.mean(other_fut, axis=0)
+                else:
+                    ni = np.zeros(5)
+                    nf = np.zeros(5)
+            else:
+                ni = np.zeros(5)
+                nf = np.zeros(5)
+
+            dist = (np.linalg.norm(si - self.mu_self_imm) +
+                    np.linalg.norm(sf - self.mu_self_fut)  +
+                    np.linalg.norm(ni - self.mu_nbr_imm)   +
+                    np.linalg.norm(nf - self.mu_nbr_fut))
+
+            if dist < best_dist:
+                best_dist          = dist
+                best_cell          = c
+                self._chosen_self_imm = si
+                self._chosen_self_fut  = sf
+                self._chosen_nbr_imm  = ni
+                self._chosen_nbr_fut   = nf
+
+        return best_cell if best_cell is not None else greedyBestCell
+
+    # ── Runtime stats ─────────────────────────────────────────────────────────
+
+    def updateRuntimeStats(self):
+        super().updateRuntimeStats()
+        labels = ["I", "D", "C", "P", "E"]
+        for i, lbl in enumerate(labels):
+            self.runtimeStats[f"fct_self_imm_{lbl}"] = round(float(self._chosen_self_imm[i]), 6)
+            self.runtimeStats[f"fct_self_fut_{lbl}"]  = round(float(self._chosen_self_fut[i]),  6)
+            self.runtimeStats[f"fct_nbr_imm_{lbl}"]  = round(float(self._chosen_nbr_imm[i]),  6)
+            self.runtimeStats[f"fct_nbr_fut_{lbl}"]   = round(float(self._chosen_nbr_fut[i]),   6)
+
+    def spawnChild(self, childID, birthday, cell, configuration):
+        return FVDMArgminFactoredAgent(childID, birthday, cell, configuration)
